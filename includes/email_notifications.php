@@ -1,30 +1,55 @@
 <?php
 // includes/email_notifications.php
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
+function phpmailer_available(): bool {
+    $base = __DIR__ . '/PHPMailer/src/';
+    return file_exists($base . 'PHPMailer.php')
+        && file_exists($base . 'SMTP.php')
+        && file_exists($base . 'Exception.php');
+}
 
+function makeMailer() {
+    if (!phpmailer_available()) {
+        error_log('[MAIL] PHPMailer files not found in ' . __DIR__ . '/PHPMailer/src/');
+        return null; // para hindi mag-fatal, babalik na lang tayo ng null
+    }
 
+    // Lazy require (dito lang i-load kapag talagang gagamitin)
+    $base = __DIR__ . '/PHPMailer/src/';
+    require_once $base . 'Exception.php';
+    require_once $base . 'PHPMailer.php';
+    require_once $base . 'SMTP.php';
 
-// ✅ Relative paths for hosting (Linux/Windows OK)
-$base = __DIR__ . '/PHPMailer/src/';
-require $base . 'Exception.php';
-require $base . 'PHPMailer.php';
-require $base . 'SMTP.php';
-
-function makeMailer(): PHPMailer {
-    $mail = new PHPMailer(true);
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
     $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = 'cspbank911@gmail.com';     // ilagay ang app password mo sa constants kung gusto mo
-     $mail->Password = 'uzhtbqmdqigquyqq';    // huwag ilagay ang real password sa repo
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // or PHPMailer::ENCRYPTION_STARTTLS + Port 587
-    $mail->Port = 465;                             // 465 for SMTPS, 587 for STARTTLS
+    $mail->Host       = 'smtp.gmail.com';
+    $mail->SMTPAuth   = true;
+    $mail->Username   = 'cspbank911@gmail.com';
+    $mail->Password   = 'YOUR_APP_PASSWORD';      // palitan ng Gmail App Password
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; // or ENCRYPTION_STARTTLS + Port 587
+    $mail->Port       = 465;                      // 465 (SMTPS) o 587 (STARTTLS)
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
     $mail->isHTML(true);
     return $mail;
+}
+
+/** Example function – hindi magfa-fatal kapag wala ang PHPMailer */
+function sendRegistrationEmail(string $toEmail, string $toName): bool {
+    $mail = makeMailer();
+    if ($mail === null) {
+        // Safe fallback: huwag mag-send pero huwag din mag-crash
+        return false;
+    }
+    try {
+        $mail->addAddress($toEmail, $toName);
+        $mail->Subject = 'Welcome to ETEEAPRO';
+        $mail->Body    = '<p>Hi ' . htmlspecialchars($toName) . ', welcome!</p>';
+        $mail->AltBody = 'Hi ' . $toName . ', welcome!';
+        return $mail->send();
+    } catch (Throwable $e) {
+        error_log('[MAIL] sendRegistrationEmail error: ' . $e->getMessage());
+        return false;
+    }
 }
 
 

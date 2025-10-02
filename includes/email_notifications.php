@@ -1,6 +1,11 @@
 <?php
 // includes/email_notifications.php
 
+
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
+
 function phpmailer_available(): bool {
     $base = __DIR__ . '/PHPMailer/src/';
     return file_exists($base . 'PHPMailer.php')
@@ -8,39 +13,45 @@ function phpmailer_available(): bool {
         && file_exists($base . 'Exception.php');
 }
 
+// ---------- Helper: Create PHPMailer or return null ----------
 function makeMailer() {
     if (!phpmailer_available()) {
         error_log('[MAIL] PHPMailer files not found in ' . __DIR__ . '/PHPMailer/src/');
-        return null; // para hindi mag-fatal, babalik na lang tayo ng null
+        return null; // Huwag mag-crash; calling code will skip send
     }
 
-    // Lazy require (dito lang i-load kapag talagang gagamitin)
+    // Lazy require (dito lang kapag gagamitin)
     $base = __DIR__ . '/PHPMailer/src/';
     require_once $base . 'Exception.php';
     require_once $base . 'PHPMailer.php';
     require_once $base . 'SMTP.php';
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-       $mail->isSMTP();
+    $mail->isSMTP();
     $mail->Host       = 'smtp.gmail.com';
     $mail->SMTPAuth   = true;
     $mail->Username   = 'cspbank911@gmail.com';
     $mail->Password   = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; //
-    $mail->Port       = 587; // Changed
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; // or ENCRYPTION_STARTTLS + Port 587
+    $mail->Port       = 465; // 465 (SMTPS) o 587 (STARTTLS)
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
     $mail->isHTML(true);
     return $mail;
 }
 
-/** Example function – hindi magfa-fatal kapag wala ang PHPMailer */
+// Small helper for BASE_URL safety
+function _base_url_safe(): string {
+    return defined('BASE_URL') ? rtrim(BASE_URL, '/') . '/' : '/';
+}
+
+/** Optional example; safe kapag wala ang PHPMailer */
 function sendRegistrationEmail(string $toEmail, string $toName): bool {
-    $mail = makeMailer();
-    if ($mail === null) {
-        // Safe fallback: huwag mag-send pero huwag din mag-crash
-        return false;
-    }
     try {
+        $mail = makeMailer();
+        if ($mail === null) {
+            error_log('[MAIL] Skipping sendRegistrationEmail: PHPMailer not available');
+            return false;
+        }
         $mail->addAddress($toEmail, $toName);
         $mail->Subject = 'Welcome to ETEEAPRO';
         $mail->Body    = '<p>Hi ' . htmlspecialchars($toName) . ', welcome!</p>';
@@ -52,17 +63,20 @@ function sendRegistrationEmail(string $toEmail, string $toName): bool {
     }
 }
 
-
 /**
- * Send registration confirmation to user
+ * Send registration confirmation to user (FULL HTML)
  */
 function sendRegistrationNotification($user_email, $user_name) {
     try {
         $mail = makeMailer();
-        
+        if ($mail === null) {
+            error_log('[MAIL] Skipping sendRegistrationNotification: PHPMailer not available');
+            return false;
+        }
+
         $mail->addAddress($user_email, $user_name);
         $mail->Subject = 'ETEEAP Registration - Under Review';
-        
+
         $mail->Body = "
         <html>
         <head>
@@ -73,6 +87,7 @@ function sendRegistrationNotification($user_email, $user_name) {
                 .content { padding: 20px; background: #f9f9f9; }
                 .footer { background: #333; color: white; padding: 10px; text-align: center; }
                 .status-badge { background: #ffc107; color: #000; padding: 5px 10px; border-radius: 15px; display: inline-block; }
+                ul { padding-left: 18px; }
             </style>
         </head>
         <body>
@@ -81,7 +96,7 @@ function sendRegistrationNotification($user_email, $user_name) {
                     <h2>🎓 ETEEAP Registration</h2>
                 </div>
                 <div class='content'>
-                    <h3>Dear {$user_name},</h3>
+                    <h3>Dear ".htmlspecialchars($user_name).",</h3>
                     <p>Thank you for registering with the ETEEAP (Expanded Tertiary Education Equivalency and Accreditation Program)!</p>
                     
                     <p><strong>Registration Status:</strong> <span class='status-badge'>Under Review</span></p>
@@ -106,34 +121,36 @@ function sendRegistrationNotification($user_email, $user_name) {
                     <p>Best regards,<br><strong>ETEEAP Admin Team</strong></p>
                 </div>
                 <div class='footer'>
-                    <p>&copy; 2025 ETEEAP System. All rights reserved.</p>
+                    <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
                 </div>
             </div>
         </body>
         </html>";
-        
+
         $mail->AltBody = "Dear {$user_name}, Your ETEEAP registration has been received and is currently under review. You will be notified once your application is approved.";
-        
+
         $result = $mail->send();
-        
-        // Log email activity
-        error_log("Registration email sent to: {$user_email} - Status: " . ($result ? 'Success' : 'Failed'));
-        
+        error_log('Registration email to ' . $user_email . ' => ' . ($result ? 'Success' : 'Failed'));
         return $result;
-        
-    } catch (Exception $e) {
-        error_log("Registration email failed: {$mail->ErrorInfo}");
+    } catch (Throwable $e) {
+        error_log('Registration email failed: ' . $e->getMessage());
         return false;
     }
 }
 
 /**
- * Send approval notification to user
+ * Send approval notification to user (FULL HTML)
  */
 function sendApprovalNotification($user_email, $user_name) {
     try {
         $mail = makeMailer();
-        
+        if ($mail === null) {
+            error_log('[MAIL] Skipping sendApprovalNotification: PHPMailer not available');
+            return false;
+        }
+
+        $baseUrl = _base_url_safe();
+
         $mail->addAddress($user_email, $user_name);
         $mail->Subject = 'ETEEAP Registration - Approved! 🎉';
         
@@ -148,6 +165,7 @@ function sendApprovalNotification($user_email, $user_name) {
                 .footer { background: #333; color: white; padding: 10px; text-align: center; }
                 .success-badge { background: #28a745; color: white; padding: 5px 10px; border-radius: 15px; display: inline-block; }
                 .login-btn { background: #667eea; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block; margin: 10px 0; }
+                ul { padding-left: 18px; }
             </style>
         </head>
         <body>
@@ -157,7 +175,7 @@ function sendApprovalNotification($user_email, $user_name) {
                     <h3>Your ETEEAP Application is Approved</h3>
                 </div>
                 <div class='content'>
-                    <h3>Dear {$user_name},</h3>
+                    <h3>Dear ".htmlspecialchars($user_name).",</h3>
                     <p>Great news! Your ETEEAP registration has been approved by our admin team.</p>
                     
                     <p><strong>Application Status:</strong> <span class='success-badge'>✅ Approved</span></p>
@@ -171,7 +189,7 @@ function sendApprovalNotification($user_email, $user_name) {
                     </ul>
                     
                     <div style='text-align: center; margin: 20px 0;'>
-                        <a href='" . BASE_URL . "auth/login.php' class='login-btn'>Login to Your Account</a>
+                        <a href='".$baseUrl."auth/login.php' class='login-btn'>Login to Your Account</a>
                     </div>
                     
                     <p><strong>Next Steps:</strong></p>
@@ -187,36 +205,39 @@ function sendApprovalNotification($user_email, $user_name) {
                     <p>Best regards,<br><strong>ETEEAP Admin Team</strong></p>
                 </div>
                 <div class='footer'>
-                    <p>&copy; 2025 ETEEAP System. All rights reserved.</p>
+                    <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
                 </div>
             </div>
         </body>
         </html>";
-        
-        $mail->AltBody = "Congratulations {$user_name}! Your ETEEAP registration has been approved. You can now log in at " . BASE_URL . "auth/login.php";
-        
+
+        $mail->AltBody = "Congratulations {$user_name}! Your ETEEAP registration has been approved. You can now log in at ".$baseUrl."auth/login.php";
+
         $result = $mail->send();
-        error_log("Approval email sent to: {$user_email} - Status: " . ($result ? 'Success' : 'Failed'));
-        
+        error_log('Approval email to ' . $user_email . ' => ' . ($result ? 'Success' : 'Failed'));
         return $result;
-        
-    } catch (Exception $e) {
-        error_log("Approval email failed: {$mail->ErrorInfo}");
+    } catch (Throwable $e) {
+        error_log('Approval email failed: ' . $e->getMessage());
         return false;
     }
 }
 
 /**
- * Send rejection notification to user
+ * Send rejection / needs info notification (FULL HTML)
  */
 function sendRejectionNotification($user_email, $user_name, $reason = '') {
     try {
         $mail = makeMailer();
-        
+        if ($mail === null) {
+            error_log('[MAIL] Skipping sendRejectionNotification: PHPMailer not available');
+            return false;
+        }
+
+        $baseUrl = _base_url_safe();
+        $reason = !empty($reason) ? $reason : 'Additional review required';
+
         $mail->addAddress($user_email, $user_name);
         $mail->Subject = 'ETEEAP Registration - Additional Information Required';
-        
-        $reason = !empty($reason) ? $reason : 'Additional review required';
         
         $mail->Body = "
         <html>
@@ -230,6 +251,7 @@ function sendRejectionNotification($user_email, $user_name, $reason = '') {
                 .warning-badge { background: #dc3545; color: white; padding: 5px 10px; border-radius: 15px; display: inline-block; }
                 .reason-box { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 15px 0; }
                 .reapply-btn { background: #667eea; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block; margin: 10px 0; }
+                ul { padding-left: 18px; }
             </style>
         </head>
         <body>
@@ -238,14 +260,14 @@ function sendRejectionNotification($user_email, $user_name, $reason = '') {
                     <h2>📋 ETEEAP Registration Review</h2>
                 </div>
                 <div class='content'>
-                    <h3>Dear {$user_name},</h3>
+                    <h3>Dear ".htmlspecialchars($user_name).",</h3>
                     <p>Thank you for your interest in the ETEEAP program. After reviewing your application, we need additional information before we can proceed.</p>
                     
                     <p><strong>Application Status:</strong> <span class='warning-badge'>⚠️ Needs Attention</span></p>
                     
                     <div class='reason-box'>
                         <h4>📝 Review Comments:</h4>
-                        <p><strong>{$reason}</strong></p>
+                        <p><strong>".nl2br(htmlspecialchars($reason))."</strong></p>
                     </div>
                     
                     <h4>What you can do:</h4>
@@ -256,7 +278,7 @@ function sendRejectionNotification($user_email, $user_name, $reason = '') {
                     </ul>
                     
                     <div style='text-align: center; margin: 20px 0;'>
-                        <a href='" . BASE_URL . "auth/register.php' class='reapply-btn'>Reapply Now</a>
+                        <a href='".$baseUrl."auth/register.php' class='reapply-btn'>Reapply Now</a>
                     </div>
                     
                     <p><strong>Need Help?</strong></p>
@@ -267,32 +289,36 @@ function sendRejectionNotification($user_email, $user_name, $reason = '') {
                     <p>Best regards,<br><strong>ETEEAP Admin Team</strong></p>
                 </div>
                 <div class='footer'>
-                    <p>&copy; 2025 ETEEAP System. All rights reserved.</p>
+                    <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
                 </div>
             </div>
         </body>
         </html>";
-        
-        $mail->AltBody = "Dear {$user_name}, Your ETEEAP registration needs additional information. Reason: {$reason}. Please contact support or reapply at " . BASE_URL . "auth/register.php";
-        
+
+        $mail->AltBody = "Dear {$user_name}, Your ETEEAP registration needs additional information. Reason: {$reason}. Please reapply at ".$baseUrl."auth/register.php";
+
         $result = $mail->send();
-        error_log("Rejection email sent to: {$user_email} - Status: " . ($result ? 'Success' : 'Failed'));
-        
+        error_log('Rejection email to ' . $user_email . ' => ' . ($result ? 'Success' : 'Failed'));
         return $result;
-        
-    } catch (Exception $e) {
-        error_log("Rejection email failed: {$mail->ErrorInfo}");
+    } catch (Throwable $e) {
+        error_log('Rejection email failed: ' . $e->getMessage());
         return false;
     }
 }
 
 /**
- * Notify admin of new registration
+ * Notify admin of new registration (FULL HTML)
  */
 function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['admin@eteeap.com']) {
     try {
         $mail = makeMailer();
-        
+        if ($mail === null) {
+            error_log('[MAIL] Skipping notifyAdminNewRegistration: PHPMailer not available');
+            return false;
+        }
+
+        $baseUrl = _base_url_safe();
+
         // Add admin recipients
         foreach ($admin_emails as $admin_email) {
             $mail->addAddress($admin_email);
@@ -324,8 +350,8 @@ function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['a
                     
                     <div class='info-box'>
                         <h4>📋 Registration Details:</h4>
-                        <p><strong>Name:</strong> {$user_name}</p>
-                        <p><strong>Email:</strong> {$user_email}</p>
+                        <p><strong>Name:</strong> ".htmlspecialchars($user_name)."</p>
+                        <p><strong>Email:</strong> ".htmlspecialchars($user_email)."</p>
                         <p><strong>Registration Date:</strong> " . date('F j, Y g:i A') . "</p>
                         <p><strong>Status:</strong> Pending Review</p>
                     </div>
@@ -338,7 +364,7 @@ function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['a
                     </ul>
                     
                     <div style='text-align: center; margin: 20px 0;'>
-                        <a href='" . BASE_URL . "admin/application-reviews.php' class='review-btn'>Review Application</a>
+                        <a href='".$baseUrl."admin/application-reviews.php' class='review-btn'>Review Application</a>
                     </div>
                     
                     <p><strong>Action Required:</strong></p>
@@ -354,21 +380,19 @@ function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['a
                     <p>Best regards,<br><strong>ETEEAP System</strong></p>
                 </div>
                 <div class='footer'>
-                    <p>&copy; 2025 ETEEAP System. All rights reserved.</p>
+                    <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
                 </div>
             </div>
         </body>
         </html>";
-        
-        $mail->AltBody = "New ETEEAP registration from {$user_name} ({$user_email}) requires review. Please review at " . BASE_URL . "admin/application-reviews.php";
-        
+
+        $mail->AltBody = "New ETEEAP registration from {$user_name} ({$user_email}) requires review. Review at ".$baseUrl."admin/application-reviews.php";
+
         $result = $mail->send();
-        error_log("Admin notification sent for new registration: {$user_email} - Status: " . ($result ? 'Success' : 'Failed'));
-        
+        error_log('Admin notification for ' . $user_email . ' => ' . ($result ? 'Success' : 'Failed'));
         return $result;
-        
-    } catch (Exception $e) {
-        error_log("Admin notification failed: {$mail->ErrorInfo}");
+    } catch (Throwable $e) {
+        error_log('Admin notification failed: ' . $e->getMessage());
         return false;
     }
 }
@@ -379,28 +403,35 @@ function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['a
 function sendTestEmail($test_email = 'test@example.com') {
     try {
         $mail = makeMailer();
+        if ($mail === null) {
+            error_log('[MAIL] Skipping sendTestEmail: PHPMailer not available');
+            return false;
+        }
+
         $mail->addAddress($test_email);
         $mail->Subject = 'ETEEAP Email Test';
         $mail->Body = '<h1>Email Configuration Test</h1><p>If you receive this email, the ETEEAP email system is working correctly!</p>';
         $mail->AltBody = 'Email Configuration Test - ETEEAP email system is working correctly!';
         
         return $mail->send();
-    } catch (Exception $e) {
-        error_log("Test email failed: {$mail->ErrorInfo}");
+    } catch (Throwable $e) {
+        error_log('Test email failed: ' . $e->getMessage());
         return false;
     }
 }
 
-
 /**
- * Send approval email that includes the assigned program + optional reroute reason
+ * Send approval email that includes the assigned program + optional reroute reason (FULL HTML)
  */
 function sendApprovalWithProgram($user_email, $user_name, $program_code, $program_name, $reroute_reason = '') {
     try {
         $mail = makeMailer();
-        $mail->addAddress($user_email, $user_name);
-        $mail->Subject = 'ETEEAP Application Approved - Program Assignment';
+        if ($mail === null) {
+            error_log('[MAIL] Skipping sendApprovalWithProgram: PHPMailer not available');
+            return false;
+        }
 
+        $baseUrl = _base_url_safe();
         $htmlReason = '';
         if (!empty($reroute_reason)) {
             $htmlReason = "
@@ -408,6 +439,9 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                 <strong>Reason for different program assignment:</strong><br>" . nl2br(htmlspecialchars($reroute_reason)) . "
             </div>";
         }
+
+        $mail->addAddress($user_email, $user_name);
+        $mail->Subject = 'ETEEAP Application Approved - Program Assignment';
 
         $mail->Body = "
         <html><body style='font-family:Arial,sans-serif;color:#222'>
@@ -420,22 +454,20 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                 "</p>
                 {$htmlReason}
                 <p>You may now log in and proceed with the next steps.</p>
-                <p><a href='".BASE_URL."auth/login.php' style='background:#667eea;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none'>Log in</a></p>
+                <p><a href='".$baseUrl."auth/login.php' style='background:#667eea;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none'>Log in</a></p>
                 <p>– ETEEAP Team</p>
             </div>
         </body></html>";
 
-        $mail->AltBody =
-            "Your application is approved.\n".
-            "Assigned Program: {$program_code} - {$program_name}\n".
-            (!empty($reroute_reason) ? "Reason: {$reroute_reason}\n" : "").
-            "Login: ".BASE_URL."auth/login.php";
+        $alt = "Your application is approved.\nAssigned Program: {$program_code} - {$program_name}\n";
+        if (!empty($reroute_reason)) { $alt .= "Reason: {$reroute_reason}\n"; }
+        $alt .= "Login: ".$baseUrl."auth/login.php";
+        $mail->AltBody = $alt;
 
         return $mail->send();
-    } catch (Exception $e) {
-        error_log("sendApprovalWithProgram failed: {$e->getMessage()}");
+    } catch (Throwable $e) {
+        error_log('sendApprovalWithProgram failed: ' . $e->getMessage());
         return false;
     }
 }
-
 ?>

@@ -1,5 +1,8 @@
 <?php
 session_start();
+require_once '../config/database.php';
+require_once '../config/constants.php';
+
 
 // top of evaluate.php
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
@@ -246,36 +249,49 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     
-    // **FETCH ACTUAL BRIDGING REQUIREMENTS FROM DATABASE**
-    $bridgingSubjects = [];
-    if (!empty($current_application['id'])) {
+    // Get bridging subjects from DATABASE
+    $subjectPlan = ['subjects' => [], 'total_units' => 0, 'remaining_units' => 0];
+    
+    if ($bridgingUnits > 0 && !empty($current_application['program_id'])) {
         try {
             $stmt = $pdo->prepare("
-                SELECT subject_name, subject_code, units, priority
-                FROM bridging_requirements 
-                WHERE application_id = ?
-                ORDER BY priority ASC, subject_name ASC
+                SELECT subject_name as name, subject_code as code, units
+                FROM subjects 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY year_level DESC, semester DESC
             ");
-            $stmt->execute([$current_application['id']]);
-            $bridgingSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt->execute([$current_application['program_id']]);
+            $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $selectedSubjects = [];
+            $totalUnits = 0;
+            
+            foreach ($availableSubjects as $subject) {
+                $units = (int)$subject['units'];
+                if ($totalUnits + $units <= $bridgingUnits) {
+                    $selectedSubjects[] = [
+                        'name' => $subject['name'],
+                        'code' => $subject['code'],
+                        'units' => $units,
+                        'priority' => 1
+                    ];
+                    $totalUnits += $units;
+                }
+                if ($totalUnits >= $bridgingUnits) break;
+            }
+            
+            $subjectPlan = [
+                'subjects' => $selectedSubjects,
+                'total_units' => $totalUnits,
+                'remaining_units' => max(0, $bridgingUnits - $totalUnits)
+            ];
         } catch (PDOException $e) {
-            error_log("Error fetching bridging requirements: " . $e->getMessage());
+            error_log("Error fetching bridging subjects: " . $e->getMessage());
         }
     }
     
-    // Calculate actual bridging units from database
-    $actualBridgingUnits = array_sum(array_column($bridgingSubjects, 'units'));
-    
-    // Get bridging subject names for comparison
-    $bridgingSubjectNames = array_column($bridgingSubjects, 'subject_name');
-    
-    // **BUILD LIST OF CREDITED SUBJECTS**
-    $creditedSubjects = [];
-    foreach ($curriculumSubjects as $subject) {
-        if (!in_array($subject['name'], $bridgingSubjectNames)) {
-            $creditedSubjects[] = $subject['name'];
-        }
-    }
+    // Get bridging subject names
+    $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
     
     // Header
     $recommendations[] = "**ETEEAP ASSESSMENT RESULTS**";
@@ -287,10 +303,10 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
         case 'qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: QUALIFIED FOR ETEEAP CREDIT**";
             $recommendations[] = "";
-            $recommendations[] = "Congratulations! Your professional experience and competencies demonstrate substantial equivalency to formal academic study. Based on our comprehensive evaluation, you have successfully qualified for the Expanded Tertiary Education Equivalency and Accreditation Program (ETEEAP).";
+            $recommendations[] = "Congratulations! Your professional experience and competencies demonstrate substantial equivalency to formal academic study.";
             
-            // === CREDITED SUBJECTS (DETAILED LIST) ===
-            if (!empty($creditedSubjects)) {
+            // === CREDITED SUBJECTS ===
+            if (!empty($curriculumSubjects)) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "**CREDITED SUBJECTS - PRIOR LEARNING RECOGNITION**";
@@ -298,42 +314,49 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "";
                 
                 $creditedCount = 0;
-                foreach ($creditedSubjects as $subjectName) {
-                    $creditedCount++;
-                    $evidenceNote = isset($passedSubjects[$subjectName]) 
-                        ? $passedSubjects[$subjectName] 
-                        : 'Credit via ETEEAP assessment';
-                    $recommendations[] = "{$creditedCount}. {$subjectName}";
-                    $recommendations[] = "   Evidence: {$evidenceNote}";
-                    $recommendations[] = "";
+                foreach ($curriculumSubjects as $subject) {
+                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                        $creditedCount++;
+                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                            ? $passedSubjects[$subject['name']] 
+                            : 'Credit via ETEEAP assessment';
+                        $recommendations[] = "✓ {$subject['name']}";
+                        $recommendations[] = "   Evidence: {$evidenceNote}";
+                        $recommendations[] = "";
+                    }
                 }
                 
-                $recommendations[] = "**Total Credited:** {$creditedCount} subjects successfully recognized";
+                $recommendations[] = "**Summary:** {$creditedCount} subjects credited through prior learning assessment";
             }
             
-            // === REQUIRED BRIDGING SUBJECTS FROM DATABASE (DETAILED LIST) ===
-            if (!empty($bridgingSubjects)) {
+            // === REQUIRED BRIDGING SUBJECTS ===
+            if ($bridgingUnits > 0) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "**REQUIRED BRIDGING COURSES**";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
-                $recommendations[] = "To complete your degree, you must fulfill {$actualBridgingUnits} units of bridging courses:";
+                $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
                 $recommendations[] = "";
                 
-                foreach ($bridgingSubjects as $index => $subject) {
-                    $priorityLabel = ($subject['priority'] == 1) ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
-                    $recommendations[] = ($index + 1) . ". {$subject['subject_name']} ({$subject['subject_code']})";
+                foreach ($subjectPlan['subjects'] as $index => $subject) {
+                    $priorityLabel = $subject['priority'] === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
+                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
                     $recommendations[] = "   Units: {$subject['units']} | Priority: {$priorityLabel}";
                     $recommendations[] = "";
                 }
                 
-                $recommendations[] = "**Total Bridging Units Required:** {$actualBridgingUnits} units";
+                $recommendations[] = "**Total Bridging Units Required:** {$bridgingUnits} units";
+                
+                if ($subjectPlan['remaining_units'] > 0) {
+                    $recommendations[] = "";
+                    $recommendations[] = "Note: Additional {$subjectPlan['remaining_units']} units of elective courses may be determined during enrollment counseling.";
+                }
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: " . count($creditedSubjects) . " subjects";
-                $recommendations[] = "• Bridging Requirements: " . count($bridgingSubjects) . " subjects ({$actualBridgingUnits} units)";
+                $recommendations[] = "• Credited Subjects: " . (count($curriculumSubjects) - count($bridgingSubjectNames)) . " subjects";
+                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
                 $recommendations[] = "";
@@ -354,8 +377,8 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "";
             $recommendations[] = "Your assessment score of {$score}% demonstrates significant competencies in several areas. You have achieved partial qualification status under the ETEEAP program.";
             
-            // === CREDITED SUBJECTS (DETAILED LIST) ===
-            if (!empty($creditedSubjects)) {
+            // === CREDITED SUBJECTS (Passed) ===
+            if (!empty($passedSubjects) && !empty($curriculumSubjects)) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "**CREDITED SUBJECTS - RECOGNIZED COMPETENCIES**";
@@ -363,37 +386,39 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "";
                 
                 $creditedCount = 0;
-                foreach ($creditedSubjects as $subjectName) {
-                    $creditedCount++;
-                    $evidenceNote = isset($passedSubjects[$subjectName]) 
-                        ? $passedSubjects[$subjectName] 
-                        : 'Credit via ETEEAP assessment';
-                    $recommendations[] = "{$creditedCount}. {$subjectName}";
-                    $recommendations[] = "   Evidence: {$evidenceNote}";
-                    $recommendations[] = "";
+                foreach ($curriculumSubjects as $subject) {
+                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                        $creditedCount++;
+                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                            ? $passedSubjects[$subject['name']] 
+                            : 'Credit via ETEEAP assessment';
+                        $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
+                    }
                 }
                 
-                $recommendations[] = "**Total Credited:** {$creditedCount} subjects recognized";
+                $recommendations[] = "";
+                $recommendations[] = "**Credited:** {$creditedCount} subjects recognized";
             }
             
-            // === REQUIRED BRIDGING SUBJECTS FROM DATABASE (DETAILED LIST) ===
-            if (!empty($bridgingSubjects)) {
+            // === REQUIRED BRIDGING SUBJECTS ===
+            if ($bridgingUnits > 0) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
-                $recommendations[] = "**REQUIRED BRIDGING PROGRAM ({$actualBridgingUnits} units)**";
+                $recommendations[] = "**REQUIRED BRIDGING PROGRAM ({$bridgingUnits} units)**";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
                 $recommendations[] = "To achieve full qualification, you must complete:";
                 $recommendations[] = "";
                 
-                foreach ($bridgingSubjects as $index => $subject) {
-                    $priorityLabel = ($subject['priority'] == 1) ? '[PRIORITY]' : '[STANDARD]';
-                    $recommendations[] = ($index + 1) . ". {$subject['subject_name']} ({$subject['subject_code']})";
-                    $recommendations[] = "   Units: {$subject['units']} | Priority: {$priorityLabel}";
-                    $recommendations[] = "";
+                foreach ($subjectPlan['subjects'] as $index => $subject) {
+                    $priorityLabel = $subject['priority'] === 1 ? '[PRIORITY]' : '[STANDARD]';
+                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']}) — {$subject['units']} units {$priorityLabel}";
                 }
                 
-                $recommendations[] = "**Total Bridging Units Required:** {$actualBridgingUnits} units";
+                if ($subjectPlan['remaining_units'] > 0) {
+                    $recommendations[] = "";
+                    $recommendations[] = "Plus {$subjectPlan['remaining_units']} units of remedial coursework to be determined.";
+                }
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PATHWAY TO COMPLETION**";
@@ -463,34 +488,33 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             break;
     }
     
-    // === COMPREHENSIVE SUMMARY OF CREDITS ===
     $recommendations[] = "";
     $recommendations[] = "---";
     $recommendations[] = "**SUMMARY OF CREDITS**";
     
     if (!empty($curriculumSubjects)) {
         $totalSubjects = count($curriculumSubjects);
-        $creditedCount = count($creditedSubjects);
-        $requiredCount = count($bridgingSubjects);
+        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
+        $requiredSubjects = count($bridgingSubjectNames);
         
         $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
-        $recommendations[] = "• Credited (Passed): {$creditedCount} subjects";
-        $recommendations[] = "• Required (Bridging): {$requiredCount} subjects ({$actualBridgingUnits} units)";
-        
-        if ($totalSubjects > 0) {
-            $completionRate = round(($creditedCount / $totalSubjects) * 100, 1);
-            $recommendations[] = "• Completion Rate: {$completionRate}%";
-        }
-    } else {
-        $recommendations[] = "• Program curriculum data not available";
+        $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
+        $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
+        $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
     }
     
     $recommendations[] = "";
     $recommendations[] = "For questions or appointments:";
-    $recommendations[] = "Contact Admissions Office";
+  
     
     return implode("\n", $recommendations);
 }
+
+
+
+
+
+
 
 function parse_hier($doc) {
     // 1) JSON column
@@ -850,11 +874,15 @@ function suggest_score_from_docs(array $criteria, array $criteriaDocs): array {
     return [$best, $bestWhy];
 }
 
+
 if ($_POST && isset($_POST['submit_evaluation'])) {
     $app_id = $_POST['application_id'];
     $submitted = $_POST['evaluations'] ?? [];
     $additional_comments = trim($_POST['recommendation']);
     $manual_override = $_POST['final_status'] ?? 'auto';
+
+    // Huwag i-block kapag empty ang $submitted — pwede kasing lahat ay 0.
+    // if (empty($submitted)) { ... }  // alisin ito kung meron ka
 
     try {
         $pdo->beginTransaction();
@@ -868,23 +896,7 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
         $program_id = (int)$appRow['program_id'];
 
-        // **ADD THIS: Fetch documents for this application**
-        $stmt = $pdo->prepare("
-            SELECT *, 
-                   CASE 
-                       WHEN LOWER(mime_type) LIKE '%pdf%' THEN 'pdf'
-                       WHEN LOWER(mime_type) LIKE '%image%' THEN 'image'
-                       WHEN LOWER(mime_type) LIKE '%word%' OR LOWER(mime_type) LIKE '%doc%' THEN 'document'
-                       ELSE 'other'
-                   END as file_category
-            FROM documents 
-            WHERE application_id = ? 
-            ORDER BY document_type, upload_date DESC
-        ");
-        $stmt->execute([$app_id]);
-        $documents = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // 2) Kunin lahat ng ACTIVE criteria ng program
+        // 2) Kunin lahat ng ACTIVE criteria ng program (ito ang magiging denominator mo)
         $stmt = $pdo->prepare("
             SELECT id, criteria_name, max_score, weight
             FROM assessment_criteria
@@ -989,24 +1001,24 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         }
 
         // Program code para sa rekomendasyon
-      $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
+        $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
         $stmt->execute([$app_id]);
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
-        // **THIS SHOULD NOW WORK PROPERLY because $documents is loaded above**
-        $curriculumStatus = getPassedSubjects($documents, $programCode);
-        $curriculumSubjects = $curriculumStatus['curriculum'];
-        $passedSubjects = $curriculumStatus['passed'];
+// Get curriculum and passed subjects
+$curriculumStatus = getPassedSubjects($documents, $programCode);
+$curriculumSubjects = $curriculumStatus['curriculum'];
+$passedSubjects = $curriculumStatus['passed'];
 
-        $auto_recommendation = generateEnhancedRecommendation(
-            $final_score, 
-            $programCode, 
-            $final_status, 
-            $criteriaMissing,
-            $passedSubjects,        
-            $curriculumSubjects     
-        );
+       $auto_recommendation = generateEnhancedRecommendation(
+    $final_score, 
+    $programCode, 
+    $final_status, 
+    $criteriaMissing,
+    $passedSubjects,        // Add this
+    $curriculumSubjects     // Add this
+);
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
             : $auto_recommendation;
@@ -1372,42 +1384,37 @@ try {
                     </h4>
                     
                     <nav class="nav flex-column">
-    <a class="nav-link" href="dashboard.php">
-        <i class="fas fa-tachometer-alt me-2"></i>
-        Dashboard
-    </a>
+                        <a class="nav-link" href="dashboard.php">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            Dashboard
+                        </a>
+                        <a class="nav-link" href="application-reviews.php">
+                            <i class="fas fa-file-signature me-2"></i>
+                            Application Reviews     
+                        </a>
+              
 
-    <a class="nav-link" href="application-reviews.php">
-        <i class="fas fa-file-signature me-2"></i>
-        Application Reviews
-    </a>
-
-    <a class="nav-link" href="evaluate.php">
-        <i class="fas fa-clipboard-check me-2"></i>
-        Evaluate Applications
-    </a>
-
-    <a class="nav-link" href="reports.php">
-        <i class="fas fa-chart-bar me-2"></i>
-        Reports
-    </a>
-
-    <?php if ($user_type === 'admin'): ?>
-        <a class="nav-link" href="users.php">
-            <i class="fas fa-users me-2"></i>
-            Manage Users
-        </a>
-        <a class="nav-link" href="programs.php">
-            <i class="fas fa-graduation-cap me-2"></i>
-            Manage Programs
-        </a>
-    <?php endif; ?>
-
-    <a class="nav-link" href="settings.php">
-        <i class="fas fa-cog me-2"></i>
-        Settings
-    </a>
-</nav>
+                        <a class="nav-link" href="evaluate.php">
+                            <i class="fas fa-clipboard-check me-2"></i>
+                            Evaluate Applications
+                        </a>
+                        <a class="nav-link" href="reports.php">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Reports
+                        </a>
+                        <a class="nav-link" href="users.php">
+                            <i class="fas fa-users me-2"></i>
+                            Manage Users
+                        </a>
+                        <a class="nav-link" href="programs.php">
+                            <i class="fas fa-graduation-cap me-2"></i>
+                            Manage Programs
+                        </a>
+                        <a class="nav-link" href="settings.php">
+                            <i class="fas fa-cog me-2"></i>
+                            Settings
+                        </a>
+                    </nav>
                 </div>
                 
                 

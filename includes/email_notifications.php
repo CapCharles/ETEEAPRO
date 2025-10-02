@@ -104,6 +104,7 @@ function send_with_fallback(callable $prepare): bool {
     }
 }
 
+
 /** Optional example; safe kahit walang PHPMailer */
 function sendRegistrationEmail(string $toEmail, string $toName): bool {
     return send_with_fallback(function($mail) use ($toEmail, $toName) {

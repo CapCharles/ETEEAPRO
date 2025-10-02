@@ -2,9 +2,6 @@
 // includes/email_notifications.php
 
 
-require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
-require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
-require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
 
 function phpmailer_available(): bool {
     $base = __DIR__ . '/PHPMailer/src/';

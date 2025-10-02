@@ -303,7 +303,8 @@ function getStatusColor($status) {
                         ETEEAP Admin
                     </h4>
                     
-                   <nav class="nav flex-column">
+              
+                  <nav class="nav flex-column">
     <a class="nav-link" href="dashboard.php">
         <i class="fas fa-tachometer-alt me-2"></i>
         Dashboard

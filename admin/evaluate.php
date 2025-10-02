@@ -3,6 +3,18 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
+
+// top of evaluate.php
+define('BASE_DIR', __DIR__); // folder ng evaluate.php
+
+require_once BASE_DIR . '/../config/database.php';
+require_once BASE_DIR . '/../config/constants.php';
+
+// Kung hindi ka composer, at may folder ka talagang PHPMailer sa project:
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
+
 // Check authentication
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
     header('Location: ../auth/login.php');
@@ -22,9 +34,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
-require 'PHPMailer\PHPMailer\src\Exception.php';
-require 'PHPMailer\PHPMailer\src\PHPMailer.php';
-require 'PHPMailer\PHPMailer\src\SMTP.php';
+
 
 function makeMailer(): PHPMailer {
     $mail = new PHPMailer(true);

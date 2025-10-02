@@ -26,7 +26,7 @@ function makeMailer() {
     $mail->SMTPAuth   = true;
     $mail->Username   = 'cspbank911@gmail.com';
     $mail->Password   = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; // Changed
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; //
     $mail->Port       = 587; // Changed
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
     $mail->isHTML(true);

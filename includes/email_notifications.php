@@ -5,9 +5,9 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
-require 'C:\xampp\PHPMailer\PHPMailer\src\Exception.php';
-require 'C:\xampp\PHPMailer\PHPMailer\src\PHPMailer.php';
-require 'C:\xampp\PHPMailer\PHPMailer\src\SMTP.php';
+require 'PHPMailer\PHPMailer\src\Exception.php';
+require 'PHPMailer\PHPMailer\src\PHPMailer.php';
+require 'PHPMailer\PHPMailer\src\SMTP.php';
 
 function makeMailer(): PHPMailer {
     $mail = new PHPMailer(true);

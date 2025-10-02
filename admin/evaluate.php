@@ -525,34 +525,7 @@ $recommendation .= "• Estimated Completion: " . ($totalBridgingUnits <= 12 ? "
     $recommendations[] = "**SUMMARY OF CREDITS**";
     $recommendations[] = "**═══════════════════════════════════════════**";
 
-if (!empty($passed)) {
-    $recommendation .= "✓ CREDITED SUBJECTS (VIA ETEEAP ASSESSMENT):\n\n";
-    $passedCount = 1;
-    foreach ($passed as $subjectName => $evidence) {
-        $recommendation .= "{$passedCount}. {$subjectName}\n";
-        $recommendation .= "   Evidence: {$evidence}\n\n";
-        $passedCount++;
-    }
-} else {
-    $recommendation .= "✓ CREDITED SUBJECTS: None credited through documentation\n";
-    $recommendation .= "   (All subjects credited based on ETEEAP professional experience assessment)\n\n";
-}
-
-if (!empty($bridgingRequirements)) {
-    $recommendation .= "\n⚠ REQUIRED BRIDGING COURSES:\n\n";
-    $bridgingCount = 1;
-    foreach ($bridgingRequirements as $req) {
-        $priorityLabel = ($req['priority'] == 1) ? "[HIGH PRIORITY]" : (($req['priority'] == 2) ? "[MEDIUM]" : "[LOW]");
-        $recommendation .= "{$bridgingCount}. {$req['subject_name']} ({$req['subject_code']}) - {$req['units']} units {$priorityLabel}\n";
-        $bridgingCount++;
-    }
-    $recommendation .= "\n**Total Bridging Units Required:** {$totalBridgingUnits} units\n";
-} else {
-    $recommendation .= "\n⚠ REQUIRED BRIDGING COURSES: None\n";
-    $recommendation .= "   All curriculum requirements have been satisfied.\n";
-}
-
-$recommendation .= "\n\nFor questions or appointments, contact the Admissions Office.";
+    
     
     if (!empty($curriculumSubjects)) {
         $totalSubjects = count($curriculumSubjects);

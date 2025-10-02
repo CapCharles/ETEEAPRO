@@ -1,5 +1,8 @@
 <?php
 session_start();
+require_once '../config/database.php';
+require_once '../config/constants.php';
+include_once '../includes/email_notifications.php';
 
 
 // If user is already logged in, redirect to appropriate dashboard

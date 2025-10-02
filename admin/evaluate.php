@@ -239,6 +239,7 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     // just return all subjects
     return $predefined_subjects;
 }
+
 function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = []) {
     global $pdo, $current_application;
     
@@ -286,115 +287,180 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
         }
     }
     
-    // Calculate credits
+    // Get bridging subject names
     $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
-    $totalSubjects = count($curriculumSubjects);
-    $creditedSubjects = 0;
-    foreach ($curriculumSubjects as $subject) {
-        if (!in_array($subject['name'], $bridgingSubjectNames)) {
-            $creditedSubjects++;
-        }
-    }
     
     // Header
     $recommendations[] = "**ETEEAP ASSESSMENT RESULTS**";
-    $recommendations[] = "";
     $recommendations[] = "Program: {$programCode}";
     $recommendations[] = "Final Assessment Score: {$score}%";
-    $recommendations[] = "";
+    $recommendations[] = "---";
     
     switch($status) {
         case 'qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: QUALIFIED FOR ETEEAP CREDIT**";
             $recommendations[] = "";
-            $recommendations[] = "Congratulations! Your professional experience and competencies demonstrate substantial equivalency to";
-            $recommendations[] = "formal academic study. Based on our comprehensive evaluation, you have successfully qualified for the";
-            $recommendations[] = "Expanded Tertiary Education Equivalency and Accreditation Program (ETEEAP).";
-            $recommendations[] = "";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "**REQUIRED BRIDGING COURSES**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "";
-            $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
-            $recommendations[] = "";
+            $recommendations[] = "Congratulations! Your professional experience and competencies demonstrate substantial equivalency to formal academic study.";
             
-            if (!empty($subjectPlan['subjects'])) {
-                foreach ($subjectPlan['subjects'] as $index => $subject) {
-                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
-                    $recommendations[] = "   Units: {$subject['units']} | Priority: [REQUIRED - HIGH PRIORITY]";
-                    $recommendations[] = "";
+            // === CREDITED SUBJECTS ===
+            if (!empty($curriculumSubjects)) {
+                $recommendations[] = "";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "**CREDITED SUBJECTS - PRIOR LEARNING RECOGNITION**";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "";
+                
+                $creditedCount = 0;
+                foreach ($curriculumSubjects as $subject) {
+                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                        $creditedCount++;
+                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                            ? $passedSubjects[$subject['name']] 
+                            : 'Credit via ETEEAP assessment';
+                        $recommendations[] = "✓ {$subject['name']}";
+                        $recommendations[] = "   Evidence: {$evidenceNote}";
+                        $recommendations[] = "";
+                    }
                 }
+                
+                $recommendations[] = "**Summary:** {$creditedCount} subjects credited through prior learning assessment";
             }
             
-            $recommendations[] = "**Total Bridging Units Required:** {$bridgingUnits} units";
+            // === REQUIRED BRIDGING SUBJECTS ===
+            if ($bridgingUnits > 0) {
+                $recommendations[] = "";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "**REQUIRED BRIDGING COURSES**";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "";
+                $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
+                $recommendations[] = "";
+                
+                foreach ($subjectPlan['subjects'] as $index => $subject) {
+                    $priorityLabel = $subject['priority'] === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
+                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
+                    $recommendations[] = "   Units: {$subject['units']} | Priority: {$priorityLabel}";
+                    $recommendations[] = "";
+                }
+                
+                $recommendations[] = "**Total Bridging Units Required:** {$bridgingUnits} units";
+                
+                if ($subjectPlan['remaining_units'] > 0) {
+                    $recommendations[] = "";
+                    $recommendations[] = "Note: Additional {$subjectPlan['remaining_units']} units of elective courses may be determined during enrollment counseling.";
+                }
+                
+                $recommendations[] = "";
+                $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
+                $recommendations[] = "• Credited Subjects: " . (count($curriculumSubjects) - count($bridgingSubjectNames)) . " subjects";
+                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
+                $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
+            } else {
+                $recommendations[] = "";
+                $recommendations[] = "**OUTSTANDING ACHIEVEMENT**";
+                $recommendations[] = "Your exceptional assessment score qualifies you for maximum credit recognition with minimal additional coursework requirements.";
+            }
+            
             $recommendations[] = "";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "";
-            $recommendations[] = "• Credited Subjects: {$creditedSubjects} subjects";
-            $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
-            $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
-            $recommendations[] = "";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
             $recommendations[] = "**NEXT STEPS**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "";
             $recommendations[] = "1. Our Admissions Office will contact you within 3-5 business days";
             $recommendations[] = "2. Schedule an academic counseling session to finalize your study plan";
             $recommendations[] = "3. Complete enrollment requirements for bridging courses";
             $recommendations[] = "4. Begin your accelerated path to degree completion";
-            $recommendations[] = "";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "**SUMMARY OF CREDITS**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "";
-            $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
-            $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
-            $recommendations[] = "• Required (Bridging): " . count($bridgingSubjectNames) . " subjects ({$bridgingUnits} units)";
-            $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
             break;
             
         case 'partially_qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: PARTIAL QUALIFICATION**";
             $recommendations[] = "";
-            $recommendations[] = "Your assessment score of {$score}% demonstrates significant competencies in several areas.";
-            $recommendations[] = "You have achieved partial qualification status under the ETEEAP program.";
-            $recommendations[] = "";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "**REQUIRED BRIDGING PROGRAM ({$bridgingUnits} units)**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "";
-            $recommendations[] = "To achieve full qualification, you must complete:";
-            $recommendations[] = "";
+            $recommendations[] = "Your assessment score of {$score}% demonstrates significant competencies in several areas. You have achieved partial qualification status under the ETEEAP program.";
             
-            if (!empty($subjectPlan['subjects'])) {
+            // === CREDITED SUBJECTS (Passed) ===
+            if (!empty($passedSubjects) && !empty($curriculumSubjects)) {
+                $recommendations[] = "";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "**CREDITED SUBJECTS - RECOGNIZED COMPETENCIES**";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "";
+                
+                $creditedCount = 0;
+                foreach ($curriculumSubjects as $subject) {
+                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                        $creditedCount++;
+                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                            ? $passedSubjects[$subject['name']] 
+                            : 'Credit via ETEEAP assessment';
+                        $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
+                    }
+                }
+                
+                $recommendations[] = "";
+                $recommendations[] = "**Credited:** {$creditedCount} subjects recognized";
+            }
+            
+            // === REQUIRED BRIDGING SUBJECTS ===
+            if ($bridgingUnits > 0) {
+                $recommendations[] = "";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "**REQUIRED BRIDGING PROGRAM ({$bridgingUnits} units)**";
+                $recommendations[] = "**═══════════════════════════════════════════**";
+                $recommendations[] = "";
+                $recommendations[] = "To achieve full qualification, you must complete:";
+                $recommendations[] = "";
+                
                 foreach ($subjectPlan['subjects'] as $index => $subject) {
-                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
-                    $recommendations[] = "   Units: {$subject['units']} | Priority: [REQUIRED]";
+                    $priorityLabel = $subject['priority'] === 1 ? '[PRIORITY]' : '[STANDARD]';
+                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']}) — {$subject['units']} units {$priorityLabel}";
+                }
+                
+                if ($subjectPlan['remaining_units'] > 0) {
                     $recommendations[] = "";
+                    $recommendations[] = "Plus {$subjectPlan['remaining_units']} units of remedial coursework to be determined.";
+                }
+                
+                $recommendations[] = "";
+                $recommendations[] = "**PATHWAY TO COMPLETION**";
+                $recommendations[] = "• Complete all required bridging courses";
+                $recommendations[] = "• Estimated timeline: 2-3 semesters";
+                $recommendations[] = "• Upon successful completion → Full degree qualification";
+            }
+            
+            if (!empty($criteriaMissing)) {
+                $recommendations[] = "";
+                $recommendations[] = "**AREAS FOR DEVELOPMENT**";
+                $recommendations[] = "Focus on strengthening competencies in:";
+                foreach (array_slice($criteriaMissing, 0, 3) as $criteria) {
+                    $recommendations[] = "• {$criteria['name']}";
                 }
             }
             
-            $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "**SUMMARY OF CREDITS**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
             $recommendations[] = "";
-            $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
-            $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
-            $recommendations[] = "• Required (Bridging): " . count($bridgingSubjectNames) . " subjects ({$bridgingUnits} units)";
-            $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
+            $recommendations[] = "**NEXT STEPS**";
+            $recommendations[] = "1. Review your personalized bridging program requirements";
+            $recommendations[] = "2. Schedule academic advising to create your study plan";
+            $recommendations[] = "3. Enroll in bridging courses for the upcoming semester";
             break;
             
         case 'not_qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: FURTHER PREPARATION RECOMMENDED**";
             $recommendations[] = "";
-            $recommendations[] = "Based on your assessment score of {$score}%, we recommend additional preparation before";
-            $recommendations[] = "pursuing ETEEAP credit recognition.";
+            $recommendations[] = "Based on your assessment score of {$score}%, we recommend additional preparation before pursuing ETEEAP credit recognition.";
+            
+            // Show any recognized competencies
+            if (!empty($passedSubjects)) {
+                $recommendations[] = "";
+                $recommendations[] = "**RECOGNIZED STRENGTHS**";
+                $passedCount = count($passedSubjects);
+                if ($passedCount > 0) {
+                    $recommendations[] = "You demonstrated competencies in {$passedCount} area(s):";
+                    $recommendations[] = "";
+                    foreach (array_slice($passedSubjects, 0, 5, true) as $subject => $evidence) {
+                        $recommendations[] = "• {$subject} (Evidence: {$evidence})";
+                    }
+                }
+            }
+            
             $recommendations[] = "";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
             $recommendations[] = "**RECOMMENDED PATHWAYS**";
-            $recommendations[] = "══════════════════════════════════════════════════════════";
             $recommendations[] = "";
             $recommendations[] = "**Option 1: Regular Degree Program** (Recommended)";
             $recommendations[] = "• Complete the full academic curriculum";
@@ -404,12 +470,39 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "• Targeted skill-building program";
             $recommendations[] = "• Industry certifications";
             $recommendations[] = "• Re-apply for ETEEAP after 1-2 years";
+            
+            if (!empty($criteriaMissing)) {
+                $recommendations[] = "";
+                $recommendations[] = "**PRIORITY DEVELOPMENT AREAS**";
+                foreach (array_slice($criteriaMissing, 0, 5) as $criteria) {
+                    $recommendations[] = "• {$criteria['name']}";
+                }
+            }
+            
+            $recommendations[] = "";
+            $recommendations[] = "**SUPPORT AVAILABLE**";
+            $recommendations[] = "Schedule a consultation with our academic advisors to create a personalized development plan.";
             break;
     }
     
     $recommendations[] = "";
+    $recommendations[] = "---";
+    $recommendations[] = "**SUMMARY OF CREDITS**";
+    
+    if (!empty($curriculumSubjects)) {
+        $totalSubjects = count($curriculumSubjects);
+        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
+        $requiredSubjects = count($bridgingSubjectNames);
+        
+        $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
+        $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
+        $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
+        $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
+    }
+    
+    $recommendations[] = "";
     $recommendations[] = "For questions or appointments:";
-    $recommendations[] = "Contact the Admissions Office";
+  
     
     return implode("\n", $recommendations);
 }

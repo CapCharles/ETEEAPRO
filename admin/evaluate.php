@@ -285,7 +285,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             if ($bridgingUnits > 0 && !empty($bridgingSubjects)) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
-                $recommendations[] = "**REQUIRED BRIDGING COURSES**";
+                $recommendations[] = "*REQUIRED BRIDGING COURSES*";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
                 $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";

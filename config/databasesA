@@ -1,0 +1,307 @@
+-- AI Enhancement Database Setup for ETEEAP
+-- Run this script to add the necessary tables and columns for the intelligent evaluation system
+
+-- Create table for section-wise evaluation scores
+CREATE TABLE IF NOT EXISTS evaluation_sections (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    section_number INT NOT NULL,
+    section_name VARCHAR(255) NOT NULL,
+    total_score DECIMAL(5,2) DEFAULT 0,
+    max_possible DECIMAL(5,2) DEFAULT 0,
+    percentage DECIMAL(5,2) DEFAULT 0,
+    passed BOOLEAN DEFAULT FALSE,
+    evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    INDEX idx_application_section (application_id, section_number)
+);
+
+-- Create table for intelligent recommendations
+CREATE TABLE IF NOT EXISTS evaluation_recommendations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    category ENUM('immediate_action', 'educational', 'experience', 'documentation') NOT NULL,
+    requirement VARCHAR(500) NOT NULL,
+    details TEXT,
+    priority ENUM('high', 'medium', 'low') DEFAULT 'medium',
+    timeline VARCHAR(100),
+    suggested_actions JSON,
+    status ENUM('pending', 'in_progress', 'completed') DEFAULT 'pending',
+    generated_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    INDEX idx_application_priority (application_id, priority)
+);
+
+-- Add AI-related columns to applications table
+ALTER TABLE applications 
+ADD COLUMN IF NOT EXISTS system_generated_recommendation BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS recommendation_confidence DECIMAL(3,2) DEFAULT 0.00;
+
+-- Add section tracking to assessment criteria
+ALTER TABLE assessment_criteria 
+ADD COLUMN IF NOT EXISTS section_number INT DEFAULT 1,
+ADD COLUMN IF NOT EXISTS subsection INT DEFAULT 1;
+
+-- Create table for evaluation drafts (auto-save functionality)
+CREATE TABLE IF NOT EXISTS evaluation_drafts (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    evaluator_id INT NOT NULL,
+    criteria_id INT NOT NULL,
+    draft_score DECIMAL(5,2),
+    draft_comments TEXT,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    FOREIGN KEY (evaluator_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (criteria_id) REFERENCES assessment_criteria(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_draft (application_id, evaluator_id, criteria_id)
+);
+
+-- Create table for AI evaluation confidence tracking
+CREATE TABLE IF NOT EXISTS evaluation_confidence_metrics (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    overall_confidence DECIMAL(3,2) DEFAULT 0.00,
+    section_consistency_score DECIMAL(3,2) DEFAULT 0.00,
+    documentation_completeness DECIMAL(3,2) DEFAULT 0.00,
+    evaluator_agreement_score DECIMAL(3,2) DEFAULT 0.00,
+    calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+);
+
+-- Sample data for assessment criteria with sections (update existing or insert new)
+-- This assumes you have a program with ID 1, adjust as needed
+
+-- Section 1: Educational Background
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, requirements, status, section_number, subsection) 
+VALUES 
+(1, 'Undergraduate Degree Relevance', 'education', 100, 2.0, 'Evaluate the relevance and quality of undergraduate degree to program requirements', 'Bachelor degree in related field or equivalent', 'active', 1, 1),
+(1, 'Graduate Studies', 'education', 100, 1.5, 'Additional graduate-level education or courses', 'Graduate courses, certifications, or advanced degrees', 'active', 1, 2),
+(1, 'Continuing Education', 'education', 100, 1.0, 'Professional development and continuing education activities', 'Workshops, seminars, professional courses', 'active', 1, 3)
+ON DUPLICATE KEY UPDATE 
+section_number = VALUES(section_number), 
+subsection = VALUES(subsection);
+
+-- Section 2: Professional Experience  
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, requirements, status, section_number, subsection) 
+VALUES 
+(1, 'Work Experience Duration', 'work_experience', 100, 2.5, 'Years of relevant professional experience', 'Minimum 3 years in related field', 'active', 2, 1),
+(1, 'Leadership and Management', 'work_experience', 100, 2.0, 'Experience in leadership roles and team management', 'Demonstrated leadership responsibilities', 'active', 2, 2),
+(1, 'Technical Competency', 'skills', 100, 2.0, 'Technical skills and expertise in field', 'Advanced technical skills relevant to program', 'active', 2, 3),
+(1, 'Project Management', 'work_experience', 100, 1.5, 'Experience managing projects and initiatives', 'Project management experience or certification', 'active', 2, 4)
+ON DUPLICATE KEY UPDATE 
+section_number = VALUES(section_number), 
+subsection = VALUES(subsection);
+
+-- Section 3: Professional Certifications
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, requirements, status, section_number, subsection) 
+VALUES 
+(1, 'Industry Certifications', 'certification', 100, 1.5, 'Relevant professional certifications', 'Valid industry-recognized certifications', 'active', 3, 1),
+(1, 'Training Programs', 'training', 100, 1.0, 'Specialized training and workshops completed', 'Professional development training records', 'active', 3, 2),
+(1, 'Professional Memberships', 'certification', 100, 0.5, 'Membership in professional organizations', 'Active membership in relevant associations', 'active', 3, 3)
+ON DUPLICATE KEY UPDATE 
+section_number = VALUES(section_number), 
+subsection = VALUES(subsection);
+
+-- Section 4: Portfolio and Documentation
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, requirements, status, section_number, subsection) 
+VALUES 
+(1, 'Work Portfolio Quality', 'portfolio', 100, 1.5, 'Quality and relevance of submitted work samples', 'Portfolio demonstrating competency', 'active', 4, 1),
+(1, 'Documentation Completeness', 'portfolio', 100, 1.0, 'Completeness and organization of submitted documents', 'All required documents properly submitted', 'active', 4, 2)
+ON DUPLICATE KEY UPDATE 
+section_number = VALUES(section_number), 
+subsection = VALUES(subsection);
+
+-- Create indexes for better performance
+CREATE INDEX IF NOT EXISTS idx_applications_status_score ON applications(application_status, total_score);
+CREATE INDEX IF NOT EXISTS idx_evaluations_application_criteria ON evaluations(application_id, criteria_id);
+CREATE INDEX IF NOT EXISTS idx_documents_application_type ON documents(application_id, document_type);
+CREATE INDEX IF NOT EXISTS idx_recommendations_priority_category ON evaluation_recommendations(priority, category);
+
+-- Create view for comprehensive evaluation overview
+CREATE OR REPLACE VIEW evaluation_overview AS
+SELECT 
+    a.id as application_id,
+    a.application_status,
+    a.total_score,
+    a.recommendation,
+    a.system_generated_recommendation,
+    a.recommendation_confidence,
+    p.program_name,
+    p.program_code,
+    CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+    u.email as candidate_email,
+    COUNT(DISTINCT er.id) as recommendation_count,
+    COUNT(DISTINCT CASE WHEN er.priority = 'high' THEN er.id END) as high_priority_count,
+    COUNT(DISTINCT es.id) as section_count,
+    COUNT(DISTINCT CASE WHEN es.passed = 1 THEN es.id END) as sections_passed,
+    COUNT(DISTINCT d.id) as document_count,
+    a.submission_date,
+    a.evaluation_date,
+    a.created_at
+FROM applications a
+LEFT JOIN programs p ON a.program_id = p.id
+LEFT JOIN users u ON a.user_id = u.id
+LEFT JOIN evaluation_recommendations er ON a.id = er.application_id
+LEFT JOIN evaluation_sections es ON a.id = es.application_id
+LEFT JOIN documents d ON a.id = d.application_id
+GROUP BY a.id;
+
+-- Create trigger to automatically calculate confidence metrics
+DELIMITER //
+CREATE TRIGGER IF NOT EXISTS update_confidence_metrics 
+AFTER UPDATE ON applications
+FOR EACH ROW
+BEGIN
+    IF NEW.total_score IS NOT NULL AND NEW.total_score > 0 THEN
+        INSERT INTO evaluation_confidence_metrics 
+        (application_id, overall_confidence, calculated_at)
+        VALUES 
+        (NEW.id, NEW.recommendation_confidence, NOW())
+        ON DUPLICATE KEY UPDATE
+        overall_confidence = NEW.recommendation_confidence,
+        calculated_at = NOW();
+    END IF;
+END//
+DELIMITER ;
+
+-- Sample intelligent recommendations for testing
+INSERT INTO evaluation_recommendations 
+(application_id, category, requirement, details, priority, timeline, suggested_actions) 
+VALUES 
+(1, 'immediate_action', 'Missing Technical Documentation', 'Critical technical competency documentation is insufficient for evaluation', 'high', 'Within 2 weeks', JSON_ARRAY('Submit detailed technical portfolio', 'Provide project documentation', 'Include code samples or technical reports')),
+(1, 'educational', 'Advanced Certification Required', 'Additional industry certification would strengthen application', 'medium', '3-6 months', JSON_ARRAY('Pursue relevant industry certification', 'Complete advanced training program')),
+(1, 'experience', 'Leadership Experience Gap', 'Limited evidence of leadership and management experience', 'medium', '6-12 months', JSON_ARRAY('Seek leadership opportunities', 'Document management responsibilities', 'Pursue leadership training'))
+ON DUPLICATE KEY UPDATE requirement = VALUES(requirement);
+
+-- Create stored procedure for bulk evaluation processing
+DELIMITER //
+CREATE PROCEDURE IF NOT EXISTS ProcessBulkEvaluations()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE app_id INT;
+    DECLARE cur CURSOR FOR 
+        SELECT id FROM applications 
+        WHERE application_status = 'submitted' 
+        AND total_score IS NULL 
+        LIMIT 10;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    OPEN cur;
+    read_loop: LOOP
+        FETCH cur INTO app_id;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- Update application status to under_review
+        UPDATE applications 
+        SET application_status = 'under_review' 
+        WHERE id = app_id;
+        
+    END LOOP;
+    CLOSE cur;
+END//
+DELIMITER ;
+
+-- Create function to calculate section pass rate
+DELIMITER //
+CREATE FUNCTION IF NOT EXISTS CalculateSectionPassRate(app_id INT) 
+RETURNS DECIMAL(5,2)
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE pass_rate DECIMAL(5,2) DEFAULT 0.00;
+    
+    SELECT 
+        CASE 
+            WHEN COUNT(*) > 0 THEN 
+                (COUNT(CASE WHEN passed = 1 THEN 1 END) / COUNT(*)) * 100
+            ELSE 0 
+        END INTO pass_rate
+    FROM evaluation_sections 
+    WHERE application_id = app_id;
+    
+    RETURN pass_rate;
+END//
+DELIMITER ;
+
+-- Insert sample evaluation sections for testing
+INSERT INTO evaluation_sections 
+(application_id, section_number, section_name, total_score, max_possible, percentage, passed)
+VALUES 
+(1, 1, 'Educational Background', 240, 300, 80.0, 1),
+(1, 2, 'Professional Experience', 560, 700, 80.0, 1),
+(1, 3, 'Professional Certifications', 180, 200, 90.0, 1),
+(1, 4, 'Portfolio and Documentation', 220, 250, 88.0, 1)
+ON DUPLICATE KEY UPDATE 
+percentage = VALUES(percentage),
+passed = VALUES(passed);
+
+-- Create materialized view for reporting dashboard
+CREATE TABLE IF NOT EXISTS evaluation_statistics AS
+SELECT 
+    DATE(evaluation_date) as evaluation_date,
+    COUNT(*) as total_evaluations,
+    COUNT(CASE WHEN application_status = 'qualified' THEN 1 END) as qualified_count,
+    COUNT(CASE WHEN application_status = 'partially_qualified' THEN 1 END) as partial_count,
+    COUNT(CASE WHEN application_status = 'not_qualified' THEN 1 END) as not_qualified_count,
+    AVG(total_score) as avg_score,
+    AVG(recommendation_confidence) as avg_confidence
+FROM applications 
+WHERE evaluation_date IS NOT NULL
+GROUP BY DATE(evaluation_date);
+
+-- Create event to refresh statistics daily
+-- Note: This requires event scheduler to be enabled
+CREATE EVENT IF NOT EXISTS refresh_evaluation_statistics
+ON SCHEDULE EVERY 1 DAY
+STARTS CURRENT_DATE + INTERVAL 1 DAY
+DO
+BEGIN
+    DELETE FROM evaluation_statistics WHERE evaluation_date < DATE_SUB(CURDATE(), INTERVAL 90 DAY);
+    
+    INSERT INTO evaluation_statistics
+    SELECT 
+        DATE(evaluation_date) as evaluation_date,
+        COUNT(*) as total_evaluations,
+        COUNT(CASE WHEN application_status = 'qualified' THEN 1 END) as qualified_count,
+        COUNT(CASE WHEN application_status = 'partially_qualified' THEN 1 END) as partial_count,
+        COUNT(CASE WHEN application_status = 'not_qualified' THEN 1 END) as not_qualified_count,
+        AVG(total_score) as avg_score,
+        AVG(recommendation_confidence) as avg_confidence
+    FROM applications 
+    WHERE evaluation_date >= CURDATE() - INTERVAL 1 DAY
+    AND evaluation_date IS NOT NULL
+    GROUP BY DATE(evaluation_date)
+    ON DUPLICATE KEY UPDATE
+        total_evaluations = VALUES(total_evaluations),
+        qualified_count = VALUES(qualified_count),
+        partial_count = VALUES(partial_count),
+        not_qualified_count = VALUES(not_qualified_count),
+        avg_score = VALUES(avg_score),
+        avg_confidence = VALUES(avg_confidence);
+END;
+
+-- Grant necessary permissions (adjust user as needed)
+-- GRANT SELECT, INSERT, UPDATE ON eteeap_db.evaluation_sections TO 'eteeap_user'@'localhost';
+-- GRANT SELECT, INSERT, UPDATE ON eteeap_db.evaluation_recommendations TO 'eteeap_user'@'localhost';
+-- GRANT SELECT, INSERT, UPDATE, DELETE ON eteeap_db.evaluation_drafts TO 'eteeap_user'@'localhost';
+
+-- Verify the setup
+SELECT 'AI Enhancement Database Setup Complete' AS status;
+SELECT 'Tables Created:' AS info;
+SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES 
+WHERE TABLE_SCHEMA = DATABASE() 
+AND TABLE_NAME IN ('evaluation_sections', 'evaluation_recommendations', 'evaluation_drafts', 'evaluation_confidence_metrics');
+
+SELECT 'New Columns Added:' AS info;
+SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = DATABASE() 
+AND TABLE_NAME = 'applications' 
+AND COLUMN_NAME IN ('system_generated_recommendation', 'recommendation_confidence');
+
+SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = DATABASE() 
+AND TABLE_NAME = 'assessment_criteria' 
+AND COLUMN_NAME IN ('section_number', 'subsection');

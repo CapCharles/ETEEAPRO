@@ -1,0 +1,248 @@
+-- ETEEAP Database Schema
+-- Create database first
+
+--  admin@eteeap.com / admin123
+CREATE DATABASE IF NOT EXISTS eteeap_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE eteeap_db;
+
+-- 1. Users table (for both candidates and admins)
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    middle_name VARCHAR(100),
+    phone VARCHAR(20),
+    address TEXT,
+    user_type ENUM('candidate', 'admin', 'evaluator') DEFAULT 'candidate',
+    status ENUM('active', 'inactive', 'pending') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- 2. Programs table (ETEEAP programs available)
+CREATE TABLE programs (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    program_name VARCHAR(255) NOT NULL,
+    program_code VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    requirements TEXT,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Applications table (candidate applications)
+CREATE TABLE applications (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    program_id INT NOT NULL,
+    application_status ENUM('draft', 'submitted', 'under_review', 'qualified', 'partially_qualified', 'not_qualified') DEFAULT 'draft',
+    submission_date DATETIME,
+    evaluation_date DATETIME,
+    evaluator_id INT,
+    total_score DECIMAL(5,2) DEFAULT 0,
+    recommendation TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (program_id) REFERENCES programs(id),
+    FOREIGN KEY (evaluator_id) REFERENCES users(id)
+);
+
+-- 4. Assessment criteria table
+CREATE TABLE assessment_criteria (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    program_id INT NOT NULL,
+    criteria_name VARCHAR(255) NOT NULL,
+    criteria_type ENUM('work_experience', 'training', 'certification', 'skills', 'portfolio') NOT NULL,
+    max_score INT DEFAULT 100,
+    weight DECIMAL(3,2) DEFAULT 1.00,
+    description TEXT,
+    requirements TEXT,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
+);
+
+-- 5. Documents table (uploaded files)
+CREATE TABLE documents (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    document_type ENUM('diploma', 'transcript', 'certificate', 'employment_record', 'portfolio', 'other') NOT NULL,
+    original_filename VARCHAR(255) NOT NULL,
+    stored_filename VARCHAR(255) NOT NULL,
+    file_path VARCHAR(500) NOT NULL,
+    file_size INT,
+    mime_type VARCHAR(100),
+    description TEXT,
+    upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+);
+
+-- 6. Evaluations table (detailed scoring)
+CREATE TABLE evaluations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    criteria_id INT NOT NULL,
+    evaluator_id INT NOT NULL,
+    score DECIMAL(5,2) DEFAULT 0,
+    max_score INT DEFAULT 100,
+    comments TEXT,
+    evidence_documents TEXT, -- JSON array of document IDs
+    evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    FOREIGN KEY (criteria_id) REFERENCES assessment_criteria(id),
+    FOREIGN KEY (evaluator_id) REFERENCES users(id),
+    UNIQUE KEY unique_evaluation (application_id, criteria_id)
+);
+
+-- 7. System logs table (for audit trail)
+CREATE TABLE system_logs (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT,
+    action VARCHAR(255) NOT NULL,
+    table_name VARCHAR(100),
+    record_id INT,
+    old_values JSON,
+    new_values JSON,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Insert sample data
+-- Default admin user (password: admin123)
+INSERT INTO users (email, password, first_name, last_name, user_type, status) 
+VALUES ('admin@eteeap.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System', 'Administrator', 'admin', 'active');
+
+-- Sample programs
+INSERT INTO programs (program_name, program_code, description) VALUES
+('Bachelor of Science in Information Technology', 'BSIT', 'ETEEAP program for IT professionals'),
+('Bachelor of Science in Business Administration', 'BSBA', 'ETEEAP program for business professionals'),
+('Bachelor of Science in Engineering Technology', 'BSET', 'ETEEAP program for engineering technicians');
+
+-- Sample assessment criteria for BSIT
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, description) VALUES
+(1, 'Work Experience in IT', 'work_experience', 40, 'Relevant work experience in Information Technology field'),
+(1, 'Technical Certifications', 'certification', 30, 'Industry-recognized IT certifications'),
+(1, 'Training and Seminars', 'training', 20, 'Completed IT-related trainings and seminars'),
+(1, 'Technical Portfolio', 'portfolio', 10, 'Portfolio of technical projects and achievements');
+
+
+
+INSERT INTO users (email, password, first_name, last_name, user_type, status)
+VALUES (
+  'pobletecharles11@gmail.com',
+$2y$10$CMEswMg5hi2Z09HgvMDZeurrHPjr.Jc7kZPY4OeMxWLeq/.TtoLVW
+  'Charles',
+  'Poblete',
+  'admin',
+  'active'
+);
+
+
+--adminwan
+
+-- Enhanced ETEEAP Criteria System
+-- Based on the sample evaluation instrument shown
+
+-- Add more detailed criteria structure
+ALTER TABLE assessment_criteria ADD COLUMN section_number INT DEFAULT 1;
+ALTER TABLE assessment_criteria ADD COLUMN subsection VARCHAR(10);
+ALTER TABLE assessment_criteria ADD COLUMN criteria_level ENUM('local', 'national', 'international') DEFAULT 'local';
+
+-- Insert comprehensive criteria based on your evaluation instrument
+-- Section 1: Educational Qualifications (30pts)
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection) VALUES
+(1, 'High School Graduate', 'education', 10, 1.0, 'High School Diploma or equivalent', 1, '1.1'),
+(1, 'Vocational/Technical Certificate', 'education', 17, 1.0, 'Vocational or Technical certification', 1, '1.2'),
+(1, 'College Undergraduate', 'education', 30, 1.0, 'College units completed', 1, '1.3'),
+(1, 'Non-BIT Related Degree Holder', 'education', 20, 1.0, 'Bachelor\'s degree in other field', 1, '1.4');
+
+-- Section 2: Work Experience (30pts)
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection) VALUES
+(1, 'Entry Level Work Experience', 'work_experience', 15, 2.0, 'Work experience 1-5 years', 2, '2.1'),
+(1, 'School Learning Center Administrator', 'work_experience', 5, 2.0, 'Administrative experience in educational technology', 2, '2.2'),
+(1, 'Training Supervisor', 'work_experience', 5, 2.0, 'Training and supervision experience', 2, '2.3'),
+(1, 'Trainer/Learning Facilitator', 'work_experience', 5, 2.0, 'Training and facilitation experience', 2, '2.4');
+
+-- Section 3: Professional Development (Community Contributions) (20pts)
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection) VALUES
+(1, 'Production/Accomplishments - Community Benefit', 'portfolio', 20, 1.5, 'Projects that benefited the community', 3, '3.1'),
+(1, 'Inventions/Innovations - Local', 'portfolio', 7, 1.5, 'Local market innovations and inventions', 3, '3.1.1'),
+(1, 'Inventions/Innovations - National', 'portfolio', 8, 1.5, 'National market innovations', 3, '3.1.2'),
+(1, 'Inventions/Innovations - International', 'portfolio', 9, 1.5, 'International market innovations', 3, '3.1.3'),
+(1, 'Publications - Local', 'portfolio', 4, 1.5, 'Local publications and journals', 3, '3.2.1'),
+(1, 'Publications - National', 'portfolio', 5, 1.5, 'National publications with ISBN', 3, '3.2.2'),
+(1, 'Publications - International', 'portfolio', 6, 1.5, 'International publications with copyright', 3, '3.2.3');
+
+-- Section 4: Personal Professional Development (Informal Training) (25pts)
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection) VALUES
+(1, 'Training Program Coordination - Local', 'training', 6, 1.0, 'Local level training coordination', 4, '4.1'),
+(1, 'Training Program Coordination - National', 'training', 8, 1.0, 'National level training coordination', 4, '4.2'),
+(1, 'Training Program Coordination - International', 'training', 10, 1.0, 'International level training coordination', 4, '4.3'),
+(1, 'Seminar/Workshop Participation - Local', 'training', 1, 1.0, 'Local seminar participation', 4, '4.4'),
+(1, 'Seminar/Workshop Participation - National', 'training', 4, 1.0, 'National seminar participation', 4, '4.5'),
+(1, 'Seminar/Workshop Participation - International', 'training', 5, 1.0, 'International seminar participation', 4, '4.6'),
+(1, 'Professional Organization Membership - Local', 'certification', 3, 1.0, 'Local professional organization membership', 4, '4.7'),
+(1, 'Professional Organization Membership - National', 'certification', 4, 1.0, 'National professional organization membership', 4, '4.8'),
+(1, 'Professional Organization Membership - International', 'certification', 5, 1.0, 'International professional organization membership', 4, '4.9');
+
+-- Section 5: Recognition, Awards and Eligibilities (15pts)
+INSERT INTO assessment_criteria (program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection) VALUES
+(1, 'Recognition/Awards - Local', 'certification', 6, 1.0, 'Local level recognition and awards', 5, '5.1'),
+(1, 'Recognition/Awards - National', 'certification', 8, 1.0, 'National level recognition and awards', 5, '5.2'),
+(1, 'Recognition/Awards - International', 'certification', 10, 1.0, 'International level recognition and awards', 5, '5.3'),
+(1, 'CS Sub-Professional License', 'certification', 3, 1.0, 'Computer Science Sub-Professional License', 5, '5.4'),
+(1, 'CS Professional License', 'certification', 4, 1.0, 'Computer Science Professional License', 5, '5.5'),
+(1, 'PRC Licensure Exam', 'certification', 5, 1.0, 'Professional Regulation Commission License', 5, '5.6'),
+(1, 'Driver\'s License', 'certification', 3, 1.0, 'Valid Driver\'s License', 5, '5.7');
+
+-- Create detailed evaluation rubric table
+CREATE TABLE evaluation_rubric (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    criteria_id INT NOT NULL,
+    level_name VARCHAR(100) NOT NULL,
+    level_description TEXT,
+    points_awarded DECIMAL(4,2) NOT NULL,
+    requirements TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (criteria_id) REFERENCES assessment_criteria(id) ON DELETE CASCADE
+);
+
+-- Insert sample rubric levels for work experience
+INSERT INTO evaluation_rubric (criteria_id, level_name, level_description, points_awarded, requirements) VALUES
+-- For Entry Level Work Experience (assuming criteria_id = 5)
+(5, 'No Experience', 'No relevant work experience', 0.00, 'No documented work experience'),
+(5, '1-2 Years', 'Entry level with basic experience', 5.00, '1-2 years documented work experience'),
+(5, '3-4 Years', 'Moderate experience with some specialization', 10.00, '3-4 years documented work experience with job descriptions'),
+(5, '5+ Years', 'Extensive experience with proven track record', 15.00, '5 or more years documented work experience with achievements');
+
+-- Create evaluation summary view
+CREATE VIEW evaluation_summary AS
+SELECT 
+    a.id as application_id,
+    a.user_id,
+    p.program_name,
+    p.program_code,
+    u.first_name,
+    u.last_name,
+    u.email,
+    a.application_status,
+    a.total_score,
+    COUNT(e.id) as evaluated_criteria_count,
+    COUNT(ac.id) as total_criteria_count,
+    ROUND((COUNT(e.id) / COUNT(ac.id)) * 100, 2) as completion_percentage,
+    SUM(CASE WHEN ac.section_number = 1 THEN e.score ELSE 0 END) as section1_score,
+    SUM(CASE WHEN ac.section_number = 2 THEN e.score ELSE 0 END) as section2_score,
+    SUM(CASE WHEN ac.section_number = 3 THEN e.score ELSE 0 END) as section3_score,
+    SUM(CASE WHEN ac.section_number = 4 THEN e.score ELSE 0 END) as section4_score,
+    SUM(CASE WHEN ac.section_number = 5 THEN e.score ELSE 0 END) as section5_score
+FROM applications a
+LEFT JOIN programs p ON a.program_id = p.id
+LEFT JOIN users u ON a.user_id = u.id
+LEFT JOIN assessment_criteria ac ON p.id = ac.program_id AND ac.status = 'active'
+LEFT JOIN evaluations e ON a.id = e.application_id AND ac.id = e.criteria_id
+GROUP BY a.id, a.user_id, p.program_name, p.program_code, u.first_name, u.last_name, u.email, a.application_status, a.total_score;

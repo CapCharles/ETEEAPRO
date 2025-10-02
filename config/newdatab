@@ -1,0 +1,16 @@
+CREATE TABLE program_recommendations (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    program_id INT NOT NULL,
+    confidence_score DECIMAL(5,2) DEFAULT 0,
+    evidence_keywords JSON,
+    rank_position INT DEFAULT 1,
+    is_admin_override TINYINT(1) DEFAULT 0,
+    admin_id INT NULL,
+    admin_reason TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+    FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_user_program (user_id, program_id)
+);

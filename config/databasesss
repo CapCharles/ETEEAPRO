@@ -1,0 +1,324 @@
+/* =========================================================
+   ETEEAP MIGRATION (Clean + Idempotent)
+   - Adds program prefill columns, indexes, FKs
+   - Users approval/ review tracking
+   - Notifications & System Logs tables
+   - Program detection stats & reviews history
+   - Quick approval history
+   - Helpful indexes
+   - View + System config + Sample Programs
+   ========================================================= */
+
+SET NAMES utf8mb4;
+SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0;
+SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0;
+
+/* ---------------------------------------------------------
+   0) Safety helpers: drop indexes if they already exist
+   --------------------------------------------------------- */
+-- application_forms indexes to (re)create
+DROP INDEX IF EXISTS idx_program_suggestion ON application_forms;
+DROP INDEX IF EXISTS idx_confidence         ON application_forms;
+DROP INDEX IF EXISTS idx_processed_date     ON application_forms;
+DROP INDEX IF EXISTS idx_reviewed_by        ON application_forms;
+DROP INDEX IF EXISTS idx_review_date        ON application_forms;
+
+-- users indexes to (re)create
+DROP INDEX IF EXISTS idx_form_status ON users;
+DROP INDEX IF EXISTS idx_approved_by ON users;
+
+-- other common indexes (safe to drop if present)
+DROP INDEX IF EXISTS idx_applications_status          ON applications;
+DROP INDEX IF EXISTS idx_applications_user_program    ON applications;
+DROP INDEX IF EXISTS idx_users_type_status            ON users;
+DROP INDEX IF EXISTS idx_documents_application        ON documents;
+
+/* ---------------------------------------------------------
+   1) application_forms: columns
+   --------------------------------------------------------- */
+ALTER TABLE application_forms 
+    ADD COLUMN IF NOT EXISTS extracted_text TEXT COMMENT 'Sample of extracted text from document',
+    ADD COLUMN IF NOT EXISTS extracted_program VARCHAR(500) COMMENT 'Raw program text detected from document',
+    ADD COLUMN IF NOT EXISTS extracted_program_confidence DECIMAL(5,2) COMMENT 'Confidence percentage (0-100)',
+    ADD COLUMN IF NOT EXISTS program_suggestion_id INT COMMENT 'Suggested program based on AI detection',
+    ADD COLUMN IF NOT EXISTS processed_date TIMESTAMP NULL COMMENT 'When AI processing was completed',
+    ADD COLUMN IF NOT EXISTS review_comments TEXT COMMENT 'Admin review comments',
+    ADD COLUMN IF NOT EXISTS reviewed_by INT COMMENT 'Admin who reviewed this form',
+    ADD COLUMN IF NOT EXISTS review_date TIMESTAMP NULL COMMENT 'When form was reviewed';
+
+/* ---------------------------------------------------------
+   2) application_forms: indexes (recreate cleanly)
+   --------------------------------------------------------- */
+ALTER TABLE application_forms 
+    ADD INDEX idx_program_suggestion (program_suggestion_id),
+    ADD INDEX idx_confidence (extracted_program_confidence),
+    ADD INDEX idx_processed_date (processed_date),
+    ADD INDEX idx_reviewed_by (reviewed_by),
+    ADD INDEX idx_review_date (review_date);
+
+/* ---------------------------------------------------------
+   3) application_forms: foreign keys (guarded)
+   --------------------------------------------------------- */
+-- fk_application_forms_program_suggestion
+SET @fk := (
+  SELECT COUNT(*) FROM information_schema.referential_constraints
+  WHERE constraint_schema = DATABASE()
+    AND constraint_name = 'fk_application_forms_program_suggestion'
+);
+SET @sql := IF(@fk>0,
+  'ALTER TABLE application_forms DROP FOREIGN KEY fk_application_forms_program_suggestion',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+ALTER TABLE application_forms 
+  ADD CONSTRAINT fk_application_forms_program_suggestion
+  FOREIGN KEY (program_suggestion_id) REFERENCES programs(id) ON DELETE SET NULL;
+
+-- fk_application_forms_reviewed_by
+SET @fk := (
+  SELECT COUNT(*) FROM information_schema.referential_constraints
+  WHERE constraint_schema = DATABASE()
+    AND constraint_name = 'fk_application_forms_reviewed_by'
+);
+SET @sql := IF(@fk>0,
+  'ALTER TABLE application_forms DROP FOREIGN KEY fk_application_forms_reviewed_by',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+ALTER TABLE application_forms 
+  ADD CONSTRAINT fk_application_forms_reviewed_by
+  FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL;
+
+/* ---------------------------------------------------------
+   4) users: columns, indexes, FK (self-ref approved_by)
+   --------------------------------------------------------- */
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS application_form_status ENUM('pending','approved','rejected') DEFAULT 'pending' COMMENT 'Status of application forms review',
+    ADD COLUMN IF NOT EXISTS approved_by INT COMMENT 'Admin who approved the forms',
+    ADD COLUMN IF NOT EXISTS approval_date TIMESTAMP NULL COMMENT 'When forms were approved',
+    ADD COLUMN IF NOT EXISTS rejection_reason TEXT COMMENT 'Reason for rejection if applicable';
+
+ALTER TABLE users
+    ADD INDEX idx_form_status (application_form_status),
+    ADD INDEX idx_approved_by (approved_by);
+
+-- fk_users_approved_by
+SET @fk := (
+  SELECT COUNT(*) FROM information_schema.referential_constraints
+  WHERE constraint_schema = DATABASE()
+    AND constraint_name = 'fk_users_approved_by'
+);
+SET @sql := IF(@fk>0,
+  'ALTER TABLE users DROP FOREIGN KEY fk_users_approved_by',
+  'SELECT 1'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+ALTER TABLE users
+  ADD CONSTRAINT fk_users_approved_by
+  FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL;
+
+/* ---------------------------------------------------------
+   5) Notifications & System Logs tables
+   --------------------------------------------------------- */
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  type ENUM('info','success','warning','error') DEFAULT 'info',
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  read_at TIMESTAMP NULL,
+  INDEX idx_user_id (user_id),
+  INDEX idx_is_read (is_read),
+  INDEX idx_created_at (created_at),
+  CONSTRAINT fk_notifications_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS system_logs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NULL,
+  action VARCHAR(100) NOT NULL,
+  table_name VARCHAR(50) NULL,
+  record_id INT NULL,
+  old_values JSON NULL,
+  new_values JSON NULL,
+  ip_address VARCHAR(45) NULL,
+  user_agent TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_user_id (user_id),
+  INDEX idx_action (action),
+  INDEX idx_table_record (table_name, record_id),
+  INDEX idx_created_at (created_at),
+  CONSTRAINT fk_system_logs_user
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+/* ---------------------------------------------------------
+   6) Program detection stats table
+   --------------------------------------------------------- */
+CREATE TABLE IF NOT EXISTS program_detection_stats (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  date_processed DATE NOT NULL,
+  total_documents INT DEFAULT 0,
+  successful_detections INT DEFAULT 0,
+  high_confidence_count INT DEFAULT 0,
+  average_confidence DECIMAL(5,2) DEFAULT 0,
+  processing_time_seconds INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_date (date_processed),
+  INDEX idx_date_processed (date_processed)
+);
+
+/* ---------------------------------------------------------
+   7) Reviews history & Quick approval history
+   --------------------------------------------------------- */
+CREATE TABLE IF NOT EXISTS application_form_reviews (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  application_form_id INT NOT NULL,
+  user_id INT NOT NULL COMMENT 'Applicant user ID',
+  reviewer_id INT NOT NULL COMMENT 'Admin/evaluator who reviewed',
+  previous_status ENUM('pending_review','approved','rejected') NOT NULL,
+  new_status ENUM('pending_review','approved','rejected') NOT NULL,
+  review_comments TEXT,
+  program_assigned_id INT NULL COMMENT 'Program assigned during quick approval',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_form_id (application_form_id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_reviewer_id (reviewer_id),
+  INDEX idx_created_at (created_at),
+  CONSTRAINT fk_afr_form     FOREIGN KEY (application_form_id) REFERENCES application_forms(id) ON DELETE CASCADE,
+  CONSTRAINT fk_afr_user     FOREIGN KEY (user_id)            REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_afr_reviewer FOREIGN KEY (reviewer_id)        REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_afr_program  FOREIGN KEY (program_assigned_id) REFERENCES programs(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS quick_approval_history (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  applicant_user_id INT NOT NULL,
+  reviewer_id INT NOT NULL,
+  assigned_program_id INT NOT NULL,
+  approval_notes TEXT,
+  forms_count INT DEFAULT 0 COMMENT 'Number of forms approved',
+  eteeap_application_id INT NULL COMMENT 'Created ETEEAP application ID',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_applicant (applicant_user_id),
+  INDEX idx_reviewer (reviewer_id),
+  INDEX idx_program (assigned_program_id),
+  INDEX idx_created_at (created_at),
+  CONSTRAINT fk_qah_applicant FOREIGN KEY (applicant_user_id)     REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_qah_reviewer  FOREIGN KEY (reviewer_id)           REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_qah_program   FOREIGN KEY (assigned_program_id)   REFERENCES programs(id) ON DELETE CASCADE,
+  CONSTRAINT fk_qah_app       FOREIGN KEY (eteeap_application_id) REFERENCES applications(id) ON DELETE SET NULL
+);
+
+/* ---------------------------------------------------------
+   8) Helpful indexes (recreate)
+   --------------------------------------------------------- */
+ALTER TABLE applications
+  ADD INDEX idx_applications_status (application_status),
+  ADD INDEX idx_applications_user_program (user_id, program_id);
+
+ALTER TABLE users
+  ADD INDEX idx_users_type_status (user_type, status);
+
+ALTER TABLE documents
+  ADD INDEX idx_documents_application (application_id);
+
+/* ---------------------------------------------------------
+   9) assessment_criteria: add auto_generated flag
+   --------------------------------------------------------- */
+ALTER TABLE assessment_criteria 
+  ADD COLUMN IF NOT EXISTS auto_generated BOOLEAN DEFAULT FALSE
+  COMMENT 'Whether criteria was auto-generated from program detection';
+
+/* ---------------------------------------------------------
+  10) Ensure system_config table exists, then seed configs
+   --------------------------------------------------------- */
+CREATE TABLE IF NOT EXISTS system_config (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  config_key VARCHAR(100) NOT NULL UNIQUE,
+  config_value TEXT NULL,
+  config_description TEXT NULL,
+  updated_at TIMESTAMP NULL DEFAULT NULL
+);
+
+INSERT INTO system_config (config_key, config_value, config_description)
+VALUES 
+  ('program_detection_enabled','1','Enable automatic program detection from application forms'),
+  ('program_detection_batch_size','10','Number of documents to process per batch'),
+  ('program_detection_min_confidence','60','Minimum confidence threshold for program suggestions'),
+  ('quick_approval_enabled','1','Enable quick approval with automatic program assignment'),
+  ('auto_process_documents','1','Automatically process uploaded documents for program detection')
+ON DUPLICATE KEY UPDATE config_value=VALUES(config_value), config_description=VALUES(config_description);
+
+INSERT INTO system_config (config_key, config_value, config_description) 
+VALUES ('schema_version','2.1.0','Database schema version')
+ON DUPLICATE KEY UPDATE config_value='2.1.0', config_description='Database schema version';
+
+/* ---------------------------------------------------------
+  11) Seed sample programs (ignore if already present)
+   --------------------------------------------------------- */
+INSERT IGNORE INTO programs (program_name, program_code, description, status) VALUES
+('Bachelor of Science in Information Technology','BSIT','Information Technology program focusing on programming, databases, and system administration','active'),
+('Bachelor of Science in Computer Science','BSCS','Computer Science program with emphasis on algorithms, software engineering, and theoretical foundations','active'),
+('Bachelor of Science in Business Administration','BSBA','Business Administration program covering management, marketing, finance, and entrepreneurship','active'),
+('Bachelor of Science in Accountancy','BSA','Accountancy program preparing students for CPA and professional accounting careers','active'),
+('Bachelor of Science in Electrical Engineering','BSEE','Electrical Engineering program covering power systems, electronics, and telecommunications','active'),
+('Bachelor of Science in Mechanical Engineering','BSME','Mechanical Engineering program focusing on design, thermodynamics, and manufacturing','active'),
+('Bachelor of Science in Civil Engineering','BSCE','Civil Engineering program covering construction, structural design, and infrastructure','active'),
+('Bachelor of Elementary Education','BEED','Elementary Education program for aspiring elementary school teachers','active'),
+('Bachelor of Secondary Education','BSED','Secondary Education program with various major specializations','active'),
+('Bachelor of Science in Nursing','BSN','Nursing program preparing registered nurses for healthcare settings','active'),
+('Bachelor of Science in Tourism Management','BSTM','Tourism Management program covering hospitality and travel industry','active');
+
+/* ---------------------------------------------------------
+  12) View: Application Review Summary
+   (Note: assumes application_forms has columns: status, upload_date)
+   --------------------------------------------------------- */
+CREATE OR REPLACE VIEW application_review_summary AS
+SELECT 
+  u.id AS user_id,
+  CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+  u.email,
+  u.phone,
+  u.created_at AS registration_date,
+  u.application_form_status,
+  COUNT(af.id) AS total_forms,
+  MIN(af.upload_date) AS first_upload,
+  MAX(af.upload_date) AS last_upload,
+  AVG(af.extracted_program_confidence) AS avg_confidence,
+  MAX(af.extracted_program_confidence) AS best_confidence,
+  (
+    SELECT p.program_name
+    FROM programs p
+    WHERE p.id = (
+      SELECT af2.program_suggestion_id
+      FROM application_forms af2
+      WHERE af2.user_id = u.id AND af2.status = 'pending_review'
+      ORDER BY af2.extracted_program_confidence DESC
+      LIMIT 1
+    )
+  ) AS suggested_program_name,
+  (
+    SELECT af2.program_suggestion_id
+    FROM application_forms af2
+    WHERE af2.user_id = u.id AND af2.status = 'pending_review'
+    ORDER BY af2.extracted_program_confidence DESC
+    LIMIT 1
+  ) AS suggested_program_id,
+  DATEDIFF(NOW(), MIN(af.upload_date)) AS days_waiting
+FROM users u
+JOIN application_forms af ON u.id = af.user_id
+WHERE af.status = 'pending_review'
+GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone, u.created_at, u.application_form_status
+ORDER BY MIN(af.upload_date) ASC;
+
+/* --------------------------------------------------------- */
+SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS;
+/* ========================= DONE ========================= */

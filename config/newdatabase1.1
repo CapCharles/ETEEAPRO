@@ -1,0 +1,725 @@
+-- =========================================================
+-- ETEEAP Default Program Template System
+-- Creates standardized criteria templates for new programs
+-- =========================================================
+
+USE eteeap_db;
+
+-- Create template tables for default criteria
+CREATE TABLE IF NOT EXISTS program_templates (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    template_name VARCHAR(100) NOT NULL UNIQUE,
+    template_description TEXT,
+    is_default TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS template_criteria (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    template_id INT NOT NULL,
+    criteria_name VARCHAR(255) NOT NULL,
+    criteria_type ENUM('education','work_experience','training','certification','skills','portfolio') NOT NULL,
+    max_score DECIMAL(6,2) NOT NULL,
+    weight DECIMAL(4,2) DEFAULT 1.00,
+    description TEXT,
+    requirements TEXT,
+    section_number INT DEFAULT 1,
+    subsection VARCHAR(20),
+    criteria_level ENUM('local','national','international') DEFAULT 'local',
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_template_criteria FOREIGN KEY (template_id) REFERENCES program_templates(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS template_rubrics (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    template_criteria_id INT NOT NULL,
+    level_name VARCHAR(100) NOT NULL,
+    level_description TEXT,
+    points_awarded DECIMAL(6,2) NOT NULL,
+    requirements TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_template_rubric FOREIGN KEY (template_criteria_id) REFERENCES template_criteria(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Insert default ETEEAP template based on your current structure
+INSERT INTO program_templates (template_name, template_description, is_default) 
+VALUES ('Standard ETEEAP Template', 'Default ETEEAP evaluation criteria based on DepEd guidelines', 1);
+
+SET @template_id = LAST_INSERT_ID();
+
+-- Section 1: Educational Qualifications (20pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, 'Educational Qualifications', 'education', 20, 1.0, 'Academic preparation aligned to program major', 1, '1', 'local', 1);
+
+SET @ed_qual_id = LAST_INSERT_ID();
+
+-- Educational Qualifications Rubric
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@ed_qual_id, 'High School Graduate', 'High School Graduate only', 10, 'HS Diploma/Certificate'),
+(@ed_qual_id, 'Vocational/Technical', 'Vocational or Technical course completion', 11, 'Vocational Certificate + HS'),
+(@ed_qual_id, 'Technical', 'Technical course completion', 15, 'Technical Certificate'),
+(@ed_qual_id, 'College Undergraduate', 'Some college units completed', 18, 'College Transcript'),
+(@ed_qual_id, 'Non-BIT Related Degree Holder', 'Degree in different field', 20, 'Bachelor\'s Degree Certificate');
+
+-- Section 2: Work Experience (30pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, 'Work Experience (≥5 yrs entry; +1pt/yr)', 'work_experience', 30, 1.0, 'Teaching/administrative/training roles with minimum 5 years', 2, '2', 'local', 2);
+
+SET @work_exp_id = LAST_INSERT_ID();
+
+-- Work Experience Rubric
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@work_exp_id, 'Entry Level (5 years)', 'Minimum 5 years teaching/training experience', 15, 'Employment certificates, service records'),
+(@work_exp_id, 'School Teaching Center/Business Owner/Administrator', 'Administrative or business management role', 5, 'Position descriptions, certificates'),
+(@work_exp_id, 'Training Supervisor', 'Supervisory role in training programs', 3, 'Job descriptions, certifications'),
+(@work_exp_id, 'Trainer/Lecturer/Preacher', 'Training, lecturing, or preaching experience', 2, 'Certificates, testimonials'),
+(@work_exp_id, 'Additional Years Bonus', 'Additional points per year beyond minimum', 5, '1 point per additional year');
+
+-- Section 3: Professional Achievement - Production (50pts total)
+-- 3.1.1 Inventions (15pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.1.1 Inventions (composite)', 'portfolio', 15, 1.0, 'Score = patent status + market acceptability', 3, '3.1.1', 'local', 3);
+
+SET @inventions_id = LAST_INSERT_ID();
+
+-- Inventions Rubric (composite scoring)
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@inventions_id, 'No patent + Local Market', 'No patent (5) + Local acceptability (7)', 12, 'Invention documentation + local adoption proof'),
+(@inventions_id, 'No patent + National Market', 'No patent (5) + National acceptability (8)', 13, 'Invention documentation + national adoption proof'),
+(@inventions_id, 'No patent + International Market', 'No patent (5) + International acceptability (9)', 14, 'Invention documentation + international adoption proof'),
+(@inventions_id, 'Patented + Local Market', 'Patented (6) + Local acceptability (7)', 13, 'Patent certificate + local adoption proof'),
+(@inventions_id, 'Patented + National Market', 'Patented (6) + National acceptability (8)', 14, 'Patent certificate + national adoption proof'),
+(@inventions_id, 'Patented + International Market', 'Patented (6) + International acceptability (9)', 15, 'Patent certificate + international adoption proof');
+
+-- 3.1.2 Innovations (8pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.1.2 Innovations (composite)', 'portfolio', 8, 1.0, 'Score = base innovation + market acceptability', 3, '3.1.2', 'local', 4);
+
+SET @innovations_id = LAST_INSERT_ID();
+
+-- Innovations Rubric
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@innovations_id, 'No patent + Local Market', 'No patent (2) + Local acceptability (4)', 6, 'Innovation documentation + local adoption proof'),
+(@innovations_id, 'No patent + National Market', 'No patent (2) + National acceptability (5)', 7, 'Innovation documentation + national adoption proof'),
+(@innovations_id, 'No patent + International Market', 'No patent (2) + International acceptability (6)', 8, 'Innovation documentation + international adoption proof'),
+(@innovations_id, 'Patented + Local Market', 'Patented (1) + Local acceptability (4)', 5, 'Patent certificate + local adoption proof'),
+(@innovations_id, 'Patented + National Market', 'Patented (1) + National acceptability (5)', 6, 'Patent certificate + national adoption proof'),
+(@innovations_id, 'Patented + International Market', 'Patented (1) + International acceptability (6)', 7, 'Patent certificate + international adoption proof');
+
+-- 3.1.2.1 Publications - Journals (4pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.1.2.1 Journals (Local/National/International)', 'portfolio', 4, 1.0, 'Published journal articles by circulation level', 3, '3.1.2.1', 'local', 5);
+
+SET @journals_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@journals_id, 'Local Circulation', 'Locally circulated journals', 2, 'Published article + journal info'),
+(@journals_id, 'National w/ ISBN', 'National circulation with ISBN', 3, 'Published article + ISBN verification'),
+(@journals_id, 'International w/ Copyright', 'International circulation with copyright', 4, 'Published article + copyright proof');
+
+-- 3.1.2.2 Training Modules (5pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.1.2.2 Training Modules (Local/National/International)', 'portfolio', 5, 1.0, 'Developed training modules by circulation level', 3, '3.1.2.2', 'local', 6);
+
+SET @modules_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@modules_id, 'Local Level', 'Locally used training modules', 3, 'Module copies + usage documentation'),
+(@modules_id, 'National w/ ISBN', 'National level with ISBN', 4, 'Module copies + ISBN + usage proof'),
+(@modules_id, 'International w/ Copyright', 'International with copyright', 5, 'Module copies + copyright + international usage');
+
+-- 3.1.2.3 Books/Workbooks/Lab Manuals (7pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.1.2.3 Books/Workbooks/Lab Manuals', 'portfolio', 7, 1.0, 'Published educational materials by circulation level', 3, '3.1.2.3', 'local', 7);
+
+SET @books_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@books_id, 'Local Circulation', 'Locally circulated books/workbooks', 5, 'Published material + circulation proof'),
+(@books_id, 'National w/ ISBN', 'National circulation with ISBN', 6, 'Published material + ISBN + distribution proof'),
+(@books_id, 'International w/ Copyright', 'International circulation with copyright', 7, 'Published material + copyright + international distribution');
+
+-- Section 3.2: Extension Services (30pts)
+-- 3.2.1 Consultancies (15pts max)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.2.1 Consultancies', 'portfolio', 15, 1.0, 'Professional consultancy services by scope', 3, '3.2.1', 'local', 8);
+
+SET @consultancy_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@consultancy_id, 'Local (In-company/Industry)', 'Within own organization/industry', 5, 'Consultancy contracts/certificates'),
+(@consultancy_id, 'National (Outside organization)', 'Outside own school/organization', 10, 'External consultancy documentation'),
+(@consultancy_id, 'International (Multi-national)', 'Multi-national or abroad', 15, 'International consultancy proof');
+
+-- 3.2.2 Lecturer/Speaker (10pts max)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.2.2 Lecturer/Speaker', 'portfolio', 10, 1.0, 'Speaking engagements by scope', 3, '3.2.2', 'local', 9);
+
+SET @speaker_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@speaker_id, 'Local Level', 'Local speaking engagements', 6, 'Certificates/invitations'),
+(@speaker_id, 'National Level', 'National speaking engagements', 8, 'National event documentation'),
+(@speaker_id, 'International Level', 'International speaking engagements', 10, 'International event proof');
+
+-- 3.2.3 Community Services (5pts max)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '3.2.3 Community Services', 'portfolio', 5, 1.0, 'Community involvement and leadership', 3, '3.2.3', 'local', 10);
+
+SET @community_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@community_id, 'Trainer/Coordinator/Organizer', 'Community training/coordination role', 3, 'Appointment letters/certificates'),
+(@community_id, 'Barangay/Municipal Official', 'Elected or appointed local official', 4, 'Official appointment/election documents'),
+(@community_id, 'Project Director/Project Manager', 'Project management role', 5, 'Project documentation/completion certificates');
+
+-- Section 4: Professional Development (25pts)
+-- 4.1 Coordination of Training Program (10pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '4.1 Coordination of Training Program', 'training', 10, 1.0, 'Training program coordination by level', 4, '4.1', 'local', 11);
+
+SET @coord_training_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@coord_training_id, 'Local Level', 'Local training coordination', 6, 'Coordination certificates/documentation'),
+(@coord_training_id, 'National Level', 'National training coordination', 8, 'National level coordination proof'),
+(@coord_training_id, 'International Level', 'International training coordination', 10, 'International coordination documentation');
+
+-- 4.2 Participation in Seminar/Workshop (5pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '4.2 Participation in Seminar/Workshop', 'training', 5, 1.0, 'Seminar/workshop participation by level', 4, '4.2', 'local', 12);
+
+SET @participation_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@participation_id, 'Local Level', 'Local seminar/workshop participation', 3, 'Certificates of participation'),
+(@participation_id, 'National Level', 'National seminar/workshop participation', 4, 'National level certificates'),
+(@participation_id, 'International Level', 'International seminar/workshop participation', 5, 'International participation proof');
+
+-- 4.3 Membership in Professional Organization (5pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '4.3 Membership in Professional Organization', 'certification', 5, 1.0, 'Professional organization memberships', 4, '4.3', 'local', 13);
+
+SET @membership_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@membership_id, 'Local Level', 'Local professional organization', 3, 'Membership certificates/cards'),
+(@membership_id, 'National Level', 'National professional organization', 4, 'National membership proof'),
+(@membership_id, 'International Level', 'International professional organization', 5, 'International membership documentation');
+
+-- 4.4 Scholarships (5pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '4.4 Scholarships', 'certification', 5, 1.0, 'Scholarship grants received', 4, '4.4', 'local', 14);
+
+SET @scholarship_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@scholarship_id, 'Local, non-competitive', 'Local non-competitive scholarship', 2.5, 'Scholarship certificates/documents'),
+(@scholarship_id, 'Local, competitive', 'Local competitive scholarship', 3, 'Competitive scholarship proof'),
+(@scholarship_id, 'National, non-competitive', 'National non-competitive scholarship', 3.5, 'National scholarship documentation'),
+(@scholarship_id, 'National, competitive', 'National competitive scholarship', 4, 'National competitive scholarship proof'),
+(@scholarship_id, 'International, non-competitive', 'International non-competitive scholarship', 4.5, 'International scholarship documents'),
+(@scholarship_id, 'International, competitive', 'International competitive scholarship', 5, 'International competitive scholarship proof');
+
+-- Section 5: Others (15pts)
+-- 5.1 Recognition/Awards (10pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '5.1 Recognition/Awards', 'certification', 10, 1.0, 'Professional recognition and awards', 5, '5.1', 'local', 15);
+
+SET @awards_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@awards_id, 'Local Level', 'Local recognition/awards', 6, 'Award certificates/documentation'),
+(@awards_id, 'National Level', 'National recognition/awards', 8, 'National award documentation'),
+(@awards_id, 'International Level', 'International recognition/awards', 10, 'International award proof');
+
+-- 5.2 Eligibilities (5pts)
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, sort_order)
+VALUES 
+(@template_id, '5.2 Eligibilities', 'certification', 5, 1.0, 'Government and professional eligibilities', 5, '5.2', 'national', 16);
+
+SET @eligibility_id = LAST_INSERT_ID();
+
+INSERT INTO template_rubrics (template_criteria_id, level_name, level_description, points_awarded, requirements)
+VALUES 
+(@eligibility_id, 'CS Sub-Professional', 'Civil Service Sub-Professional', 3, 'Eligibility certificate'),
+(@eligibility_id, 'CS Professional', 'Civil Service Professional', 4, 'Professional eligibility certificate'),
+(@eligibility_id, 'PRC Licensure Exam', 'PRC License examination', 5, 'PRC license/certificate'),
+(@eligibility_id, 'Driver\'s License', 'Professional driver\'s license', 3, 'Driver\'s license');
+
+-- Create stored procedure to apply template to new program
+DELIMITER $$
+CREATE PROCEDURE ApplyTemplateToProgram(
+    IN p_program_id INT,
+    IN p_template_id INT
+)
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_criteria_id INT;
+    DECLARE v_template_criteria_id INT;
+    DECLARE cur CURSOR FOR 
+        SELECT id FROM template_criteria WHERE template_id = p_template_id ORDER BY sort_order;
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    -- Copy criteria from template to program
+    INSERT INTO assessment_criteria (
+        program_id, criteria_name, criteria_type, max_score, weight, 
+        description, requirements, section_number, subsection, 
+        criteria_level, status
+    )
+    SELECT 
+        p_program_id, criteria_name, criteria_type, max_score, weight,
+        description, requirements, section_number, subsection,
+        criteria_level, 'active'
+    FROM template_criteria 
+    WHERE template_id = p_template_id
+    ORDER BY sort_order;
+
+    -- Copy rubrics for each criteria
+    OPEN cur;
+    read_loop: LOOP
+        FETCH cur INTO v_template_criteria_id;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Find the corresponding new criteria_id
+        SELECT ac.id INTO v_criteria_id
+        FROM assessment_criteria ac
+        JOIN template_criteria tc ON (
+            ac.program_id = p_program_id AND 
+            tc.id = v_template_criteria_id AND
+            ac.criteria_name = tc.criteria_name AND
+            ac.section_number = tc.section_number AND
+            ac.subsection = tc.subsection
+        );
+
+        -- Copy rubrics
+        INSERT INTO evaluation_rubric (
+            criteria_id, level_name, level_description, points_awarded, requirements
+        )
+        SELECT 
+            v_criteria_id, level_name, level_description, points_awarded, requirements
+        FROM template_rubrics 
+        WHERE template_criteria_id = v_template_criteria_id;
+
+    END LOOP;
+    CLOSE cur;
+END$$
+DELIMITER ;
+
+-- Create function to get default template ID
+DELIMITER $$
+CREATE FUNCTION GetDefaultTemplateId() RETURNS INT
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE template_id INT DEFAULT NULL;
+    SELECT id INTO template_id FROM program_templates WHERE is_default = 1 LIMIT 1;
+    RETURN template_id;
+END$$
+DELIMITER ;
+
+-- Example usage: Apply default template to a new program
+-- CALL ApplyTemplateToProgram(3, GetDefaultTemplateId());
+
+-- Create view to show template structure
+CREATE VIEW template_structure AS
+SELECT 
+    pt.template_name,
+    tc.section_number,
+    tc.subsection,
+    tc.criteria_name,
+    tc.criteria_type,
+    tc.max_score,
+    tc.weight,
+    tc.criteria_level,
+    tc.sort_order,
+    COUNT(tr.id) as rubric_levels
+FROM program_templates pt
+JOIN template_criteria tc ON pt.id = tc.template_id
+LEFT JOIN template_rubrics tr ON tc.id = tr.template_criteria_id
+GROUP BY pt.id, tc.id
+ORDER BY pt.template_name, tc.sort_order;
+
+-- Show the default template structure
+SELECT * FROM template_structure WHERE template_name = 'Standard ETEEAP Template';
+
+-- Verification: Check total points
+SELECT 
+    template_name,
+    SUM(max_score) as total_possible_points
+FROM program_templates pt
+JOIN template_criteria tc ON pt.id = tc.template_id
+GROUP BY pt.id, pt.template_name;
+
+COMMIT;
+
+-- =========================================================
+-- ETEEAP Fixed Template System
+-- This fixes the issues in your current implementation
+-- =========================================================
+
+USE eteeap_db;
+
+-- First, let's make sure we have the correct table structures
+-- Update assessment_criteria table to include missing columns
+ALTER TABLE assessment_criteria 
+ADD COLUMN IF NOT EXISTS section_number INT DEFAULT 1 AFTER requirements,
+ADD COLUMN IF NOT EXISTS subsection VARCHAR(100) AFTER section_number,
+ADD COLUMN IF NOT EXISTS criteria_level ENUM('basic', 'intermediate', 'advanced', 'local', 'national', 'international') DEFAULT 'basic' AFTER subsection,
+ADD COLUMN IF NOT EXISTS sort_order INT DEFAULT 0 AFTER criteria_level;
+
+-- Create the program templates table if it doesn't exist
+CREATE TABLE IF NOT EXISTS program_templates (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    template_name VARCHAR(255) NOT NULL UNIQUE,
+    template_description TEXT,
+    is_default TINYINT(1) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Create template criteria table
+CREATE TABLE IF NOT EXISTS template_criteria (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    template_id INT NOT NULL,
+    criteria_name VARCHAR(255) NOT NULL,
+    criteria_type ENUM('education','work_experience','training','certification','skills','portfolio') NOT NULL,
+    max_score DECIMAL(6,2) NOT NULL DEFAULT 10,
+    weight DECIMAL(4,2) DEFAULT 1.00,
+    description TEXT,
+    requirements TEXT,
+    section_number INT DEFAULT 1,
+    subsection VARCHAR(100),
+    criteria_level ENUM('basic', 'intermediate', 'advanced', 'local', 'national', 'international') DEFAULT 'basic',
+    sort_order INT DEFAULT 0,
+    status ENUM('active', 'inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_template_criteria FOREIGN KEY (template_id) REFERENCES program_templates(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- Clear existing templates to start fresh
+DELETE FROM template_criteria;
+DELETE FROM program_templates;
+
+-- Insert the default ETEEAP template
+INSERT INTO program_templates (template_name, template_description, is_default) VALUES 
+('Standard ETEEAP Assessment', 'Standard ETEEAP evaluation criteria following DepEd guidelines', 1);
+
+SET @template_id = LAST_INSERT_ID();
+
+-- Insert comprehensive ETEEAP criteria based on the detailed rubric you provided
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, requirements, section_number, subsection, criteria_level, sort_order) VALUES
+
+-- Section 1: Educational Qualifications (20 points)
+(@template_id, 'Educational Qualifications', 'education', 20, 1.0, 'Academic preparation aligned to program major', 'High School Diploma, College Transcripts, Certificates', 1, 'Educational Background', 'basic', 1),
+
+-- Section 2: Work Experience (30 points)
+(@template_id, 'Professional Work Experience', 'work_experience', 30, 2.0, 'Teaching, administrative, or training roles with minimum 5 years experience', 'Employment certificates, service records, job descriptions', 2, 'Professional Experience', 'intermediate', 2),
+
+-- Section 3: Professional Achievement - Production (50 points total)
+-- 3.1.1 Inventions (15 points)
+(@template_id, 'Inventions', 'portfolio', 15, 1.5, 'Patent status and market acceptability of inventions', 'Patent certificates, market adoption proof, invention documentation', 3, 'Inventions & Innovations', 'advanced', 3),
+
+-- 3.1.2 Innovations (8 points) 
+(@template_id, 'Innovations', 'portfolio', 8, 1.0, 'Innovations with market acceptability', 'Innovation documentation, market adoption proof', 3, 'Inventions & Innovations', 'intermediate', 4),
+
+-- Publications and Materials
+(@template_id, 'Journal Publications', 'portfolio', 4, 0.8, 'Published articles in journals by circulation level', 'Published articles, journal information, ISBN/copyright proof', 3, 'Publications', 'intermediate', 5),
+
+(@template_id, 'Training Modules', 'portfolio', 5, 0.8, 'Developed training modules by circulation level', 'Training modules, usage documentation, ISBN/copyright if applicable', 3, 'Publications', 'intermediate', 6),
+
+(@template_id, 'Books/Workbooks/Lab Manuals', 'portfolio', 7, 1.0, 'Educational materials by circulation level', 'Published materials, circulation proof, ISBN/copyright documentation', 3, 'Publications', 'intermediate', 7),
+
+-- Section 3.2: Extension Services (30 points)
+(@template_id, 'Consultancy Services', 'portfolio', 15, 1.5, 'Professional consultancy by scope (local/national/international)', 'Consultancy contracts, certificates, project documentation', 3, 'Extension Services', 'advanced', 8),
+
+(@template_id, 'Lecturer/Speaker Engagements', 'portfolio', 10, 1.0, 'Speaking engagements by scope', 'Speaking certificates, event documentation, invitations', 3, 'Extension Services', 'intermediate', 9),
+
+(@template_id, 'Community Services', 'portfolio', 5, 0.8, 'Community involvement and leadership roles', 'Appointment letters, certificates, project completion documents', 3, 'Extension Services', 'basic', 10),
+
+-- Section 4: Professional Development (25 points)
+(@template_id, 'Training Program Coordination', 'training', 10, 1.2, 'Coordination of training programs by level', 'Coordination certificates, program documentation', 4, 'Professional Development', 'intermediate', 11),
+
+(@template_id, 'Seminar/Workshop Participation', 'training', 5, 0.8, 'Participation in professional development activities', 'Certificates of participation, attendance records', 4, 'Professional Development', 'basic', 12),
+
+(@template_id, 'Professional Organization Membership', 'certification', 5, 0.8, 'Memberships in professional organizations', 'Membership certificates, organization documentation', 4, 'Professional Development', 'basic', 13),
+
+(@template_id, 'Scholarships and Grants', 'certification', 5, 1.0, 'Scholarship grants received (competitive/non-competitive)', 'Scholarship certificates, grant documentation', 4, 'Professional Development', 'intermediate', 14),
+
+-- Section 5: Recognition and Others (15 points)
+(@template_id, 'Awards and Recognition', 'certification', 10, 1.2, 'Professional recognition and awards by level', 'Award certificates, recognition documentation', 5, 'Recognition', 'intermediate', 15),
+
+(@template_id, 'Professional Eligibilities', 'certification', 5, 0.8, 'Government and professional eligibilities', 'Civil Service eligibility, PRC licenses, professional certifications', 5, 'Recognition', 'basic', 16);
+
+-- Drop existing procedure if it exists
+DROP PROCEDURE IF EXISTS ApplyTemplateToProgram;
+
+-- Create the corrected stored procedure
+DELIMITER $$
+CREATE PROCEDURE ApplyTemplateToProgram(
+    IN p_program_id INT,
+    IN p_template_id INT
+)
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_criteria_name VARCHAR(255);
+    DECLARE v_criteria_type VARCHAR(50);
+    DECLARE v_max_score DECIMAL(6,2);
+    DECLARE v_weight DECIMAL(4,2);
+    DECLARE v_description TEXT;
+    DECLARE v_requirements TEXT;
+    DECLARE v_section_number INT;
+    DECLARE v_subsection VARCHAR(100);
+    DECLARE v_criteria_level VARCHAR(50);
+    DECLARE v_sort_order INT;
+    
+    -- Cursor to fetch template criteria
+    DECLARE template_cursor CURSOR FOR
+        SELECT criteria_name, criteria_type, max_score, weight, description, 
+               requirements, section_number, subsection, criteria_level, sort_order
+        FROM template_criteria 
+        WHERE template_id = p_template_id AND status = 'active'
+        ORDER BY sort_order, section_number, criteria_name;
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    -- Open cursor and insert criteria
+    OPEN template_cursor;
+    
+    read_loop: LOOP
+        FETCH template_cursor INTO v_criteria_name, v_criteria_type, v_max_score, 
+                                   v_weight, v_description, v_requirements, 
+                                   v_section_number, v_subsection, v_criteria_level, v_sort_order;
+        
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- Insert criteria into assessment_criteria table
+        INSERT INTO assessment_criteria (
+            program_id, criteria_name, criteria_type, max_score, weight, 
+            description, requirements, section_number, subsection, 
+            criteria_level, sort_order, status
+        ) VALUES (
+            p_program_id, v_criteria_name, v_criteria_type, v_max_score, v_weight,
+            v_description, v_requirements, v_section_number, v_subsection,
+            v_criteria_level, v_sort_order, 'active'
+        );
+        
+    END LOOP;
+    
+    CLOSE template_cursor;
+END$$
+DELIMITER ;
+
+-- Create a simple template for basic programs
+INSERT INTO program_templates (template_name, template_description, is_default) VALUES 
+('Simple ETEEAP Template', 'Simplified ETEEAP template with 6 basic criteria', 0);
+
+SET @simple_template_id = LAST_INSERT_ID();
+
+INSERT INTO template_criteria (template_id, criteria_name, criteria_type, max_score, weight, description, requirements, section_number, sort_order) VALUES
+(@simple_template_id, 'Educational Background', 'education', 20, 2.0, 'Formal educational qualifications', 'Transcripts, diplomas, certificates', 1, 1),
+(@simple_template_id, 'Work Experience', 'work_experience', 30, 3.0, 'Professional work experience', 'Employment records, job descriptions', 2, 2),
+(@simple_template_id, 'Professional Training', 'training', 15, 1.5, 'Training and development programs', 'Training certificates, completion records', 3, 3),
+(@simple_template_id, 'Professional Certifications', 'certification', 15, 1.5, 'Industry certifications', 'Certification documents', 4, 4),
+(@simple_template_id, 'Skills and Competencies', 'skills', 15, 1.5, 'Technical and soft skills', 'Skills assessment, portfolio', 5, 5),
+(@simple_template_id, 'Portfolio Documentation', 'portfolio', 10, 1.0, 'Work samples and projects', 'Project documentation, work samples', 6, 6);
+
+-- Verify the templates were created correctly
+SELECT 
+    pt.template_name,
+    COUNT(tc.id) as criteria_count,
+    SUM(tc.max_score) as total_points
+FROM program_templates pt
+LEFT JOIN template_criteria tc ON pt.id = tc.template_id
+GROUP BY pt.id, pt.template_name;
+
+-- Test the stored procedure (you can uncomment this to test with an existing program)
+-- CALL ApplyTemplateToProgram(1, 1);
+
+COMMIT;
+
+ALTER TABLE template_criteria 
+ADD COLUMN status ENUM('active','inactive') DEFAULT 'active';
+
+
+CREATE TABLE user_program_preferences (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  preferred_program_id INT NOT NULL,
+  secondary_program_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_user_preferred (user_id, preferred_program_id),
+  CONSTRAINT fk_upp_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_upp_pref FOREIGN KEY (preferred_program_id) REFERENCES programs(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_upp_sec FOREIGN KEY (secondary_program_id) REFERENCES programs(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+
+-- master list ng requirements per program
+CREATE TABLE IF NOT EXISTS program_requirements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  program_id INT NOT NULL,
+  code VARCHAR(50) NOT NULL,          -- e.g. "APP_FORM", "LETTER", "CV"
+  name VARCHAR(255) NOT NULL,         -- e.g. "ETEEAP Application Form"
+  is_required TINYINT(1) DEFAULT 1,
+  max_files INT DEFAULT 1,
+  allowed_types VARCHAR(255) DEFAULT 'pdf,doc,docx'
+);
+
+-- snapshot ng requirements para sa application ng user (para 'frozen' kahit magbago ang template)
+CREATE TABLE IF NOT EXISTS application_requirements (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  application_id INT NOT NULL,
+  requirement_id INT NOT NULL,        -- points to program_requirements.id
+  code VARCHAR(50) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  is_required TINYINT(1) DEFAULT 1,
+  max_files INT DEFAULT 1,
+  allowed_types VARCHAR(255) DEFAULT 'pdf,doc,docx',
+  uploaded_count INT DEFAULT 0,
+  status ENUM('pending','complete') DEFAULT 'pending'
+);
+
+
+-- Add resubmission_of column to application_forms table
+ALTER TABLE application_forms 
+ADD COLUMN resubmission_of INT NULL,
+ADD FOREIGN KEY (resubmission_of) REFERENCES application_forms(id) ON DELETE SET NULL;
+
+-- Optional: Add index for better performance
+CREATE INDEX idx_application_forms_resubmission ON application_forms(resubmission_of);
+
+-- Verify the column was added
+DESCRIBE application_forms;
+
+ALTER TABLE application_forms 
+MODIFY COLUMN status ENUM('pending_review','approved','rejected','needs_revision','resubmitted') DEFAULT 'pending_review';
+
+CREATE TABLE IF NOT EXISTS passed_subjects (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    subject_name VARCHAR(255) NOT NULL,
+    evidence_comment TEXT,
+    passed_by INT,
+    passed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    FOREIGN KEY (passed_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS passed_subjects (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    application_id INT NOT NULL,
+    subject_name VARCHAR(255) NOT NULL,
+    evidence_comment TEXT,
+    passed_by INT,
+    passed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    FOREIGN KEY (passed_by) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY unique_app_subject (application_id, subject_name)
+);
+
+ALTER TABLE bridging_requirements
+  ADD CONSTRAINT uq_app_subject UNIQUE (application_id, subject_name);
+
+
+  -- Add subjects table
+CREATE TABLE IF NOT EXISTS subjects (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    program_id INT NOT NULL,
+    subject_code VARCHAR(50) NOT NULL,
+    subject_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    units INT NOT NULL DEFAULT 3,
+    year_level INT,
+    semester INT,
+    prerequisites TEXT,
+    status ENUM('active','inactive') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_subjects_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_program_subject_code (program_id, subject_code)
+) ENGINE=InnoDB;
+
+-- Add index for better performance
+CREATE INDEX idx_subjects_program_status ON subjects(program_id, status);
+CREATE INDEX idx_subjects_year_sem ON subjects(year_level, semester);
+
+
+ALTER TABLE subjects 
+MODIFY COLUMN year_level INT NULL,
+MODIFY COLUMN semester INT NULL,
+MODIFY COLUMN description TEXT NULL,
+MODIFY COLUMN prerequisites VARCHAR(500) NULL;
+
+-- For BSED (assuming program_id = 1)
+INSERT INTO subjects (program_id, subject_code, subject_name, units, status) VALUES
+(1, 'PROF-ED-101', 'Educational Psychology', 3, 'active'),
+(1, 'PROF-ED-102', 'Foundations of Education 1', 3, 'active'),
+(1, 'PROF-ED-103', 'Foundations of Education 2', 3, 'active'),
+(1, 'PROF-ED-104', 'Principles and Methods of Teaching', 3, 'active'),
+(1, 'PROF-ED-105', 'Educational Measurement and Evaluation', 3, 'active'),
+(1, 'PROF-ED-106', 'Prep. And Utilization of Instr\'l Materials', 3, 'active'),
+(1, 'PROF-ED-107', 'Teaching Strategies for the Major Fields', 3, 'active'),
+(1, 'PROF-ED-108', 'Guidance and Counseling with SPED', 3, 'active'),
+(1, 'PROF-ED-109', 'School Administration and Supervision', 3, 'active'),
+(1, 'PROF-ED-110', 'Observation and Participation', 3, 'active'),
+(1, 'PROF-ED-111', 'Introduction to Educational Research', 3, 'active'),
+(1, 'PROF-ED-112', 'Professional Ethics', 3, 'active'),
+(1, 'PROF-ED-113', 'Student Teaching', 6, 'active'),
+(1, 'PROF-ED-114', 'Teaching Strategies 3', 3, 'active');
+
+-- For BEED (assuming program_id = 2)
+INSERT INTO subjects (program_id, subject_code, subject_name, units, status) VALUES
+(2, 'PROF-ED-101', 'Educational Psychology', 3, 'active'),
+(2, 'PROF-ED-102', 'Foundations of Education 1', 3, 'active'),
+(2, 'PROF-ED-103', 'Foundations of Education 2', 3, 'active'),
+(2, 'PROF-ED-104', 'Principles and Methods of Teaching', 3, 'active'),
+(2, 'PROF-ED-105', 'Educational Measurement and Evaluation', 3, 'active'),
+(2, 'PROF-ED-106', 'Prep. And Utilization of Instr\'l Materials', 3, 'active'),
+(2, 'PROF-ED-107', 'Teaching Strategies for the Major Fields', 3, 'active'),
+(2, 'PROF-ED-108', 'Guidance and Counseling with SPED', 3, 'active'),
+(2, 'PROF-ED-109', 'School Administration and Supervision', 3, 'active'),
+(2, 'PROF-ED-110', 'Observation and Participation', 3, 'active'),
+(2, 'PROF-ED-111', 'Introduction to Educational Research', 3, 'active'),
+(2, 'PROF-ED-112', 'Professional Ethics', 3, 'active'),
+(2, 'PROF-ED-113', 'Student Teaching', 6, 'active'),
+(2, 'PROF-ED-114', 'Teaching Strategies 2', 3, 'active');
+
+ALTER TABLE assessment_criteria 
+ADD COLUMN subject_code VARCHAR(20) AFTER criteria_name,
+ADD COLUMN units INT DEFAULT 3 AFTER subject_code;

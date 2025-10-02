@@ -1,0 +1,542 @@
+/* =========================================================
+   FULL REBUILD: ETEEAP (Per-Program Criteria only)
+   ========================================================= */
+DROP DATABASE IF EXISTS eteeap_db;
+CREATE DATABASE eteeap_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE eteeap_db;
+SET NAMES utf8mb4;
+
+/* ======================
+   Core Tables
+   ====================== */
+CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  middle_name VARCHAR(100),
+  phone VARCHAR(20),
+  address TEXT,
+  user_type ENUM('candidate','admin','evaluator') DEFAULT 'candidate',
+  status ENUM('active','inactive','pending') DEFAULT 'pending',
+  application_form_status ENUM('pending','approved','rejected') DEFAULT 'pending',
+  approved_by INT NULL,
+  approval_date TIMESTAMP NULL DEFAULT NULL,
+  rejection_reason TEXT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_users_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE programs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  program_name VARCHAR(255) NOT NULL,
+  program_code VARCHAR(50) UNIQUE NOT NULL,
+  description TEXT,
+  requirements TEXT,
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE applications (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  program_id INT NOT NULL,
+  application_status ENUM('draft','submitted','under_review','qualified','partially_qualified','not_qualified') DEFAULT 'draft',
+  submission_date DATETIME,
+  evaluation_date DATETIME,
+  evaluator_id INT,
+  total_score DECIMAL(5,2) DEFAULT 0,
+  recommendation TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_app_user     FOREIGN KEY (user_id)     REFERENCES users(id)    ON DELETE CASCADE,
+  CONSTRAINT fk_app_program  FOREIGN KEY (program_id)  REFERENCES programs(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_app_eval     FOREIGN KEY (evaluator_id)REFERENCES users(id)    ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE assessment_criteria (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  program_id INT NOT NULL,
+  criteria_name VARCHAR(255) NOT NULL,
+  criteria_type ENUM('education','work_experience','training','certification','skills','portfolio') NOT NULL,
+  max_score DECIMAL(6,2) NOT NULL,
+  weight DECIMAL(4,2) DEFAULT 1.00,
+  description TEXT,
+  requirements TEXT,
+  section_number INT DEFAULT 1,
+  subsection VARCHAR(20),
+  criteria_level ENUM('local','national','international') DEFAULT 'local',
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_ac_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_per_program (program_id, criteria_name, section_number, subsection)
+) ENGINE=InnoDB;
+
+CREATE TABLE documents (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  application_id INT NOT NULL,
+  document_type ENUM('diploma','transcript','certificate','employment_record','portfolio','other') NOT NULL,
+  original_filename VARCHAR(255) NOT NULL,
+  stored_filename VARCHAR(255) NOT NULL,
+  file_path VARCHAR(500) NOT NULL,
+  file_size INT,
+  mime_type VARCHAR(100),
+  description TEXT,
+  upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_doc_app FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE evaluations (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  application_id INT NOT NULL,
+  criteria_id INT NOT NULL,
+  evaluator_id INT NOT NULL,
+  score DECIMAL(6,2) DEFAULT 0,
+  max_score DECIMAL(6,2) DEFAULT 100,
+  comments TEXT,
+  evidence_documents TEXT,
+  evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_eval_app      FOREIGN KEY (application_id) REFERENCES applications(id)        ON DELETE CASCADE,
+  CONSTRAINT fk_eval_criteria FOREIGN KEY (criteria_id)    REFERENCES assessment_criteria(id) ON DELETE CASCADE,
+  CONSTRAINT fk_eval_evaluator FOREIGN KEY (evaluator_id)  REFERENCES users(id)               ON DELETE RESTRICT,
+  UNIQUE KEY uq_eval (application_id, criteria_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE system_logs (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT,
+  action VARCHAR(255) NOT NULL,
+  table_name VARCHAR(100),
+  record_id INT,
+  old_values JSON,
+  new_values JSON,
+  ip_address VARCHAR(45),
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE evaluation_rubric (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  criteria_id INT NOT NULL,
+  level_name VARCHAR(100) NOT NULL,
+  level_description TEXT,
+  points_awarded DECIMAL(6,2) NOT NULL,
+  requirements TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rubric_criteria FOREIGN KEY (criteria_id) REFERENCES assessment_criteria(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE application_forms (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  original_filename VARCHAR(255) NOT NULL,
+  stored_filename VARCHAR(255) NOT NULL,
+  file_path VARCHAR(500) NOT NULL,
+  file_size INT NOT NULL,
+  mime_type VARCHAR(100) DEFAULT 'application/pdf',
+  upload_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  status ENUM('pending_review','approved','rejected','needs_revision') DEFAULT 'pending_review',
+  reviewed_by INT DEFAULT NULL,
+  review_date TIMESTAMP NULL DEFAULT NULL,
+  review_comments TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY fk_application_forms_user (user_id),
+  KEY fk_application_forms_reviewer (reviewed_by),
+  KEY idx_application_forms_status (status),
+  CONSTRAINT fk_application_forms_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_application_forms_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE notifications (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT NOT NULL,
+  type ENUM('info','success','warning','error') DEFAULT 'info',
+  read_status TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY fk_notifications_user (user_id),
+  KEY idx_notifications_read_status (read_status),
+  KEY idx_notifications_created_at (created_at),
+  CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+/* =========================================
+   Education Equivalency (Score → Units)
+   Per program; “below_min_advice” optional
+   ========================================= */
+CREATE TABLE education_equivalencies (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  program_id INT NOT NULL,
+  min_score INT NOT NULL,
+  max_score INT NOT NULL,
+  units_required INT NOT NULL,
+  advice VARCHAR(255) DEFAULT NULL,
+  UNIQUE KEY uq_prog_range (program_id, min_score, max_score),
+  CONSTRAINT fk_eq_program FOREIGN KEY (program_id) REFERENCES programs(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+/* ======================
+   Helpful Indexes
+   ====================== */
+CREATE INDEX idx_users_type_status ON users(user_type, status);
+CREATE INDEX idx_programs_status   ON programs(status);
+CREATE INDEX idx_app_user_status   ON applications(user_id, application_status);
+CREATE INDEX idx_app_program       ON applications(program_id);
+CREATE INDEX idx_app_status_date   ON applications(application_status, submission_date);
+CREATE INDEX idx_eval_app_crit     ON evaluations(application_id, criteria_id);
+CREATE INDEX idx_eval_evaluator    ON evaluations(evaluator_id);
+CREATE INDEX idx_docs_application  ON documents(application_id);
+
+/* ======================
+   Seed: Admin
+   ====================== */
+INSERT INTO users (email, password, first_name, last_name, user_type, status)
+VALUES ('admin@eteeap.com',
+        '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- "password"w
+        'System','Administrator','admin','active');
+
+/* ======================
+   Programs (BSED & BEED)
+   ====================== */
+INSERT INTO programs (program_name, program_code, description, requirements) VALUES
+('Bachelor of Secondary Education',  'BSED',
+ 'ETEEAP track for secondary education professionals',
+ 'Teaching exposure in JHS/SHS; portfolio, TOR, evidences'),
+('Bachelor of Elementary Education', 'BEED',
+ 'ETEEAP track for elementary education professionals',
+ 'Experience in K-3/K-6; portfolio, TOR, evidences');
+
+/* Grab IDs inline via subqueries */
+-- =========================================
+-- BSED Criteria (Total target 100 pts)
+-- =========================================
+INSERT INTO assessment_criteria
+(program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, status)
+VALUES
+-- 1. Educational Qualifications (20 pts)
+((SELECT id FROM programs WHERE program_code='BSED'),'Educational Qualifications','education',20,1.0,'Academic prep aligned to BSED major',1,'1','local','active'),
+
+-- 2. Work Experience (30 pts)
+((SELECT id FROM programs WHERE program_code='BSED'),'Work Experience (≥5 yrs entry; +1/yr)','work_experience',30,1.0,'Teaching/admin/training roles',2,'2','local','active'),
+
+-- 3. Professional Achievement (50 pts) – broken down
+-- 3.1 Production (30)
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1 Inventions (no patent)','portfolio',5,1.0,'Invention without patent',3,'3.1.1.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1 Inventions (patented)','portfolio',6,1.0,'Patented invention',3,'3.1.1.2','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1 Acceptability (Local Market)','portfolio',7,1.0,'Adopted locally',3,'3.1.1.3','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1 Acceptability (National Market)','portfolio',8,1.0,'Adopted nationally',3,'3.1.1.4','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1 Acceptability (International Market)','portfolio',9,1.0,'Adopted internationally',3,'3.1.1.5','international','active'),
+
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2 Innovations (no patent)','portfolio',2,1.0,'Innovation without patent',3,'3.1.2.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2 Innovations (patented)','portfolio',1,1.0,'Patented innovation (minor pts per rubric)',3,'3.1.2.2','local','active'),
+
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2 Acceptability (Local Market)','portfolio',4,1.0,'Innovation accepted locally',3,'3.1.2.3','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2 Acceptability (National Market)','portfolio',5,1.0,'Innovation accepted nationally',3,'3.1.2.4','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2 Acceptability (International Market)','portfolio',6,1.0,'Innovation accepted internationally',3,'3.1.2.5','international','active'),
+
+-- 3.1.2.3 Publications (15)  — Journals & Training Modules
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3.1 Journals (Local circulation)','portfolio',2,1.0,'Local journals',3,'3.1.2.3.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3.1 Journals (National w/ ISBN)','portfolio',3,1.0,'National w/ ISBN',3,'3.1.2.3.2','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3.1 Journals (International)','portfolio',4,1.0,'International circulation',3,'3.1.2.3.3','international','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3.2 Training Modules (Local)','portfolio',3,1.0,'Local training modules',3,'3.1.2.3.4','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3.2 Training Modules (National w/ ISBN)','portfolio',4,1.0,'National modules w/ ISBN',3,'3.1.2.3.5','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3.2 Training Modules (International w/ copyright)','portfolio',5,1.0,'International modules w/ copyright',3,'3.1.2.3.6','international','active'),
+
+-- 3.1.2.3 Books/Workbooks/Lab Manuals
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3 Books (Local)','portfolio',5,1.0,'Local circulation',3,'3.1.2.3.7','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3 Books (National w/ ISBN)','portfolio',6,1.0,'National w/ ISBN',3,'3.1.2.3.8','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3 Books (International w/ copyright)','portfolio',7,1.0,'International w/ copyright',3,'3.1.2.3.9','international','active'),
+
+-- 3.2 Extension Services (30)
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.1 Consultancies (Local)','portfolio',5,1.0,'In-company/industry consultancies',3,'3.2.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.1 Consultancies (National)','portfolio',10,1.0,'Outside own school/organization',3,'3.2.1.n','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.1 Consultancies (International)','portfolio',15,1.0,'Multi-national/abroad',3,'3.2.1.i','international','active'),
+
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.2 Lecturer/Speaker (Local)','portfolio',6,1.0,'Lecturer/speaker local',3,'3.2.2.l','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.2 Lecturer/Speaker (National)','portfolio',8,1.0,'Lecturer/speaker national',3,'3.2.2.n','national','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.2 Lecturer/Speaker (International)','portfolio',10,1.0,'Lecturer/speaker international',3,'3.2.2.i','international','active'),
+
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.3 Community Services (Trainer/Coordinator)','portfolio',3,1.0,'Community trainer/coordinator',3,'3.2.3.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.3 Community Services (Barangay/Municipal Official)','portfolio',4,1.0,'Barangay/municipal service',3,'3.2.3.2','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.2.3 Community Services (Project/Program Manager)','portfolio',5,1.0,'Project/program manager',3,'3.2.3.3','local','active'),
+
+-- 4. Professional Development (25)
+((SELECT id FROM programs WHERE program_code='BSED'),'4.1 Coordination of Training Program (Local/Nat/Int)','training',10,1.0,'Per level of certificate',4,'4.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'4.2 Participation in Seminar/Workshop (Local/Nat/Int)','training',5,1.0,'Per level of certificate',4,'4.2','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'4.3 Membership in Professional Organization (Local/Nat/Int)','certification',5,1.0,'Memberships',4,'4.3','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'4.4 Scholarships (Local/National/International)','certification',5,1.0,'Competitive/non-competitive',4,'4.4','local','active'),
+
+-- 5. Others (15)
+((SELECT id FROM programs WHERE program_code='BSED'),'5.1 Recognition/Awards (Local/National/International)','certification',10,1.0,'Recognition & awards',5,'5.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'5.2 Eligibilities (CS Sub-Prof/Prof/PRC)','certification',5,1.0,'Gov’t eligibilities',5,'5.2','national','active');
+
+-- =========================================
+-- BEED Criteria (distinct labels; also 100 pts)
+-- (similar structure but labeled for Elementary Education)
+-- =========================================
+INSERT INTO assessment_criteria
+(program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, status)
+VALUES
+((SELECT id FROM programs WHERE program_code='BEED'),'Educational Qualifications (Elementary)','education',20,1.0,'Academic prep aligned to BEED',1,'1','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'Work Experience in Elementary (≥5 yrs entry; +1/yr)','work_experience',30,1.0,'K-3/K-6 teaching/admin roles',2,'2','local','active'),
+
+-- Professional Achievement – Production (journals, modules, books)
+((SELECT id FROM programs WHERE program_code='BEED'),'3.1 Teaching/Learning Materials – Journals (Local/National/International)','portfolio',9,1.0,'Elementary-focused journals',3,'3.1.j','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'3.1 Teaching Modules (Local/National/International)','portfolio',12,1.0,'Modules for early grades',3,'3.1.m','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'3.1 Workbooks/Reading Kits (Local/National/International)','portfolio',9,1.0,'Workbooks/reading kits',3,'3.1.w','local','active'),
+
+-- Extension Services
+((SELECT id FROM programs WHERE program_code='BEED'),'3.2 Early Literacy/Num. Outreach (Local/National/International)','portfolio',15,1.0,'Outreach & community programs',3,'3.2.outreach','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'3.2 Resource Speaker/Trainer (Local/National/International)','portfolio',10,1.0,'Talks/trainings for elementary',3,'3.2.speaker','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'3.2 Program Coordination (Reading/Math Camps)','portfolio',5,1.0,'Program mgmt (elementary)',3,'3.2.coord','local','active'),
+
+-- Professional Development
+((SELECT id FROM programs WHERE program_code='BEED'),'4.1 Training Coordination (Local/National/International)','training',10,1.0,'Per certificate level',4,'4.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'4.2 Seminar/Workshop Participation (Local/National/International)','training',5,1.0,'Per certificate level',4,'4.2','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'4.3 Membership in Prof. Orgs (Elementary)','certification',5,1.0,'Org memberships',4,'4.3','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'4.4 Scholarships/Grants (Elementary)','certification',5,1.0,'Scholarships & grants',4,'4.4','local','active'),
+
+-- Others
+((SELECT id FROM programs WHERE program_code='BEED'),'5.1 Recognition/Awards (Elementary Track)','certification',10,1.0,'Local/National/International',5,'5.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BEED'),'5.2 Eligibilities (CS/PRC/etc.)','certification',5,1.0,'Government eligibilities',5,'5.2','national','active');
+
+/* =========================================
+   Education Equivalency rows (both programs)
+   95–100 → 3u, 91–94 → 6u, 85–90 → 9u, 80–84 → 12u,
+   75–79 → 15u, 70–74 → 18u, 65–69 → 21u, 60–64 → 24u,
+   <60 → advice only (no row; handle in app logic)
+   ========================================= */
+INSERT INTO education_equivalencies (program_id,min_score,max_score,units_required,advice)
+SELECT p.id, t.min_s, t.max_s, t.units, NULL
+FROM programs p
+JOIN (
+  SELECT 95 min_s,100 max_s, 3 units UNION ALL
+  SELECT 91,94, 6 UNION ALL
+  SELECT 85,90, 9 UNION ALL
+  SELECT 80,84,12 UNION ALL
+  SELECT 75,79,15 UNION ALL
+  SELECT 70,74,18 UNION ALL
+  SELECT 65,69,21 UNION ALL
+  SELECT 60,64,24
+) t
+WHERE p.program_code IN ('BSED','BEED');
+
+/* =========================================
+   Notifications triggers for form approvals
+   ========================================= */
+DROP TRIGGER IF EXISTS trg_appforms_after_insert;
+DELIMITER $$
+CREATE TRIGGER trg_appforms_after_insert
+AFTER INSERT ON application_forms
+FOR EACH ROW
+BEGIN
+  UPDATE users SET application_form_status='pending' WHERE id=NEW.user_id;
+  INSERT INTO notifications (user_id,title,message,type)
+  VALUES (NEW.user_id,'Application Form Submitted',
+          CONCAT('Your form "',NEW.original_filename,'" is pending review.'),'info');
+END$$
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS trg_appforms_after_update;
+DELIMITER $$
+CREATE TRIGGER trg_appforms_after_update
+AFTER UPDATE ON application_forms
+FOR EACH ROW
+BEGIN
+  IF NEW.status <> OLD.status THEN
+    IF NEW.status='approved' THEN
+      UPDATE users
+         SET application_form_status='approved', approved_by=NEW.reviewed_by, approval_date=NEW.review_date
+       WHERE id=NEW.user_id;
+      INSERT INTO notifications (user_id,title,message,type)
+      VALUES (NEW.user_id,'Application Approved','Your ETEEAP application form has been approved.','success');
+    ELSEIF NEW.status='rejected' THEN
+      UPDATE users
+         SET application_form_status='rejected', rejection_reason=NEW.review_comments
+       WHERE id=NEW.user_id;
+      INSERT INTO notifications (user_id,title,message,type)
+      VALUES (NEW.user_id,'Application Rejected',
+              CONCAT('Reason: ',COALESCE(NEW.review_comments,'(no reason provided)')),'error');
+    ELSEIF NEW.status='needs_revision' THEN
+      INSERT INTO notifications (user_id,title,message,type)
+      VALUES (NEW.user_id,'Needs Revision',
+              CONCAT('Notes: ',COALESCE(NEW.review_comments,'(see details)')),'warning');
+    END IF;
+  END IF;
+END$$
+DELIMITER ;
+
+/* =========================================
+   View: evaluation_summary (COALESCE-safe)
+   ========================================= */
+DROP VIEW IF EXISTS evaluation_summary;
+CREATE VIEW evaluation_summary AS
+SELECT 
+  a.id AS application_id,
+  a.user_id,
+  p.program_name,
+  p.program_code,
+  u.first_name, u.last_name, u.email,
+  a.application_status,
+  a.total_score,
+  COUNT(DISTINCT e.criteria_id) AS evaluated_criteria_count,
+  (SELECT COUNT(*) FROM assessment_criteria ac2 WHERE ac2.program_id=p.id AND ac2.status='active') AS total_criteria_count,
+  ROUND(
+    COUNT(DISTINCT e.criteria_id) / NULLIF((SELECT COUNT(*) FROM assessment_criteria ac2 WHERE ac2.program_id=p.id AND ac2.status='active'),0) * 100, 2
+  ) AS completion_percentage,
+  SUM(CASE WHEN ac.section_number=1 THEN COALESCE(e.score,0) ELSE 0 END) AS section1_score,
+  SUM(CASE WHEN ac.section_number=2 THEN COALESCE(e.score,0) ELSE 0 END) AS section2_score,
+  SUM(CASE WHEN ac.section_number=3 THEN COALESCE(e.score,0) ELSE 0 END) AS section3_score,
+  SUM(CASE WHEN ac.section_number=4 THEN COALESCE(e.score,0) ELSE 0 END) AS section4_score,
+  SUM(CASE WHEN ac.section_number=5 THEN COALESCE(e.score,0) ELSE 0 END) AS section5_score
+FROM applications a
+JOIN programs p ON p.id=a.program_id
+JOIN users u ON u.id=a.user_id
+LEFT JOIN assessment_criteria ac ON ac.program_id=p.id AND ac.status='active'
+LEFT JOIN evaluations e ON e.application_id=a.id AND e.criteria_id=ac.id
+GROUP BY a.id, a.user_id, p.program_name, p.program_code, u.first_name, u.last_name, u.email, a.application_status, a.total_score;
+
+/* =========================================
+   Quick sanity checks
+   ========================================= */
+-- Programs + criteria counts
+SELECT p.program_code, COUNT(ac.id) AS criteria_count
+FROM programs p LEFT JOIN assessment_criteria ac ON ac.program_id=p.id
+GROUP BY p.id;
+
+-- Equivalency rows per program
+SELECT p.program_code, ee.min_score, ee.max_score, ee.units_required
+FROM programs p JOIN education_equivalencies ee ON ee.program_id=p.id
+ORDER BY p.program_code, min_score DESC;
+
+
+/* =========================================
+ wait lang ateeee 
+   ========================================= */
+
+
+-- Add criteria_id column to documents table to link documents with assessment criteria
+ALTER TABLE documents 
+ADD COLUMN criteria_id INT NULL AFTER description,
+ADD CONSTRAINT fk_docs_criteria FOREIGN KEY (criteria_id) REFERENCES assessment_criteria(id) ON DELETE SET NULL;
+
+-- Add index for better performance
+CREATE INDEX idx_docs_criteria ON documents(criteria_id);
+
+-- Update the view to include document counts per criteria (optional)
+DROP VIEW IF EXISTS evaluation_summary_with_docs;
+CREATE VIEW evaluation_summary_with_docs AS
+SELECT 
+  a.id AS application_id,
+  a.user_id,
+  p.program_name,
+  p.program_code,
+  u.first_name, u.last_name, u.email,
+  a.application_status,
+  a.total_score,
+  COUNT(DISTINCT e.criteria_id) AS evaluated_criteria_count,
+  COUNT(DISTINCT d.id) AS total_documents,
+  COUNT(DISTINCT CASE WHEN d.criteria_id IS NOT NULL THEN d.criteria_id END) AS criteria_with_docs,
+  (SELECT COUNT(*) FROM assessment_criteria ac2 WHERE ac2.program_id=p.id AND ac2.status='active') AS total_criteria_count,
+  ROUND(
+    COUNT(DISTINCT e.criteria_id) / NULLIF((SELECT COUNT(*) FROM assessment_criteria ac2 WHERE ac2.program_id=p.id AND ac2.status='active'),0) * 100, 2
+  ) AS completion_percentage
+FROM applications a
+JOIN programs p ON p.id=a.program_id
+JOIN users u ON u.id=a.user_id
+LEFT JOIN assessment_criteria ac ON ac.program_id=p.id AND ac.status='active'
+LEFT JOIN evaluations e ON e.application_id=a.id AND e.criteria_id=ac.id
+LEFT JOIN documents d ON d.application_id=a.id
+GROUP BY a.id, a.user_id, p.program_name, p.program_code, u.first_name, u.last_name, u.email, a.application_status, a.total_score;
+
+
+--remedyo 
+
+-- (1) Burahin muna lahat ng section 3 ng BSED kung nais mong ayusin numbering at 3.1.1 logic
+DELETE FROM assessment_criteria
+WHERE program_id = (SELECT id FROM programs WHERE program_code='BSED')
+  AND section_number = 3;
+
+-- (2) Re-insert, tamang numbering
+INSERT INTO assessment_criteria
+(program_id, criteria_name, criteria_type, max_score, weight, description, section_number, subsection, criteria_level, status)
+VALUES
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1.1 Inventions (composite)','portfolio',15,1.0,'Score = patent (5/6) + acceptability (7/8/9)',3,'3.1.1.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.1.2 Innovations (composite)','portfolio',8,1.0,'Score = base (2/1) + acceptability (4/5/6)',3,'3.1.1.2','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.1 Journals (Local/National/International)','portfolio',4,1.0,'2/3/4 pts by level',3,'3.1.2.1','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.2 Training Modules (Local/National/International)','portfolio',5,1.0,'3/4/5 pts by level',3,'3.1.2.2','local','active'),
+((SELECT id FROM programs WHERE program_code='BSED'),'3.1.2.3 Books/Workbooks/Lab Manuals (Local/Natl/Intl w/copyright)','portfolio',7,1.0,'5/6/7 pts by level',3,'3.1.2.3','local','active');
+
+
+INSERT INTO evaluation_rubric (criteria_id, level_name, level_description, points_awarded)
+SELECT ac.id, t.name, t.descp, t.pts
+FROM assessment_criteria ac
+JOIN (
+  SELECT 'No patent + Local'        AS name, 'No patent (5) + Local (7)'        AS descp, 12 AS pts UNION ALL
+  SELECT 'No patent + National',          'No patent (5) + National (8)',             13 UNION ALL
+  SELECT 'No patent + International',     'No patent (5) + International (9)',        14 UNION ALL
+  SELECT 'Patented + Local',              'Patented (6) + Local (7)',                 13 UNION ALL
+  SELECT 'Patented + National',           'Patented (6) + National (8)',              14 UNION ALL
+  SELECT 'Patented + International',      'Patented (6) + International (9)',         15
+) t
+WHERE ac.program_id=(SELECT id FROM programs WHERE program_code='BSED')
+  AND ac.subsection='3.1.1.1';
+
+-- (optional) clear existing rows to avoid duplicates
+DELETE FROM evaluation_rubric
+WHERE criteria_id IN (
+  SELECT id FROM assessment_criteria
+  WHERE program_id = (SELECT id FROM programs WHERE program_code='BSED')
+    AND subsection = '3.1.1.1'
+);
+
+INSERT INTO evaluation_rubric (criteria_id, level_name, level_description, points_awarded)
+SELECT ac.id, t.level_name, t.level_description, t.points_awarded
+FROM assessment_criteria ac
+JOIN (
+  SELECT 'No patent + Local'        AS level_name, 'No patent (5) + Local (7)'        AS level_description, 12 AS points_awarded
+  UNION ALL SELECT 'No patent + National',     'No patent (5) + National (8)',               13
+  UNION ALL SELECT 'No patent + International','No patent (5) + International (9)',          14
+  UNION ALL SELECT 'Patented + Local',         'Patented (6) + Local (7)',                   13
+  UNION ALL SELECT 'Patented + National',      'Patented (6) + National (8)',                14
+  UNION ALL SELECT 'Patented + International', 'Patented (6) + International (9)',           15
+) AS t
+WHERE ac.program_id = (SELECT id FROM programs WHERE program_code='BSED')
+  AND ac.subsection = '3.1.1.1';
+
+-- (optional) clear existing rows to avoid duplicates
+DELETE FROM evaluation_rubric
+WHERE criteria_id IN (
+  SELECT id FROM assessment_criteria
+  WHERE program_id = (SELECT id FROM programs WHERE program_code='BSED')
+    AND subsection = '3.1.1.2'
+);
+
+INSERT INTO evaluation_rubric (criteria_id, level_name, level_description, points_awarded)
+SELECT ac.id, t.level_name, t.level_description, t.points_awarded
+FROM assessment_criteria ac
+JOIN (
+  SELECT 'No patent + Local'        AS level_name, 'No patent (2) + Local (4)'        AS level_description, 6 AS points_awarded
+  UNION ALL SELECT 'No patent + National',     'No patent (2) + National (5)',              7
+  UNION ALL SELECT 'No patent + International','No patent (2) + International (6)',         8
+  UNION ALL SELECT 'Patented + Local',         'Patented (1) + Local (4)',                  5
+  UNION ALL SELECT 'Patented + National',      'Patented (1) + National (5)',               6
+  UNION ALL SELECT 'Patented + International', 'Patented (1) + International (6)',          7
+) AS t
+WHERE ac.program_id = (SELECT id FROM programs WHERE program_code='BSED')
+  AND ac.subsection = '3.1.1.2';
+
+
+
+ALTER TABLE application_forms ADD COLUMN file_type VARCHAR(50) AFTER user_id;
+ALTER TABLE application_forms ADD COLUMN file_description VARCHAR(100) AFTER file_type;
+
+
+ALTER TABLE documents
+  ADD COLUMN hierarchical_data JSON NULL;

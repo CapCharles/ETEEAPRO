@@ -1,0 +1,49 @@
+
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Application Form</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container py-4">
+  <h3 class="mb-3">ETEEAP Application Form</h3>
+
+  <?php if ($errors): ?>
+    <div class="alert alert-danger"><ul class="mb-0"><?php foreach($errors as $e) echo "<li>".htmlspecialchars($e)."</li>";?></ul></div>
+  <?php endif; ?>
+
+  <?php if ($success): ?>
+    <div class="alert alert-success"><?php echo htmlspecialchars($success);?></div>
+    <a href="status.php" class="btn btn-primary">View Status</a>
+  <?php else: ?>
+  <form method="post" class="row g-3">
+    <div class="col-md-6">
+      <label class="form-label">Fullname *</label>
+      <input name="fullname" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Birthdate *</label>
+      <input name="birthdate" type="date" class="form-control" required>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Contact No.</label>
+      <input name="contact_no" class="form-control">
+    </div>
+    <div class="col-12">
+      <label class="form-label">Address</label>
+      <input name="address" class="form-control">
+    </div>
+    <div class="col-12">
+      <label class="form-label">Educational Background *</label>
+      <textarea name="education_bg" class="form-control" rows="3" required></textarea>
+    </div>
+    <div class="col-12">
+      <label class="form-label">Work Experience</label>
+      <textarea name="work_experience" class="form-control" rows="3"></textarea>
+    </div>
+    <div class="col-12">
+      <button class="btn btn-success">Submit for Review</button>
+    </div>
+  </form>
+  <?php endif; ?>
+</body>
+</html>

@@ -1,0 +1,55 @@
+-- Add application_forms table to track uploaded ETEEAP application forms
+CREATE TABLE IF NOT EXISTS `application_forms` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `user_id` int(11) NOT NULL,
+    `original_filename` varchar(255) NOT NULL,
+    `stored_filename` varchar(255) NOT NULL,
+    `file_path` varchar(500) NOT NULL,
+    `file_size` int(11) NOT NULL,
+    `mime_type` varchar(100) DEFAULT 'application/pdf',
+    `upload_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `status` enum('pending_review','approved','rejected','needs_revision') DEFAULT 'pending_review',
+    `reviewed_by` int(11) DEFAULT NULL,
+    `review_date` timestamp NULL DEFAULT NULL,
+    `review_comments` text,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `fk_application_forms_user` (`user_id`),
+    KEY `fk_application_forms_reviewer` (`reviewed_by`),
+    KEY `idx_application_forms_status` (`status`),
+    CONSTRAINT `fk_application_forms_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_application_forms_reviewer` FOREIGN KEY (`reviewed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Update users table to add application form approval tracking
+ALTER TABLE `users` 
+ADD COLUMN `application_form_status` enum('pending','approved','rejected') DEFAULT 'pending' AFTER `status`,
+ADD COLUMN `approved_by` int(11) DEFAULT NULL AFTER `application_form_status`,
+ADD COLUMN `approval_date` timestamp NULL DEFAULT NULL AFTER `approved_by`,
+ADD COLUMN `rejection_reason` text DEFAULT NULL AFTER `approval_date`;
+
+-- Add foreign key for approved_by
+ALTER TABLE `users` 
+ADD CONSTRAINT `fk_users_approved_by` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL;
+
+-- Create index for application form status
+ALTER TABLE `users` 
+ADD INDEX `idx_users_application_form_status` (`application_form_status`);
+
+-- Add notification system table for approval/rejection notifications
+CREATE TABLE IF NOT EXISTS `notifications` (
+    `id` int(11) NOT NULL AUTO_INCREMENT,
+    `user_id` int(11) NOT NULL,
+    `title` varchar(255) NOT NULL,
+    `message` text NOT NULL,
+    `type` enum('info','success','warning','error') DEFAULT 'info',
+    `read_status` tinyint(1) DEFAULT 0,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `fk_notifications_user` (`user_id`),
+    KEY `idx_notifications_read_status` (`read_status`),
+    KEY `idx_notifications_created_at` (`created_at`),
+    CONSTRAINT `fk_notifications_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

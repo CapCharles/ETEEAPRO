@@ -10,6 +10,8 @@ require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
 require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
 
 
+
+
 function makeMailer(): PHPMailer {
     $mail = new PHPMailer(true);
     $mail->isSMTP();

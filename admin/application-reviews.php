@@ -760,14 +760,15 @@ if ($flash) {
         <i class="fas fa-chart-bar me-2"></i> Reports
     </a>
 
-    <?php if ($user_type === 'admin'): ?>
-        <a class="nav-link" href="users.php">
-            <i class="fas fa-users me-2"></i> Manage Users
-        </a>
-        <a class="nav-link" href="programs.php">
-            <i class="fas fa-graduation-cap me-2"></i> Manage Programs
-        </a>
-    <?php endif; ?>
+   <?php if (isset($user_type) && strtolower($user_type) === 'admin'): ?>
+    <a class="nav-link" href="users.php">
+        <i class="fas fa-users me-2"></i> Manage Users
+    </a>
+    <a class="nav-link" href="programs.php">
+        <i class="fas fa-graduation-cap me-2"></i> Manage Programs
+    </a>
+<?php endif; ?>
+
 
     <a class="nav-link" href="settings.php">
         <i class="fas fa-cog me-2"></i> Settings

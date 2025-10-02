@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ETEEAPROS - Expanded Tertiary Education Equivalency and Accreditation Program</title>
+    <title>ETEEAP - Expanded Tertiary Education Equivalency and Accreditation Program</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary-blue: #2563eb;
-            --dark-blue: #1e40af;
-            --light-blue: #3b82f6;
-            --accent-blue: #60a5fa;
-            --bg-light: #f8fafc;
+            --primary-red: #dc2626;
+            --dark-red: #991b1b;
+            --light-red: #ef4444;
+            --accent-red: #f87171;
+            --bg-light: #fef2f2;
             --bg-white: #ffffff;
             --text-dark: #1e293b;
             --text-gray: #64748b;
-            --border-color: #e2e8f0;
+            --border-color: #fecaca;
         }
 
         * {
@@ -30,36 +30,81 @@
             line-height: 1.6;
             color: var(--text-dark);
             background: var(--bg-light);
+            overflow-x: hidden;
         }
 
-        /* Modern Navbar */
+        /* Enhanced Modern Navbar with Glass Effect */
         .navbar {
-            background: var(--bg-white);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             padding: 1.25rem 0;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 20px rgba(220, 38, 38, 0.1);
             position: fixed;
             top: 0;
             width: 100%;
             z-index: 1000;
-            transition: all 0.3s ease;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-bottom: 2px solid transparent;
         }
 
         .navbar.scrolled {
             padding: 0.75rem 0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.98);
+            box-shadow: 0 4px 30px rgba(220, 38, 38, 0.15);
+            border-bottom: 2px solid var(--accent-red);
+        }
+
+        .navbar::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--primary-red), transparent);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .navbar.scrolled::after {
+            opacity: 1;
         }
 
         .navbar-brand {
             font-size: 1.75rem;
             font-weight: 700;
-            color: var(--primary-blue) !important;
+            color: var(--primary-red) !important;
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .navbar-brand::after {
+            content: '';
+            position: absolute;
+            bottom: -5px;
+            left: 0;
+            width: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary-red), var(--light-red));
+            transition: width 0.4s ease;
+        }
+
+        .navbar-brand:hover::after {
+            width: 100%;
         }
 
         .navbar-brand i {
             font-size: 2rem;
+            animation: brandPulse 3s ease-in-out infinite;
+        }
+
+        @keyframes brandPulse {
+            0%, 100% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.1) rotate(5deg); }
         }
 
         .nav-link {
@@ -68,50 +113,109 @@
             padding: 0.5rem 1rem !important;
             margin: 0 0.25rem;
             border-radius: 8px;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-link::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(220, 38, 38, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.4s ease, height 0.4s ease;
+        }
+
+        .nav-link:hover::before {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
         }
 
         .nav-link:hover {
-            background: var(--bg-light);
-            color: var(--primary-blue) !important;
+            color: var(--primary-red) !important;
+            transform: translateY(-2px);
         }
 
         .btn-nav-login {
-            border: 2px solid var(--primary-blue);
-            color: var(--primary-blue) !important;
+            border: 2px solid var(--primary-red);
+            color: var(--primary-red) !important;
             padding: 0.5rem 1.5rem !important;
             border-radius: 8px;
             font-weight: 600;
             transition: all 0.3s ease;
             background: transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-nav-login::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-red);
+            transition: left 0.4s ease;
+            z-index: -1;
+        }
+
+        .btn-nav-login:hover::before {
+            left: 0;
         }
 
         .btn-nav-login:hover {
-            background: var(--primary-blue);
             color: white !important;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
         }
 
         .btn-nav-register {
-            background: var(--primary-blue);
+            background: linear-gradient(135deg, var(--primary-red), var(--light-red));
             color: white !important;
             padding: 0.5rem 1.5rem !important;
             border-radius: 8px;
             font-weight: 600;
-            border: 2px solid var(--primary-blue);
+            border: 2px solid transparent;
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-nav-register::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+        }
+
+        .btn-nav-register:hover::before {
+            width: 300px;
+            height: 300px;
         }
 
         .btn-nav-register:hover {
-            background: var(--dark-blue);
-            border-color: var(--dark-blue);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            background: linear-gradient(135deg, var(--light-red), var(--primary-red));
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4);
         }
 
-        /* Hero Section - Centered Design */
+        /* Enhanced Hero Section */
         .hero-section {
-            padding: 140px 0 80px;
-            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 50%, #e0f2fe 100%);
+            padding: 160px 0 100px;
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 50%, #fecaca 100%);
             text-align: center;
             position: relative;
             overflow: hidden;
@@ -120,30 +224,69 @@
         .hero-section::before {
             content: '';
             position: absolute;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(37, 99, 235, 0.15) 0%, transparent 70%);
+            width: 800px;
+            height: 800px;
+            background: radial-gradient(circle, rgba(220, 38, 38, 0.2) 0%, transparent 70%);
             border-radius: 50%;
-            top: -200px;
-            right: -100px;
-            animation: float 6s ease-in-out infinite;
+            top: -300px;
+            right: -200px;
+            animation: float 8s ease-in-out infinite;
+            filter: blur(60px);
         }
 
         .hero-section::after {
             content: '';
             position: absolute;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.12) 0%, transparent 70%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(239, 68, 68, 0.15) 0%, transparent 70%);
             border-radius: 50%;
-            bottom: -150px;
-            left: -100px;
-            animation: float 8s ease-in-out infinite reverse;
+            bottom: -200px;
+            left: -150px;
+            animation: float 10s ease-in-out infinite reverse;
+            filter: blur(50px);
+        }
+
+        .particles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--primary-red);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: particleFloat 15s infinite;
+        }
+
+        @keyframes particleFloat {
+            0% {
+                transform: translateY(100vh) translateX(0) scale(0);
+                opacity: 0;
+            }
+            10% {
+                opacity: 0.3;
+            }
+            90% {
+                opacity: 0.3;
+            }
+            100% {
+                transform: translateY(-100vh) translateX(100px) scale(1);
+                opacity: 0;
+            }
         }
 
         @keyframes float {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            50% { transform: translate(20px, 20px) rotate(5deg); }
+            0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
+            33% { transform: translate(30px, -30px) rotate(5deg) scale(1.1); }
+            66% { transform: translate(-30px, 30px) rotate(-5deg) scale(0.9); }
         }
 
         .hero-content {
@@ -160,15 +303,16 @@
             border-radius: 50px;
             font-size: 0.875rem;
             font-weight: 600;
-            color: var(--primary-blue);
+            color: var(--primary-red);
             margin-bottom: 1.5rem;
-            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
             animation: bounce 2s ease-in-out infinite;
+            border: 2px solid var(--accent-red);
         }
 
         @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-5px); }
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-8px) scale(1.05); }
         }
 
         .hero-title {
@@ -178,12 +322,13 @@
             margin-bottom: 1.5rem;
             line-height: 1.2;
             animation: fadeInUp 0.8s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.05);
         }
 
         @keyframes fadeInUp {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(40px);
             }
             to {
                 opacity: 1;
@@ -195,7 +340,8 @@
             font-size: 1.25rem;
             color: var(--text-gray);
             margin-bottom: 2.5rem;
-            line-height: 1.7;
+            line-height: 1.8;
+            animation: fadeInUp 1s ease;
         }
 
         .hero-buttons {
@@ -204,18 +350,19 @@
             justify-content: center;
             flex-wrap: wrap;
             margin-bottom: 3rem;
+            animation: fadeInUp 1.2s ease;
         }
 
         .btn-hero-primary {
-            background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+            background: linear-gradient(135deg, var(--primary-red), var(--light-red));
             color: white;
             padding: 1rem 2.5rem;
             border-radius: 12px;
             font-weight: 600;
             font-size: 1.1rem;
             border: none;
-            transition: all 0.3s ease;
-            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+            transition: all 0.4s ease;
+            box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
             position: relative;
             overflow: hidden;
         }
@@ -228,33 +375,70 @@
             width: 100%;
             height: 100%;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-            transition: left 0.5s;
+            transition: left 0.6s;
+        }
+
+        .btn-hero-primary::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
         }
 
         .btn-hero-primary:hover::before {
             left: 100%;
         }
 
+        .btn-hero-primary:hover::after {
+            width: 300px;
+            height: 300px;
+        }
+
         .btn-hero-primary:hover {
-            background: linear-gradient(135deg, var(--light-blue), var(--primary-blue));
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.5);
+            background: linear-gradient(135deg, var(--light-red), var(--primary-red));
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 12px 35px rgba(220, 38, 38, 0.5);
         }
 
         .btn-hero-secondary {
             background: white;
-            color: var(--primary-blue);
+            color: var(--primary-red);
             padding: 1rem 2.5rem;
             border-radius: 12px;
             font-weight: 600;
             font-size: 1.1rem;
-            border: 2px solid var(--primary-blue);
-            transition: all 0.3s ease;
+            border: 2px solid var(--primary-red);
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-hero-secondary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-red);
+            transition: left 0.4s ease;
+            z-index: -1;
+        }
+
+        .btn-hero-secondary:hover::before {
+            left: 0;
         }
 
         .btn-hero-secondary:hover {
-            background: var(--bg-light);
-            transform: translateY(-2px);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(220, 38, 38, 0.3);
         }
 
         .hero-stats {
@@ -266,26 +450,38 @@
 
         .stat-item {
             text-align: center;
-            animation: scaleIn 0.6s ease forwards;
+            animation: scaleIn 0.8s ease forwards;
             animation-delay: calc(var(--i) * 0.2s);
             opacity: 0;
+            padding: 1.5rem 2rem;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            border: 2px solid rgba(220, 38, 38, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .stat-item:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 10px 30px rgba(220, 38, 38, 0.2);
+            border-color: var(--primary-red);
         }
 
         @keyframes scaleIn {
             from {
                 opacity: 0;
-                transform: scale(0.8);
+                transform: scale(0.8) translateY(20px);
             }
             to {
                 opacity: 1;
-                transform: scale(1);
+                transform: scale(1) translateY(0);
             }
         }
 
         .stat-number {
             font-size: 2.5rem;
             font-weight: 700;
-            background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+            background: linear-gradient(135deg, var(--primary-red), var(--light-red));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -298,9 +494,10 @@
             font-weight: 500;
         }
 
-        /* Section Styling */
+        /* Enhanced Section Styling */
         .section {
             padding: 80px 0;
+            position: relative;
         }
 
         .section-alt {
@@ -315,13 +512,20 @@
 
         .section-badge {
             display: inline-block;
-            background: #eff6ff;
-            color: var(--primary-blue);
+            background: linear-gradient(135deg, #fee2e2, #fecaca);
+            color: var(--primary-red);
             padding: 0.5rem 1rem;
             border-radius: 50px;
             font-size: 0.875rem;
             font-weight: 600;
             margin-bottom: 1rem;
+            border: 2px solid var(--accent-red);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
         }
 
         .section-title {
@@ -329,6 +533,7 @@
             font-weight: 700;
             color: var(--text-dark);
             margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.05);
         }
 
         .section-description {
@@ -336,13 +541,13 @@
             color: var(--text-gray);
         }
 
-        /* Feature Cards */
+        /* Enhanced Feature Cards */
         .feature-card {
             background: white;
             padding: 2.5rem;
             border-radius: 20px;
             border: 2px solid var(--border-color);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             height: 100%;
             position: relative;
             overflow: hidden;
@@ -351,29 +556,52 @@
         .feature-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, rgba(37, 99, 235, 0.05), rgba(59, 130, 246, 0.05));
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(220, 38, 38, 0.1) 0%, transparent 70%);
             opacity: 0;
-            transition: opacity 0.4s ease;
+            transition: all 0.6s ease;
+            transform: rotate(0deg);
         }
 
         .feature-card:hover::before {
             opacity: 1;
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .feature-card::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary-red), var(--light-red), var(--accent-red));
+            transform: scaleX(0);
+            transition: transform 0.5s ease;
+        }
+
+        .feature-card:hover::after {
+            transform: scaleX(1);
         }
 
         .feature-card:hover {
-            border-color: var(--primary-blue);
-            box-shadow: 0 12px 35px rgba(37, 99, 235, 0.2);
-            transform: translateY(-10px) scale(1.02);
+            border-color: var(--primary-red);
+            box-shadow: 0 15px 40px rgba(220, 38, 38, 0.25);
+            transform: translateY(-12px) scale(1.03);
         }
 
         .feature-icon {
             width: 70px;
             height: 70px;
-            background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
+            background: linear-gradient(135deg, var(--primary-red), var(--light-red));
             border-radius: 16px;
             display: flex;
             align-items: center;
@@ -382,22 +610,23 @@
             color: white;
             margin-bottom: 1.5rem;
             position: relative;
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
-            animation: iconPulse 2s ease-in-out infinite;
+            box-shadow: 0 10px 25px rgba(220, 38, 38, 0.4);
+            animation: iconPulse 3s ease-in-out infinite;
         }
 
         @keyframes iconPulse {
             0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+            50% { transform: scale(1.08); }
         }
 
         .feature-card:hover .feature-icon {
-            animation: iconSpin 0.6s ease;
+            animation: iconSpin 0.7s ease;
+            box-shadow: 0 15px 35px rgba(220, 38, 38, 0.5);
         }
 
         @keyframes iconSpin {
             0% { transform: rotate(0deg) scale(1); }
-            50% { transform: rotate(180deg) scale(1.1); }
+            50% { transform: rotate(180deg) scale(1.15); }
             100% { transform: rotate(360deg) scale(1); }
         }
 
@@ -413,254 +642,80 @@
             line-height: 1.7;
         }
 
-        /* Requirements Section */
-        .requirement-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 18px;
-            border: 2px solid var(--border-color);
-            transition: all 0.4s ease;
+        /* Enhanced Download Section */
+        .download-section {
+            background: linear-gradient(135deg, #fef2f2, #fee2e2);
+            padding: 3rem;
+            border-radius: 24px;
+            border: 3px dashed var(--primary-red);
+            margin-top: 3rem;
             position: relative;
             overflow: hidden;
         }
 
-        .requirement-card::after {
+        .download-section::before {
             content: '';
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, var(--primary-blue), var(--light-blue));
-            transform: scaleX(0);
-            transition: transform 0.4s ease;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(220, 38, 38, 0.15) 0%, transparent 70%);
+            border-radius: 50%;
+            top: -150px;
+            right: -150px;
+            animation: pulse 5s ease-in-out infinite;
+            filter: blur(40px);
         }
 
-        .requirement-card:hover::after {
-            transform: scaleX(1);
-        }
-
-        .requirement-card:hover {
-            border-color: var(--primary-blue);
-            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.15);
-            transform: translateY(-5px);
-        }
-
-        .requirement-icon {
-            width: 60px;
-            height: 60px;
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary-blue);
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .requirement-card:hover .requirement-icon {
-            background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
-            color: white;
-            transform: rotate(360deg);
-        }
-
-        .requirement-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 0.75rem;
-        }
-
-        .requirement-list {
-            list-style: none;
-            padding: 0;
-        }
-
-        .requirement-list li {
-            padding: 0.5rem 0;
-            color: var(--text-gray);
-            padding-left: 1.5rem;
-            position: relative;
-        }
-
-        .requirement-list li::before {
-            content: '•';
-            position: absolute;
-            left: 0;
-            color: var(--primary-blue);
-            font-weight: bold;
-        }
-
-        /* Process Steps */
-        .process-steps {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 2rem;
-            position: relative;
-        }
-
-        .step-card {
+        .download-card {
             background: white;
             padding: 2rem;
-            border-radius: 20px;
+            border-radius: 16px;
             text-align: center;
             border: 2px solid var(--border-color);
-            transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer;
             position: relative;
             overflow: hidden;
         }
 
-        .step-card::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(37, 99, 235, 0.1) 0%, transparent 70%);
-            opacity: 0;
-            transition: opacity 0.4s ease;
-        }
-
-        .step-card:hover::before {
-            opacity: 1;
-            animation: rotate 10s linear infinite;
-        }
-
-        @keyframes rotate {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
-
-        .step-card:hover {
-            border-color: var(--primary-blue);
-            box-shadow: 0 12px 30px rgba(37, 99, 235, 0.2);
-            transform: translateY(-10px) scale(1.03);
-        }
-
-        .step-number {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
-            border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: white;
-            margin: 0 auto 1.5rem;
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.4);
-            position: relative;
-            transition: all 0.4s ease;
-        }
-
-        .step-card:hover .step-number {
-            transform: rotateY(360deg) scale(1.1);
-        }
-
-        .step-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 0.75rem;
-        }
-
-        .step-description {
-            color: var(--text-gray);
-            font-size: 0.95rem;
-        }
-
-        /* Program Cards */
-        .program-card {
-            background: white;
-            padding: 2.5rem;
-            border-radius: 20px;
-            border: 2px solid var(--border-color);
-            transition: all 0.4s ease;
-            height: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .program-card::before {
+        .download-card::before {
             content: '';
             position: absolute;
             top: 0;
             left: -100%;
             width: 100%;
             height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.1), transparent);
+            background: linear-gradient(90deg, transparent, rgba(220, 38, 38, 0.1), transparent);
             transition: left 0.6s;
         }
 
-        .program-card:hover::before {
+        .download-card:hover::before {
             left: 100%;
         }
 
-        .program-card:hover {
-            border-color: var(--primary-blue);
-            box-shadow: 0 15px 40px rgba(37, 99, 235, 0.2);
-            transform: translateY(-10px) scale(1.02);
+        .download-card:hover {
+            border-color: var(--primary-red);
+            box-shadow: 0 12px 35px rgba(220, 38, 38, 0.3);
+            transform: translateY(-10px) scale(1.05) rotate(2deg);
+            background: linear-gradient(135deg, white, #fff5f5);
         }
 
-        .program-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #eff6ff, #dbeafe);
-            border-radius: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 2.25rem;
-            color: var(--primary-blue);
-            margin-bottom: 1.5rem;
+        .download-icon {
+            font-size: 2.5rem;
+            color: var(--primary-red);
+            margin-bottom: 1rem;
             transition: all 0.4s ease;
         }
 
-        .program-card:hover .program-icon {
-            background: linear-gradient(135deg, var(--primary-blue), var(--light-blue));
-            color: white;
-            transform: scale(1.1) rotate(5deg);
-            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+        .download-card:hover .download-icon {
+            transform: scale(1.3) rotate(15deg);
+            color: var(--light-red);
         }
 
-        .program-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 1rem;
-        }
-
-        .program-description {
-            color: var(--text-gray);
-            margin-bottom: 1.5rem;
-        }
-
-        .program-features {
-            list-style: none;
-            padding: 0;
-        }
-
-        .program-features li {
-            padding: 0.5rem 0;
-            color: var(--text-gray);
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .program-features li i {
-            color: var(--primary-blue);
-            font-size: 1.1rem;
-        }
-
-        /* CTA Section */
+        /* CTA Section with Enhanced Effects */
         .cta-section {
             padding: 80px 0;
-            background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
+            background: linear-gradient(135deg, var(--primary-red), var(--dark-red));
             color: white;
             text-align: center;
             position: relative;
@@ -672,200 +727,65 @@
             position: absolute;
             width: 600px;
             height: 600px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
             border-radius: 50%;
             top: -300px;
             right: -200px;
+            animation: float 10s ease-in-out infinite;
         }
 
-        .cta-content {
-            position: relative;
-            z-index: 2;
-            max-width: 700px;
-            margin: 0 auto;
-        }
-
-        .cta-title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-
-        .cta-description {
-            font-size: 1.25rem;
-            opacity: 0.9;
-            margin-bottom: 2rem;
+        .cta-section::after {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            bottom: -250px;
+            left: -150px;
+            animation: float 12s ease-in-out infinite reverse;
         }
 
         .btn-cta {
             background: white;
-            color: var(--primary-blue);
+            color: var(--primary-red);
             padding: 1rem 2.5rem;
             border-radius: 12px;
             font-weight: 600;
             font-size: 1.1rem;
             border: none;
-            transition: all 0.3s ease;
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-cta::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: var(--primary-red);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: width 0.6s ease, height 0.6s ease;
+        }
+
+        .btn-cta:hover::before {
+            width: 400px;
+            height: 400px;
         }
 
         .btn-cta:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(255, 255, 255, 0.3);
-        }
-
-        /* Footer */
-        footer {
-            background: var(--text-dark);
             color: white;
-            padding: 3rem 0 1.5rem;
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 40px rgba(255, 255, 255, 0.4);
         }
 
-        .footer-brand {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 1rem;
-        }
-
-        .footer-description {
-            color: #94a3b8;
-            margin-bottom: 1.5rem;
-        }
-
-        .footer-links {
-            list-style: none;
-            padding: 0;
-        }
-
-        .footer-links li {
-            margin-bottom: 0.75rem;
-        }
-
-        .footer-links a {
-            color: #94a3b8;
-            text-decoration: none;
-            transition: color 0.3s ease;
-        }
-
-        .footer-links a:hover {
-            color: white;
-        }
-
-        .footer-bottom {
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-            color: #94a3b8;
-        }
-
-        /* Download Links */
-        .download-section {
-            background: linear-gradient(135deg, #eff6ff, #e0f2fe);
-            padding: 2.5rem;
-            border-radius: 20px;
-            border: 3px dashed var(--primary-blue);
-            margin-top: 3rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .download-section::before {
-            content: '';
-            position: absolute;
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(37, 99, 235, 0.1) 0%, transparent 70%);
-            border-radius: 50%;
-            top: -100px;
-            right: -100px;
-            animation: pulse 4s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.2); opacity: 0.8; }
-        }
-
-        .download-title {
-            font-size: 1.35rem;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+        .btn-cta span {
             position: relative;
             z-index: 1;
-        }
-
-        .download-title i {
-            animation: bounce 2s ease-in-out infinite;
-        }
-
-        .download-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            position: relative;
-            z-index: 1;
-        }
-
-        .download-card {
-            background: white;
-            padding: 2rem;
-            border-radius: 16px;
-            text-align: center;
-            border: 2px solid var(--border-color);
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .download-card::after {
-            content: '⬇';
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            font-size: 1.5rem;
-            opacity: 0;
-            transform: translateY(-20px);
-            transition: all 0.3s ease;
-        }
-
-        .download-card:hover::after {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .download-card:hover {
-            border-color: var(--primary-blue);
-            box-shadow: 0 10px 30px rgba(37, 99, 235, 0.2);
-            transform: translateY(-8px) scale(1.05);
-            background: linear-gradient(135deg, white, #f8fbff);
-        }
-
-        .download-icon {
-            font-size: 2.5rem;
-            color: var(--primary-blue);
-            margin-bottom: 1rem;
-            transition: all 0.4s ease;
-        }
-
-        .download-card:hover .download-icon {
-            transform: scale(1.2) rotate(10deg);
-            color: var(--light-blue);
-        }
-
-        .download-name {
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 0.5rem;
-        }
-
-        .download-desc {
-            font-size: 0.875rem;
-            color: var(--text-gray);
         }
 
         /* Responsive */
@@ -889,16 +809,12 @@
             .stat-number {
                 font-size: 2rem;
             }
-
-            .cta-title {
-                font-size: 2rem;
-            }
         }
     </style>
 </head>
 
 <body>
-    <!-- Modern Navbar -->
+    <!-- Enhanced Navbar -->
     <nav class="navbar navbar-expand-lg">
         <div class="container">
             <a class="navbar-brand" href="#">
@@ -936,8 +852,19 @@
         </div>
     </nav>
 
-    <!-- Hero Section -->
+    <!-- Enhanced Hero Section -->
     <section id="home" class="hero-section">
+        <div class="particles">
+            <div class="particle" style="left: 10%; animation-delay: 0s;"></div>
+            <div class="particle" style="left: 20%; animation-delay: 2s;"></div>
+            <div class="particle" style="left: 30%; animation-delay: 4s;"></div>
+            <div class="particle" style="left: 40%; animation-delay: 6s;"></div>
+            <div class="particle" style="left: 50%; animation-delay: 8s;"></div>
+            <div class="particle" style="left: 60%; animation-delay: 10s;"></div>
+            <div class="particle" style="left: 70%; animation-delay: 12s;"></div>
+            <div class="particle" style="left: 80%; animation-delay: 14s;"></div>
+            <div class="particle" style="left: 90%; animation-delay: 16s;"></div>
+        </div>
         <div class="container">
             <div class="hero-content">
                 <div class="hero-badge">
@@ -950,8 +877,7 @@
                         <i class="fas fa-rocket me-2"></i>Start Your Journey
                     </a>
                     <a href="#about" class="btn btn-hero-secondary">
-                        <i class="fas fa-info-circle me-2"></i>Learn More
-                    </a>
+                        <i class="fas fa-info-circle me-2"></i>Learn More</a>
                 </div>
                 <div class="hero-stats">
                     <div class="stat-item" style="--i: 0;">
@@ -1023,54 +949,90 @@
             
             <div class="row g-4 mb-5">
                 <div class="col-md-6 col-lg-3">
-                    <div class="requirement-card">
-                        <div class="requirement-icon">
+                    <div class="feature-card">
+                        <div class="feature-icon">
                             <i class="fas fa-user-check"></i>
                         </div>
-                        <h4 class="requirement-title">Basic Qualifications</h4>
-                        <ul class="requirement-list">
-                            <li>Filipino citizen</li>
-                            <li>At least 25 years old</li>
-                            <li>High school diploma</li>
+                        <h4 class="feature-title">Basic Qualifications</h4>
+                        <ul class="requirement-list" style="list-style: none; padding: 0;">
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Filipino citizen
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                At least 25 years old
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                High school diploma
+                            </li>
                         </ul>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <div class="requirement-card">
-                        <div class="requirement-icon">
+                    <div class="feature-card">
+                        <div class="feature-icon">
                             <i class="fas fa-briefcase"></i>
                         </div>
-                        <h4 class="requirement-title">Work Experience</h4>
-                        <ul class="requirement-list">
-                            <li>5+ years experience</li>
-                            <li>Related to field</li>
-                            <li>Documented proof</li>
+                        <h4 class="feature-title">Work Experience</h4>
+                        <ul class="requirement-list" style="list-style: none; padding: 0;">
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                5+ years experience
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Related to field
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Documented proof
+                            </li>
                         </ul>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <div class="requirement-card">
-                        <div class="requirement-icon">
+                    <div class="feature-card">
+                        <div class="feature-icon">
                             <i class="fas fa-file-alt"></i>
                         </div>
-                        <h4 class="requirement-title">Documents</h4>
-                        <ul class="requirement-list">
-                            <li>Application form</li>
-                            <li>Application letter</li>
-                            <li>Detailed CV</li>
+                        <h4 class="feature-title">Documents</h4>
+                        <ul class="requirement-list" style="list-style: none; padding: 0;">
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Application form
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Application letter
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Detailed CV
+                            </li>
                         </ul>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-3">
-                    <div class="requirement-card">
-                        <div class="requirement-icon">
+                    <div class="feature-card">
+                        <div class="feature-icon">
                             <i class="fas fa-certificate"></i>
                         </div>
-                        <h4 class="requirement-title">Certifications</h4>
-                        <ul class="requirement-list">
-                            <li>Training certificates</li>
-                            <li>Professional licenses</li>
-                            <li>Awards & achievements</li>
+                        <h4 class="feature-title">Certifications</h4>
+                        <ul class="requirement-list" style="list-style: none; padding: 0;">
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Training certificates
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Professional licenses
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); padding-left: 1.5rem; position: relative;">
+                                <span style="position: absolute; left: 0; color: var(--primary-red); font-weight: bold;">•</span>
+                                Awards & achievements
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -1078,32 +1040,32 @@
 
             <!-- Download Section -->
             <div class="download-section">
-                <h3 class="download-title">
-                    <i class="fas fa-download"></i>
+                <h3 style="font-size: 1.35rem; font-weight: 600; color: var(--text-dark); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; position: relative; z-index: 1; justify-content: center;">
+                    <i class="fas fa-download" style="animation: bounce 2s ease-in-out infinite;"></i>
                     Download Required Forms
                 </h3>
-                <p class="text-muted mb-4">Get the official templates for your ETEEAP application</p>
-                <div class="download-grid">
+                <p class="text-muted mb-4" style="text-align: center; position: relative; z-index: 1;">Get the official templates for your ETEEAP application</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; position: relative; z-index: 1;">
                     <div class="download-card" onclick="downloadForm('application')">
                         <div class="download-icon">
                             <i class="fas fa-file-pdf"></i>
                         </div>
-                        <div class="download-name">Application Form</div>
-                        <div class="download-desc">Official ETEEAP form</div>
+                        <div style="font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem;">Application Form</div>
+                        <div style="font-size: 0.875rem; color: var(--text-gray);">Official ETEEAP form</div>
                     </div>
                     <div class="download-card" onclick="downloadForm('letter')">
                         <div class="download-icon">
                             <i class="fas fa-file-word"></i>
                         </div>
-                        <div class="download-name">Application Letter</div>
-                        <div class="download-desc">Letter template</div>
+                        <div style="font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem;">Application Letter</div>
+                        <div style="font-size: 0.875rem; color: var(--text-gray);">Letter template</div>
                     </div>
                     <div class="download-card" onclick="downloadForm('cv')">
                         <div class="download-icon">
                             <i class="fas fa-file-alt"></i>
                         </div>
-                        <div class="download-name">CV Template</div>
-                        <div class="download-desc">Curriculum vitae format</div>
+                        <div style="font-weight: 600; color: var(--text-dark); margin-bottom: 0.5rem;">CV Template</div>
+                        <div style="font-size: 0.875rem; color: var(--text-gray);">Curriculum vitae format</div>
                     </div>
                 </div>
             </div>
@@ -1121,32 +1083,49 @@
             
             <div class="row g-4 justify-content-center">
                 <div class="col-lg-5">
-                    <div class="program-card">
-                        <div class="program-icon">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="width: 80px; height: 80px; font-size: 2.25rem;">
                             <i class="fas fa-chalkboard-teacher"></i>
                         </div>
-                        <h3 class="program-title">Bachelor of Elementary Education (BEED)</h3><p class="program-description">For educators with experience in elementary education and child development.</p>
-                        <ul class="program-features">
-                            <li><i class="fas fa-check-circle"></i>Elementary Teaching Methods</li>
-                            <li><i class="fas fa-check-circle"></i>Child Development</li>
-                            <li><i class="fas fa-check-circle"></i>Curriculum Planning</li>
-                            <li><i class="fas fa-check-circle"></i>Assessment & Evaluation</li>
+                        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--text-dark); margin-bottom: 1rem;">Bachelor of Elementary Education (BEED)</h3>
+                        <p style="color: var(--text-gray); margin-bottom: 1.5rem;">For educators with experience in elementary education and child development.</p>
+                        <ul style="list-style: none; padding: 0;">
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Elementary Teaching Methods
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Child Development
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Curriculum Planning
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Assessment & Evaluation
+                            </li>
                         </ul>
                     </div>
                 </div>
                 
                 <div class="col-lg-5">
-                    <div class="program-card">
-                        <div class="program-icon">
+                    <div class="feature-card">
+                        <div class="feature-icon" style="width: 80px; height: 80px; font-size: 2.25rem;">
                             <i class="fas fa-university"></i>
                         </div>
-                        <h3 class="program-title">Bachelor of Secondary Education (BSED)</h3>
-                        <p class="program-description">For professionals with secondary education teaching experience and subject expertise.</p>
-                        <ul class="program-features">
-                            <li><i class="fas fa-check-circle"></i>Subject Specialization</li>
-                            <li><i class="fas fa-check-circle"></i>Secondary Teaching Methods</li>
-                            <li><i class="fas fa-check-circle"></i>Classroom Management</li>
-                            <li><i class="fas fa-check-circle"></i>Educational Psychology</li>
+                        <h3 style="font-size: 1.5rem; font-weight: 700; color: var(--text-dark); margin-bottom: 1rem;">Bachelor of Secondary Education (BSED)</h3>
+                        <p style="color: var(--text-gray); margin-bottom: 1.5rem;">For professionals with secondary education teaching experience and subject expertise.</p>
+                        <ul style="list-style: none; padding: 0;">
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Subject Specialization
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Secondary Teaching Methods
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Classroom Management
+                            </li>
+                            <li style="padding: 0.5rem 0; color: var(--text-gray); display: flex; align-items: center; gap: 0.75rem;">
+                                <i class="fas fa-check-circle" style="color: var(--primary-red); font-size: 1.1rem;"></i>Educational Psychology
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -1163,29 +1142,29 @@
                 <p class="section-description">Get your professional experience recognized in just four easy steps</p>
             </div>
             
-            <div class="process-steps">
-                <div class="step-card">
-                    <div class="step-number">1</div>
-                    <h4 class="step-title">Register</h4>
-                    <p class="step-description">Create your account and complete the online application form with your personal information.</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; position: relative;">
+                <div class="feature-card" style="text-align: center;">
+                    <div style="width: 70px; height: 70px; background: linear-gradient(135deg, var(--primary-red), var(--light-red)); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: white; margin: 0 auto 1.5rem; box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4); position: relative; transition: all 0.4s ease;">1</div>
+                    <h4 style="font-size: 1.25rem; font-weight: 600; color: var(--text-dark); margin-bottom: 0.75rem;">Register</h4>
+                    <p style="color: var(--text-gray); font-size: 0.95rem;">Create your account and complete the online application form with your personal information.</p>
                 </div>
                 
-                <div class="step-card">
-                    <div class="step-number">2</div>
-                    <h4 class="step-title">Submit Documents</h4>
-                    <p class="step-description">Upload all required documents including credentials, employment records, and certifications.</p>
+                <div class="feature-card" style="text-align: center;">
+                    <div style="width: 70px; height: 70px; background: linear-gradient(135deg, var(--primary-red), var(--light-red)); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: white; margin: 0 auto 1.5rem; box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4); position: relative; transition: all 0.4s ease;">2</div>
+                    <h4 style="font-size: 1.25rem; font-weight: 600; color: var(--text-dark); margin-bottom: 0.75rem;">Submit Documents</h4>
+                    <p style="color: var(--text-gray); font-size: 0.95rem;">Upload all required documents including credentials, employment records, and certifications.</p>
                 </div>
                 
-                <div class="step-card">
-                    <div class="step-number">3</div>
-                    <h4 class="step-title">Assessment</h4>
-                    <p class="step-description">Expert panel evaluates your qualifications through tests, interviews, and portfolio review.</p>
+                <div class="feature-card" style="text-align: center;">
+                    <div style="width: 70px; height: 70px; background: linear-gradient(135deg, var(--primary-red), var(--light-red)); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: white; margin: 0 auto 1.5rem; box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4); position: relative; transition: all 0.4s ease;">3</div>
+                    <h4 style="font-size: 1.25rem; font-weight: 600; color: var(--text-dark); margin-bottom: 0.75rem;">Assessment</h4>
+                    <p style="color: var(--text-gray); font-size: 0.95rem;">Expert panel evaluates your qualifications through tests, interviews, and portfolio review.</p>
                 </div>
                 
-                <div class="step-card">
-                    <div class="step-number">4</div>
-                    <h4 class="step-title">Get Results</h4>
-                    <p class="step-description">Receive your assessment results and academic credits awarded based on your experience.</p>
+                <div class="feature-card" style="text-align: center;">
+                    <div style="width: 70px; height: 70px; background: linear-gradient(135deg, var(--primary-red), var(--light-red)); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 1.75rem; font-weight: 700; color: white; margin: 0 auto 1.5rem; box-shadow: 0 8px 20px rgba(220, 38, 38, 0.4); position: relative; transition: all 0.4s ease;">4</div>
+                    <h4 style="font-size: 1.25rem; font-weight: 600; color: var(--text-dark); margin-bottom: 0.75rem;">Get Results</h4>
+                    <p style="color: var(--text-gray); font-size: 0.95rem;">Receive your assessment results and academic credits awarded based on your experience.</p>
                 </div>
             </div>
         </div>
@@ -1193,45 +1172,45 @@
 
     <!-- CTA Section -->
     <section class="cta-section">
-        <div class="cta-content">
-            <h2 class="cta-title">Ready to Start Your Journey?</h2>
-            <p class="cta-description">Transform your professional experience into academic credentials today and unlock new opportunities.</p>
+        <div style="position: relative; z-index: 2; max-width: 700px; margin: 0 auto;">
+            <h2 style="font-size: 2.5rem; font-weight: 700; margin-bottom: 1rem;">Ready to Start Your Journey?</h2>
+            <p style="font-size: 1.25rem; opacity: 0.9; margin-bottom: 2rem;">Transform your professional experience into academic credentials today and unlock new opportunities.</p>
             <a href="auth/register.php" class="btn btn-cta">
-                <i class="fas fa-rocket me-2"></i>Start Your Application Now
+                <span><i class="fas fa-rocket me-2"></i>Start Your Application Now</span>
             </a>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer>
+    <footer style="background: var(--text-dark); color: white; padding: 3rem 0 1.5rem;">
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <div class="footer-brand">
+                    <div style="font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem;">
                         <i class="fas fa-graduation-cap me-2"></i>ETEEAP
                     </div>
-                    <p class="footer-description">Transforming professional experience into academic achievement through officially recognized assessment programs.</p>
+                    <p style="color: #94a3b8; margin-bottom: 1.5rem;">Transforming professional experience into academic achievement through officially recognized assessment programs.</p>
                 </div>
                 <div class="col-md-3">
                     <h5 class="mb-3">Quick Links</h5>
-                    <ul class="footer-links">
-                        <li><a href="#home">Home</a></li>
-                        <li><a href="#about">About</a></li>
-                        <li><a href="#requirements">Requirements</a></li>
-                        <li><a href="#programs">Programs</a></li>
-                        <li><a href="#process">Process</a></li>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin-bottom: 0.75rem;"><a href="#home" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Home</a></li>
+                        <li style="margin-bottom: 0.75rem;"><a href="#about" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">About</a></li>
+                        <li style="margin-bottom: 0.75rem;"><a href="#requirements" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Requirements</a></li>
+                        <li style="margin-bottom: 0.75rem;"><a href="#programs" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Programs</a></li>
+                        <li style="margin-bottom: 0.75rem;"><a href="#process" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Process</a></li>
                     </ul>
                 </div>
                 <div class="col-md-3">
                     <h5 class="mb-3">Get Started</h5>
-                    <ul class="footer-links">
-                        <li><a href="auth/register.php">Register</a></li>
-                        <li><a href="auth/login.php">Login</a></li>
-                        <li><a href="#requirements">Download Forms</a></li>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin-bottom: 0.75rem;"><a href="auth/register.php" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Register</a></li>
+                        <li style="margin-bottom: 0.75rem;"><a href="auth/login.php" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Login</a></li>
+                        <li style="margin-bottom: 0.75rem;"><a href="#requirements" style="color: #94a3b8; text-decoration: none; transition: color 0.3s ease;">Download Forms</a></li>
                     </ul>
                 </div>
             </div>
-            <div class="footer-bottom">
+            <div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid rgba(255, 255, 255, 0.1); text-align: center; color: #94a3b8;">
                 <p class="mb-0">&copy; 2025 ETEEAP Assessment Platform. All rights reserved.</p>
             </div>
         </div>
@@ -1321,89 +1300,7 @@ I. PERSONAL INFORMATION
 
 10. Statement of your goals/objectives/purposes in applying for the degree:
     ___________________________________________________________________
-    ___________________________________________________________________
-
-11. Indicate how much time you plan to devote for personal learning activities:
-    ___________________________________________________________________
-    ___________________________________________________________________
-
-12. For overseas applicants, describe how you plan to obtain accreditation/equivalency:
-    ___________________________________________________________________
-    ___________________________________________________________________
-
-13. How soon do you need to complete equivalency/accreditation?
-    _____ less than one (1) year  _____ 1 year
-    _____ 2 years  _____ 3 years
-
-II. EDUCATION:
-
-1. Formal Education
-Course/Degree Program | Name of School/Address | Inclusive Dates of Attendance
-_________________________________________________________________
-_________________________________________________________________
-
-2. Non-Formal Education
-Title of Training Program | Title of Certificate Obtained | Inclusive Dates of Attendance
-_________________________________________________________________
-_________________________________________________________________
-
-3. Other Certification Examinations
-Title of Certification Examination | Name/Address of Certifying Agency | Date Certified | Rating
-_________________________________________________________________
-_________________________________________________________________
-
-III. PAID WORK AND OTHER EXPERIENCES
-
-1. Post/Designation: _________________________________________
-2. Inclusive Dates of Employment: From: _____________ to: _____________
-3. Name and Address of Company: ________________________________
-4. Terms/Status of Employment: _________________________________
-5. Name and Designation of Immediate Supervisor: ___________________
-6. Reason(s) for moving on to the next job: ________________________
-7. Describe actual functions and responsibilities in position occupied:
-   ________________________________________________________________
-   ________________________________________________________________
-
-IV. HONORS, AWARDS, AND CITATIONS RECEIVED
-
-1. Academic Award
-Award Conferred | Name and Address of Conferring Organization | Date Awarded
-________________________________________________________________
-
-2. Community and Civic Organization Award/Citation
-Award Conferred | Name and Address of Conferring Organization | Date Awarded
-________________________________________________________________
-
-3. Work Related Award/Citation
-Award Conferred | Name and Address of Conferring Organization | Date Awarded
-________________________________________________________________
-
-V. CREATIVE WORKS AND SPECIAL ACCOMPLISHMENTS
-
-1. Description: ______________________________________________
-2. Date Accomplished: _______________________________________
-3. Name and Address of Publishing Agency: _____________________
-
-VI. LIFELONG LEARNING EXPERIENCE
-
-1. Hobbies/Leisure Activities: ________________________________
-2. Special Skills: __________________________________________
-3. Work-Related Activities: __________________________________
-4. Volunteer Activities: ____________________________________
-5. Travels: _______________________________________________
-
-VII. Essay on how your attaining a degree contribute to your personal development, your community, your workplace, society, and country:
-________________________________________________________________
-________________________________________________________________
-________________________________________________________________
-
-I declare under oath that, the foregoing claims and information I have disclosed are true and correct.
-
-Signed: ________________________________
-Printed Name and Signature of Applicant
-
-Community Tax Certificate: _____________________
-Issued on: ______________ at: __________________`;
+    ___________________________________________________________________`;
         }
 
         function generateApplicationLetter() {
@@ -1425,29 +1322,7 @@ I am writing you to express my intent to enroll in your (Name of Degree) through
 
 1) Completed application form (Pages 1 to 4)
 2) Detailed CV
-3) COE-DFR (Name of Institution) - (Service Record-Employment Certificate-Detailed Job Description)-Current Job
-4) COE-DFR- (Name of Institution) - (Service Record-Employment Certificate-Detailed Job Description)-Former Job
-5) Passport (Photo Page)
-6) Bachelor's Degree Certificate or Diploma (Name of Institution)
-7) Bachelor's Degree transcript with (Name of Institution)
-8) Birth Certificate (NSO)
-9) Professional certifications and licenses
-10) Training certificates and workshops
-11) Awards and recognitions
-12) Portfolio of work achievements
-
-In addition to the above, I also have the following projects and publications I have created with the pertinent documents attached with this application.
-
-1) _________________________ (Brief description)
-2) _________________________ (Brief description)
-3) _________________________ (Brief description)
-
-Thank you and I hope and pray that my application be given consideration and my request to enroll in the above-mentioned degree through the ETEEAP via online or modular distance learning will be granted.
-
-Sincerely yours,
-
-Your name and signature
-Designation or title`;
+3) COE-DFR (Name of Institution)`;
         }
 
         function generateCVTemplate() {
@@ -1465,62 +1340,7 @@ Main Duties:
 Detailed Description of each function:
 - Specific function 1
 - Specific function 2
-- Specific function 3
-
-Other functions:
-- Additional responsibility 1
-- Additional responsibility 2
-
-General Summary of Skills:
-- Skill 1
-- Skill 2
-- Skill 3
-
-Other Relevant Information (Optional):
-Any information that may add to your expertise in the field you mentioned above. Be specific as this can add to the overall score.
-
-2. EDUCATION
-
-Date started -- Date completed -- (Name of Institution)
-(Address or location of institution)
-- Name of educational program or degree, if applicable
-- Main focus -- Give short description of the program. If not completed, mention it.
-
-(Repeat for all educational experiences including elementary and secondary education)
-
-3. TRAININGS and PROFESSIONAL DEVELOPMENT SEMINARS
-
-Date covered -- Title of training or seminar, and location, and sponsor or organizer
-- Brief description as what was learned and skills acquired in the training.
-- Describe your role and other participations and contributions you made.
-
-(Repeat for each training/seminar)
-
-4. AWARDS
-
-Date - Award Title | Institution | Brief description of award
-
-5. COMPETENCIES & INTERESTS
-
-English Ability:
-- IELTS Band Score -- Score (Date), if applicable and available
-- TOEIC Score - Score (Date), if applicable and available
-- Other English proficiency skill descriptions or test/training you have taken up.
-
-Computer Skills:
-(List all relevant computer skills and software proficiency)
-
-Professional Skills:
-(List skills relevant to your field)
-
-Other Skills and Interests:
-(List hobbies, volunteer work, and other relevant activities)
-
-I certify that the above information are true and correct to the best of my ability.
-
-Your name with your signature
-Date prepared and signed
-Your location`;
+- Specific function 3`;
         }
     </script>
 </body>

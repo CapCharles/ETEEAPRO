@@ -12,8 +12,8 @@ if ($_SERVER['HTTP_HOST'] === 'localhost' || $_SERVER['HTTP_HOST'] === '127.0.0.
     // Production server
     define('DB_HOST', 'localhost');
     define('DB_PORT', '3306');
-    define('DB_NAME', 'eteeap_db');
-    define('DB_USER', 'eteeap_db');
+    define('DB_NAME', 'u794351022_eteeap_db');
+    define('DB_USER', 'u794351022_eteeap_db');
     define('DB_PASS', 'Eteeap_db1'); // change to actual prod password
 }
 

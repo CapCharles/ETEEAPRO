@@ -303,37 +303,43 @@ function getStatusColor($status) {
                         ETEEAP Admin
                     </h4>
                     
-                    <nav class="nav flex-column">
-                        <a class="nav-link" href="dashboard.php">
-                            <i class="fas fa-tachometer-alt me-2"></i>
-                            Dashboard
-                        </a>
-                        <a class="nav-link" href="application-reviews.php">
-                            <i class="fas fa-file-signature me-2"></i>
-                            Application Reviews
-                       
-                        </a>
-                        <a class="nav-link" href="evaluate.php">
-                            <i class="fas fa-clipboard-check me-2"></i>
-                            Evaluate Applications
-                        </a>
-                        <a class="nav-link" href="reports.php">
-                            <i class="fas fa-chart-bar me-2"></i>
-                            Reports
-                        </a>
-                        <a class="nav-link" href="users.php">
-                            <i class="fas fa-users me-2"></i>
-                            Manage Users
-                        </a>
-                        <a class="nav-link" href="programs.php">
-                            <i class="fas fa-graduation-cap me-2"></i>
-                            Manage Programs
-                        </a>
-                        <a class="nav-link" href="settings.php">
-                            <i class="fas fa-cog me-2"></i>
-                            Settings
-                        </a>
-                    </nav>
+                   <nav class="nav flex-column">
+    <a class="nav-link" href="dashboard.php">
+        <i class="fas fa-tachometer-alt me-2"></i>
+        Dashboard
+    </a>
+
+    <a class="nav-link" href="application-reviews.php">
+        <i class="fas fa-file-signature me-2"></i>
+        Application Reviews
+    </a>
+
+    <a class="nav-link" href="evaluate.php">
+        <i class="fas fa-clipboard-check me-2"></i>
+        Evaluate Applications
+    </a>
+
+    <a class="nav-link" href="reports.php">
+        <i class="fas fa-chart-bar me-2"></i>
+        Reports
+    </a>
+
+    <?php if ($user_type === 'admin'): ?>
+        <a class="nav-link" href="users.php">
+            <i class="fas fa-users me-2"></i>
+            Manage Users
+        </a>
+        <a class="nav-link" href="programs.php">
+            <i class="fas fa-graduation-cap me-2"></i>
+            Manage Programs
+        </a>
+    <?php endif; ?>
+
+    <a class="nav-link" href="settings.php">
+        <i class="fas fa-cog me-2"></i>
+        Settings
+    </a>
+</nav>
                 </div>
                 
                 <div class="mt-auto p-3">

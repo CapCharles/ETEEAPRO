@@ -1,23 +1,11 @@
 <?php
-ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
-$notif = __DIR__ . '/../includes/email_notifications.php';
-if (file_exists($notif)) {
-    include_once $notif;
-} else {
-    if (!function_exists('sendEmail')) {
-        function sendEmail($to, $subject, $html, $plainText = null) {
-            error_log('[register.php] email_notifications.php missing; skipped email.');
-            return false;
-        }
-    }
-}
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
-
+include_once __DIR__ . '/../includes/email_notifications.php';
 
 
 

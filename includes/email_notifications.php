@@ -72,35 +72,29 @@ function buildMailer(string $mode = 'smtps') {
     return $mail;
 }
 
-// Try send with fallback (587 → 465). Always logs ErrorInfo on failure.
+// Try send with fallback (465 → 587). Always logs ErrorInfo on failure.
 function send_with_fallback(callable $prepare): bool {
     try {
-        // 1) Try STARTTLS:587 first
-        $m1 = buildMailer('starttls');
+        // 1) Try SMTPS:465
+        $m1 = buildMailer('smtps');
         if ($m1) {
             $prepare($m1);
             $ok1 = $m1->send();
-            if ($ok1) {
-                error_log('[MAIL] STARTTLS send success.');
-                return true;
-            }
-            error_log('[MAIL] STARTTLS send failed: ' . $m1->ErrorInfo);
+            if ($ok1) return true;
+            error_log('[MAIL] SMTPS send failed: ' . $m1->ErrorInfo);
         } else {
-            error_log('[MAIL] buildMailer(starttls) returned null.');
+            error_log('[MAIL] buildMailer(smtps) returned null.');
         }
 
-        // 2) Fallback to SMTPS:465
-        $m2 = buildMailer('smtps');
+        // 2) Fallback STARTTLS:587
+        $m2 = buildMailer('starttls');
         if ($m2) {
             $prepare($m2);
             $ok2 = $m2->send();
-            if ($ok2) {
-                error_log('[MAIL] SMTPS send success (fallback).');
-                return true;
-            }
-            error_log('[MAIL] SMTPS send failed: ' . $m2->ErrorInfo);
+            if ($ok2) return true;
+            error_log('[MAIL] STARTTLS send failed: ' . $m2->ErrorInfo);
         } else {
-            error_log('[MAIL] buildMailer(smtps) returned null.');
+            error_log('[MAIL] buildMailer(starttls) returned null.');
         }
 
         return false;
@@ -109,6 +103,7 @@ function send_with_fallback(callable $prepare): bool {
         return false;
     }
 }
+
 
 /** Optional example; safe kahit walang PHPMailer */
 function sendRegistrationEmail(string $toEmail, string $toName): bool {

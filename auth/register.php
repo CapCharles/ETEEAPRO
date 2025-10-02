@@ -1,12 +1,8 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
-include_once __DIR__ . '/../includes/email_notifications.php';
-
+include_once '../includes/email_notifications.php';
 
 
 

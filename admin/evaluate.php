@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// top of evaluate.php
+// top of evaluate.phps
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
 
 require_once BASE_DIR . '/../config/database.php';

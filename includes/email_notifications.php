@@ -11,37 +11,25 @@ function phpmailer_available(): bool {
 function makeMailer() {
     if (!phpmailer_available()) {
         error_log('[MAIL] PHPMailer files not found in ' . __DIR__ . '/PHPMailer/src/');
-        return null;
+        return null; // para hindi mag-fatal, babalik na lang tayo ng null
     }
 
+    // Lazy require (dito lang i-load kapag talagang gagamitin)
     $base = __DIR__ . '/PHPMailer/src/';
     require_once $base . 'Exception.php';
     require_once $base . 'PHPMailer.php';
     require_once $base . 'SMTP.php';
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-    
-    // Add debugging
-    $mail->SMTPDebug = 2; // Enable verbose debug output
-    $mail->Debugoutput = function($str, $level) {
-        error_log("PHPMailer [$level]: $str");
-    };
-    
-    $mail->isSMTP();
+      $mail->isSMTP();
     $mail->Host       = 'smtp.gmail.com';
     $mail->SMTPAuth   = true;
     $mail->Username   = 'cspbank911@gmail.com';
     $mail->Password   = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-    $mail->Port       = 465;
-    
-    // Add timeout settings
-    $mail->Timeout    = 30;
-    $mail->SMTPKeepAlive = true;
-    
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; // Changed
+    $mail->Port       = 587; // Changed
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
     $mail->isHTML(true);
-    
     return $mail;
 }
 

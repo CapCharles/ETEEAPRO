@@ -14,16 +14,7 @@ $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 
 
-header('Content-Type: application/json');
 
-try {
-    // count SUBMITTED applications
-    $stmt = $pdo->query("SELECT COUNT(*) AS total FROM applications WHERE application_status = 'submitted'");
-    $row = $stmt->fetch();
-    echo json_encode(['count' => (int)($row['total'] ?? 0)]);
-} catch (PDOException $e) {
-    echo json_encode(['count' => 0]);
-}
 // Get dashboard statistics
 $stats = [];
 try {

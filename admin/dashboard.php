@@ -13,8 +13,6 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
 $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 
-
-
 // Get dashboard statistics
 $stats = [];
 try {

@@ -586,8 +586,8 @@ try {
             }
         });
         <?php endif; ?>
-    </script>
-    <script>
+
+  
 // === SIDENAV BADGE: Auto-refresh submitted count (every 5s) ===
 (function() {
   const badge = document.getElementById('sbSubmittedBadge');
@@ -617,7 +617,8 @@ try {
   refreshSubmittedCount();
   setInterval(refreshSubmittedCount, 5000);
 })();
-</script>
 
+    </script>
+    
 </body>
 </html>

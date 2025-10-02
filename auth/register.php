@@ -1,25 +1,6 @@
 <?php
 session_start();
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-// Base directory ng register.php
-define('BASE_DIR', __DIR__);
-
-// I-adjust mo ang ../ depende sa totoong lokasyon ng config folder mo sa server
-require_once BASE_DIR . '/../config/database.php';
-require_once BASE_DIR . '/../config/constants.php';
-
-// Kung Composer ka:
-if (file_exists(BASE_DIR . '/../vendor/autoload.php')) {
-    require BASE_DIR . '/../vendor/autoload.php';
-} else {
-    // Kung manual PHPMailer ang gamit mo, ayusin din ang paths dito
-    require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
-    require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
-    require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
-}
+require_once BASE_DIR . '/config/database.php';
 require_once '../config/constants.php';
 include_once '../includes/email_notifications.php';
 

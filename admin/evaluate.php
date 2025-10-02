@@ -850,15 +850,11 @@ function suggest_score_from_docs(array $criteria, array $criteriaDocs): array {
     return [$best, $bestWhy];
 }
 
-
 if ($_POST && isset($_POST['submit_evaluation'])) {
     $app_id = $_POST['application_id'];
     $submitted = $_POST['evaluations'] ?? [];
     $additional_comments = trim($_POST['recommendation']);
     $manual_override = $_POST['final_status'] ?? 'auto';
-
-    // Huwag i-block kapag empty ang $submitted — pwede kasing lahat ay 0.
-    // if (empty($submitted)) { ... }  // alisin ito kung meron ka
 
     try {
         $pdo->beginTransaction();
@@ -872,7 +868,23 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
         $program_id = (int)$appRow['program_id'];
 
-        // 2) Kunin lahat ng ACTIVE criteria ng program (ito ang magiging denominator mo)
+        // **ADD THIS: Fetch documents for this application**
+        $stmt = $pdo->prepare("
+            SELECT *, 
+                   CASE 
+                       WHEN LOWER(mime_type) LIKE '%pdf%' THEN 'pdf'
+                       WHEN LOWER(mime_type) LIKE '%image%' THEN 'image'
+                       WHEN LOWER(mime_type) LIKE '%word%' OR LOWER(mime_type) LIKE '%doc%' THEN 'document'
+                       ELSE 'other'
+                   END as file_category
+            FROM documents 
+            WHERE application_id = ? 
+            ORDER BY document_type, upload_date DESC
+        ");
+        $stmt->execute([$app_id]);
+        $documents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // 2) Kunin lahat ng ACTIVE criteria ng program
         $stmt = $pdo->prepare("
             SELECT id, criteria_name, max_score, weight
             FROM assessment_criteria
@@ -977,24 +989,24 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         }
 
         // Program code para sa rekomendasyon
-        $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
+      $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
         $stmt->execute([$app_id]);
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
-// Get curriculum and passed subjects
-$curriculumStatus = getPassedSubjects($documents, $programCode);
-$curriculumSubjects = $curriculumStatus['curriculum'];
-$passedSubjects = $curriculumStatus['passed'];
+        // **THIS SHOULD NOW WORK PROPERLY because $documents is loaded above**
+        $curriculumStatus = getPassedSubjects($documents, $programCode);
+        $curriculumSubjects = $curriculumStatus['curriculum'];
+        $passedSubjects = $curriculumStatus['passed'];
 
-       $auto_recommendation = generateEnhancedRecommendation(
-    $final_score, 
-    $programCode, 
-    $final_status, 
-    $criteriaMissing,
-    $passedSubjects,        // Add this
-    $curriculumSubjects     // Add this
-);
+        $auto_recommendation = generateEnhancedRecommendation(
+            $final_score, 
+            $programCode, 
+            $final_status, 
+            $criteriaMissing,
+            $passedSubjects,        
+            $curriculumSubjects     
+        );
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
             : $auto_recommendation;

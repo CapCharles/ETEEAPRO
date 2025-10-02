@@ -6,6 +6,7 @@ include_once '../includes/email_notifications.php';
 
 
 
+
 // If user is already logged in, redirect to appropriate dashboard
 if (isset($_SESSION['user_id'])) {
     if ($_SESSION['user_type'] == 'admin' || $_SESSION['user_type'] == 'evaluator') {

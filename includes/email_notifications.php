@@ -5,9 +5,11 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
-require 'C:\xampp\PHPMailer\PHPMailer\src\Exception.php';
-require 'C:\xampp\PHPMailer\PHPMailer\src\PHPMailer.php';
-require 'C:\xampp\PHPMailer\PHPMailer\src\SMTP.php';
+// email_notifications.php (pinakataas)
+require_once __DIR__ . '/../PHPMailer/src/Exception.php';
+require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
+require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
+
 
 function makeMailer(): PHPMailer {
     $mail = new PHPMailer(true);

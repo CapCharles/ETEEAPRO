@@ -5,7 +5,10 @@ require_once '../config/constants.php';
 require_once '../includes/functions.php';
 
 // Check if user is logged in and is admin
-requireAuth(['admin']);
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
+    header('Location: ../auth/login.php');
+    exit();
+}
 
 $user_id = $_SESSION['user_id'];
 $errors = [];

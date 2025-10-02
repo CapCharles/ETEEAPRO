@@ -12,10 +12,30 @@ if (!defined('MAIL_USERNAME'))   { define('MAIL_USERNAME',   'cspbank911@gmail.c
 if (!defined('MAIL_PASSWORD'))   { define('MAIL_PASSWORD',   'uzhtbqmdqigquyqq'); } // Gmail App Password
 
 function phpmailer_available(): bool {
-    $base = __DIR__ . '/PHPMailer/src/';
-    return file_exists($base . 'PHPMailer.php')
-        && file_exists($base . 'SMTP.php')
-        && file_exists($base . 'Exception.php');
+    // Try multiple paths for PHPMailer (same logic as register.php)
+    $phpmailer_paths = [
+        'PHPMailer/src/',
+        'PHPMailer\\src\\',
+        './PHPMailer/src/',
+        '../PHPMailer/src/',
+        'vendor/phpmailer/phpmailer/src/',
+        __DIR__ . '/PHPMailer/src/',
+        __DIR__ . '\\PHPMailer\\src\\'
+    ];
+
+    foreach ($phpmailer_paths as $path) {
+        if (file_exists($path . 'PHPMailer.php') && 
+            file_exists($path . 'SMTP.php') && 
+            file_exists($path . 'Exception.php')) {
+            // Store the working path for buildMailer to use
+            define('PHPMAILER_PATH', $path);
+            error_log('[MAIL] PHPMailer found at: ' . $path);
+            return true;
+        }
+    }
+    
+    error_log('[MAIL] PHPMailer files not found in any standard location');
+    return false;
 }
 
 function _base_url_safe(): string {
@@ -26,13 +46,20 @@ function _base_url_safe(): string {
 // $mode = 'smtps' (465) or 'starttls' (587)
 function buildMailer(string $mode = 'smtps') {
     if (!phpmailer_available()) {
-        error_log('[MAIL] PHPMailer files not found in ' . __DIR__ . '/PHPMailer/src/');
+        error_log('[MAIL] PHPMailer not available');
         return null;
     }
-    $base = __DIR__ . '/PHPMailer/src/';
-    require_once $base . 'Exception.php';
-    require_once $base . 'PHPMailer.php';
-    require_once $base . 'SMTP.php';
+    
+    $base = PHPMAILER_PATH;
+    
+    try {
+        require_once $base . 'Exception.php';
+        require_once $base . 'PHPMailer.php';
+        require_once $base . 'SMTP.php';
+    } catch (Exception $e) {
+        error_log('[MAIL] PHPMailer loading failed from ' . $base . ': ' . $e->getMessage());
+        return null;
+    }
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 

@@ -228,17 +228,10 @@ try {
         Dashboard
     </a>
 
-   <!-- === SIDENAV: Application Reviews with live badge === -->
-<a class="nav-link position-relative" href="application-reviews.php">
-    <span class="d-flex align-items-center">
+    <a class="nav-link" href="application-reviews.php">
         <i class="fas fa-file-signature me-2"></i>
-        <span>Application Reviews</span>
-        <span id="sbSubmittedBadge"
-              class="badge rounded-pill bg-warning text-dark ms-auto"
-              style="display:none;">0</span>
-    </span>
-</a>
-
+        Application Reviews
+    </a>
 
     <a class="nav-link" href="evaluate.php">
         <i class="fas fa-clipboard-check me-2"></i>
@@ -586,39 +579,6 @@ try {
             }
         });
         <?php endif; ?>
-
-  
-// === SIDENAV BADGE: Auto-refresh submitted count (every 5s) ===
-(function() {
-  const badge = document.getElementById('sbSubmittedBadge');
-
-  function setBadge(count) {
-    if (!badge) return;
-    if (count > 0) {
-      badge.textContent = count;
-      badge.style.display = 'inline-block';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  async function refreshSubmittedCount() {
-    try {
-      const res = await fetch('check_notifications.php', { cache: 'no-store' });
-      const data = await res.json();
-      setBadge(data.count || 0);
-    } catch (e) {
-      // silent fail; keep last shown value
-      // console.error('notif fetch error', e);
-    }
-  }
-
-  // Initial load + interval
-  refreshSubmittedCount();
-  setInterval(refreshSubmittedCount, 5000);
-})();
-
     </script>
-    
 </body>
 </html>

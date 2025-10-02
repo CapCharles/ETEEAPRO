@@ -25,7 +25,7 @@ function makeMailer() {
     $mail->Host       = 'smtp.gmail.com';
     $mail->SMTPAuth   = true;
     $mail->Username   = 'cspbank911@gmail.com';
-    $mail->Password   = 'YOUR_APP_PASSWORD';      // palitan ng Gmail App Password
+   $mail->Password = 'uzhtbqmdqigquyqq';
     $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; // or ENCRYPTION_STARTTLS + Port 587
     $mail->Port       = 465;                      // 465 (SMTPS) o 587 (STARTTLS)
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');

@@ -1,8 +1,6 @@
 <?php
 session_start();
 
-
-
 // top of evaluate.php
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
 

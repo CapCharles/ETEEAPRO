@@ -21,7 +21,7 @@ function makeMailer() {
     require_once $base . 'SMTP.php';
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-      $mail->isSMTP();
+       $mail->isSMTP();
     $mail->Host       = 'smtp.gmail.com';
     $mail->SMTPAuth   = true;
     $mail->Username   = 'cspbank911@gmail.com';

@@ -1,14 +1,24 @@
 <?php
 // includes/email_notifications.php
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
 
-// email_notifications.php (pinakataas)
-require_once __DIR__ . '/../PHPMailer/src/Exception.php';
-require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
-require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
+// 1) PHPMailer autoload (Composer) o manual src files
+$vendorAutoload = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($vendorAutoload)) {
+    require_once $vendorAutoload;  // <-- kung may Composer/vendor
+} else {
+    // <-- kung manual upload ang PHPMailer folder mo
+    require_once __DIR__ . '/../PHPMailer/src/Exception.php';
+    require_once __DIR__ . '/../PHPMailer/src/PHPMailer.php';
+    require_once __DIR__ . '/../PHPMailer/src/SMTP.php';
+}
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\SMTP;
 
 
 function makeMailer(): PHPMailer {
@@ -24,6 +34,8 @@ function makeMailer(): PHPMailer {
     $mail->isHTML(true);
     return $mail;
 }
+
+
 
 /**
  * Send registration confirmation to user

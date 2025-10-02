@@ -4,10 +4,8 @@ require_once '../config/database.php';
 require_once '../config/constants.php';
 require_once '../includes/functions.php';
 
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
-    header('Location: ../auth/login.php');
-    exit();
-}
+// Check if user is logged in and is admin
+requireAuth(['admin']);
 
 $user_id = $_SESSION['user_id'];
 $errors = [];

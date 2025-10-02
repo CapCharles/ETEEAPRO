@@ -21,13 +21,13 @@ function makeMailer() {
     require_once $base . 'SMTP.php';
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-       $mail->isSMTP();
+    $mail->isSMTP();
     $mail->Host       = 'smtp.gmail.com';
     $mail->SMTPAuth   = true;
     $mail->Username   = 'cspbank911@gmail.com';
     $mail->Password   = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; // Changed
-    $mail->Port       = 587; // Changed
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+    $mail->Port       = 465;
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
     $mail->isHTML(true);
     return $mail;

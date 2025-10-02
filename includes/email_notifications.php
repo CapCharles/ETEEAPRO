@@ -1,28 +1,93 @@
 <?php
-// includes/email_notifications.php
+declare(strict_types=1);
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
+// Debug mode (tanggalin kung production na)
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
 
-require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
-require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
-require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
+/**
+ * Subukan i-load ang PHPMailer.
+ * Priority: Composer autoload → Manual PHPMailer folder.
+ */
+function _loadPHPMailer(): bool
+{
+    // 1) Composer autoload
+    $vendor = __DIR__ . '/../vendor/autoload.php';
+    if (file_exists($vendor)) {
+        require_once $vendor;
+        return class_exists('\\PHPMailer\\PHPMailer\\PHPMailer');
+    }
 
-function makeMailer(): PHPMailer {
-    $mail = new PHPMailer(true);
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = 'cspbank911@gmail.com';
-    $mail->Password = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = 'ssl';
-    $mail->Port = 465;
-    $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
-    $mail->isHTML(true);
-    return $mail;
+    // 2) Manual paths
+    $candidates = [
+        __DIR__ . '/../PHPMailer/src',   // public_html/PHPMailer/src (kapatid ng includes)
+        __DIR__ . '/PHPMailer/src',      // public_html/includes/PHPMailer/src
+    ];
+
+    foreach ($candidates as $src) {
+        $exc = $src . '/Exception.php';
+        $php = $src . '/PHPMailer.php';
+        $smt = $src . '/SMTP.php';
+        if (file_exists($exc) && file_exists($php) && file_exists($smt)) {
+            require_once $exc;
+            require_once $php;
+            require_once $smt;
+            return class_exists('\\PHPMailer\\PHPMailer\\PHPMailer');
+        }
+    }
+
+    return false; // wala talagang PHPMailer
 }
 
+$HAS_PHPMAILER = _loadPHPMailer();
+
+if ($HAS_PHPMAILER) {
+    use PHPMailer\PHPMailer\PHPMailer;
+    use PHPMailer\PHPMailer\Exception;
+
+    function makeMailer(): PHPMailer
+    {
+        $mail = new PHPMailer(true);
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+         $mail->Username = 'cspbank911@gmail.com';
+    $mail->Password = 'uzhtbqmdqigquyqq';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port       = 465;
+
+          $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
+        $mail->isHTML(true);
+        $mail->CharSet = 'UTF-8';
+        return $mail;
+    }
+
+    function sendEmail(string $to, string $subject, string $html, ?string $plainText = null): bool
+    {
+        try {
+            $mail = makeMailer();
+            $mail->clearAllRecipients();
+            $mail->addAddress($to);
+            $mail->Subject = $subject;
+            $mail->Body    = $html;
+            $mail->AltBody = $plainText ?: strip_tags($html);
+            return $mail->send();
+        } catch (Exception $e) {
+            error_log('Email send failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+} else {
+    // fallback para hindi mag-crash si register.php
+    if (!function_exists('sendEmail')) {
+        function sendEmail(string $to, string $subject, string $html, ?string $plainText = null): bool
+        {
+            error_log('[email_notifications.php] PHPMailer not found. Skipping email send.');
+            return false;
+        }
+    }
+}
 /**
  * Send registration confirmation to user
  */

@@ -421,7 +421,6 @@ if ($application) {
                 <!-- Curriculum Status Breakdown -->
 <?php 
 // Only show if evaluated and has a program
-
     if (in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified']) && !empty($application['program_code'])):
     
     // Helper function to get passed subjects (copy from evaluate.php)

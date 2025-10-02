@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ETEEAP - Expanded Tertiary Education Equivalency and Accreditation Program</title>
+    <title>ETEEAPRO - Expanded Tertiary Education Equivalency and Accreditation Program</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -966,7 +966,6 @@
                         <span class="stat-number">1-2 Years</span>
                         <span class="stat-label">Completion Time</span>
                     </div>
-              
                 </div>
             </div>
         </div>

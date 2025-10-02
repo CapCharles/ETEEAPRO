@@ -455,9 +455,6 @@ LEFT JOIN evaluations e ON e.application_id=a.id AND e.criteria_id=ac.id
 LEFT JOIN documents d ON d.application_id=a.id
 GROUP BY a.id, a.user_id, p.program_name, p.program_code, u.first_name, u.last_name, u.email, a.application_status, a.total_score;
 
-
---remedyo 
-
 -- (1) Burahin muna lahat ng section 3 ng BSED kung nais mong ayusin numbering at 3.1.1 logic
 DELETE FROM assessment_criteria
 WHERE program_id = (SELECT id FROM programs WHERE program_code='BSED')

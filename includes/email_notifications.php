@@ -5,23 +5,28 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
-require 'PHPMailer\PHPMailer\src\Exception.php';
-require 'PHPMailer\PHPMailer\src\PHPMailer.php';
-require 'PHPMailer\PHPMailer\src\SMTP.php';
+
+
+// ✅ Relative paths for hosting (Linux/Windows OK)
+$base = __DIR__ . '/PHPMailer/src/';
+require $base . 'Exception.php';
+require $base . 'PHPMailer.php';
+require $base . 'SMTP.php';
 
 function makeMailer(): PHPMailer {
     $mail = new PHPMailer(true);
     $mail->isSMTP();
     $mail->Host = 'smtp.gmail.com';
     $mail->SMTPAuth = true;
-    $mail->Username = 'cspbank911@gmail.com';
-    $mail->Password = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = 'ssl';
-    $mail->Port = 465;
+    $mail->Username = 'cspbank911@gmail.com';     // ilagay ang app password mo sa constants kung gusto mo
+     $mail->Password = 'uzhtbqmdqigquyqq';    // huwag ilagay ang real password sa repo
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // or PHPMailer::ENCRYPTION_STARTTLS + Port 587
+    $mail->Port = 465;                             // 465 for SMTPS, 587 for STARTTLS
     $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
     $mail->isHTML(true);
     return $mail;
 }
+
 
 /**
  * Send registration confirmation to user

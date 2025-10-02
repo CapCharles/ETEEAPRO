@@ -554,47 +554,47 @@ if (!empty($bridgingRequirements)) {
 
 $recommendation .= "\n\nFor questions or appointments, contact the Admissions Office.";
     
-    // if (!empty($curriculumSubjects)) {
-    //     $totalSubjects = count($curriculumSubjects);
-    //     $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
-    //     $requiredSubjects = count($bridgingSubjectNames);
+    if (!empty($curriculumSubjects)) {
+        $totalSubjects = count($curriculumSubjects);
+        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
+        $requiredSubjects = count($bridgingSubjectNames);
         
-    //     $recommendations[] = "";
-    //     $recommendations[] = "**CURRICULUM BREAKDOWN:**";
-    //     $recommendations[] = "• Total Program Subjects: **{$totalSubjects}**";
-    //     $recommendations[] = "• Credited (Passed): **{$creditedSubjects} subjects**";
-    //     $recommendations[] = "• Required (Bridging): **{$requiredSubjects} subjects ({$bridgingUnits} units)**";
-    //     $recommendations[] = "• Completion Rate: **" . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%**";
-    //     $recommendations[] = "";
+        $recommendations[] = "";
+        $recommendations[] = "**CURRICULUM BREAKDOWN:**";
+        $recommendations[] = "• Total Program Subjects: **{$totalSubjects}**";
+        $recommendations[] = "• Credited (Passed): **{$creditedSubjects} subjects**";
+        $recommendations[] = "• Required (Bridging): **{$requiredSubjects} subjects ({$bridgingUnits} units)**";
+        $recommendations[] = "• Completion Rate: **" . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%**";
+        $recommendations[] = "";
         
-    //     // Detailed breakdown - Credited
-    //     if ($creditedSubjects > 0) {
-    //         $recommendations[] = "**CREDITED SUBJECTS ({$creditedSubjects}):**";
-    //         $num = 1;
-    //         foreach ($curriculumSubjects as $subject) {
-    //             if (!in_array($subject['name'], $bridgingSubjectNames)) {
-    //                 $recommendations[] = "   {$num}. {$subject['name']}";
-    //                 $num++;
-    //             }
-    //         }
-    //         $recommendations[] = "";
-    //     }
+        // Detailed breakdown - Credited
+        if ($creditedSubjects > 0) {
+            $recommendations[] = "**CREDITED SUBJECTS ({$creditedSubjects}):**";
+            $num = 1;
+            foreach ($curriculumSubjects as $subject) {
+                if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                    $recommendations[] = "   {$num}. {$subject['name']}";
+                    $num++;
+                }
+            }
+            $recommendations[] = "";
+        }
         
-    //     // Detailed breakdown - Required
-    //     if ($requiredSubjects > 0) {
-    //         $recommendations[] = "**REQUIRED BRIDGING SUBJECTS ({$requiredSubjects}):**";
-    //         $num = 1;
-    //         foreach ($bridgingSubjectNames as $subjectName) {
-    //             $recommendations[] = "   {$num}. {$subjectName}";
-    //             $num++;
-    //         }
-    //     }
-    // }
+        // Detailed breakdown - Required
+        if ($requiredSubjects > 0) {
+            $recommendations[] = "**REQUIRED BRIDGING SUBJECTS ({$requiredSubjects}):**";
+            $num = 1;
+            foreach ($bridgingSubjectNames as $subjectName) {
+                $recommendations[] = "   {$num}. {$subjectName}";
+                $num++;
+            }
+        }
+    }
     
-    // $recommendations[] = "";
-    // $recommendations[] = "For questions or appointments, contact the Admissions Office.";
+    $recommendations[] = "";
+    $recommendations[] = "For questions or appointments, contact the Admissions Office.";
     
-    // return implode("\n", $recommendations);
+    return implode("\n", $recommendations);
 }
 
 function parse_hier($doc) {

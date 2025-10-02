@@ -351,7 +351,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "• Completion Rate: " . round(($creditedCount / $totalSubjects) * 100, 1) . "%";
             $recommendations[] = "";
             $recommendations[] = "══════════════════════════════════════════════════════════";
-            $recommendations[] = "NEXT STEPS";
+            $recommendations[] = "**NEXT STEPS**";
             $recommendations[] = "══════════════════════════════════════════════════════════";
             $recommendations[] = "";
             $recommendations[] = "1. Our Admissions Office will contact you within 3-5 business days";

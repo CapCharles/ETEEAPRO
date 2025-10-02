@@ -10,6 +10,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
     exit();
 }
 
+$role = isset($_SESSION['user_type']) ? strtolower(trim($_SESSION['user_type'])) : '';
 $user_id = $_SESSION['user_id'];
 $errors = [];
 $success_message = '';
@@ -742,8 +743,7 @@ if ($flash) {
                         <i class="fas fa-graduation-cap me-2"></i>
                         ETEEAP Admin
                     </h4>
-                    
-                    <nav class="nav flex-column">
+             <nav class="nav flex-column">
     <a class="nav-link" href="dashboard.php">
         <i class="fas fa-tachometer-alt me-2"></i> Dashboard
     </a>
@@ -760,14 +760,19 @@ if ($flash) {
         <i class="fas fa-chart-bar me-2"></i> Reports
     </a>
 
-   <?php if (isset($user_type) && strtolower($user_type) === 'admin'): ?>
-    <a class="nav-link" href="users.php">
-        <i class="fas fa-users me-2"></i> Manage Users
+    <?php if ($role === 'admin'): ?>  <!-- ADMIN-ONLY LINKS START -->
+        <a class="nav-link" href="users.php">
+            <i class="fas fa-users me-2"></i> Manage Users
+        </a>
+        <a class="nav-link" href="programs.php">
+            <i class="fas fa-graduation-cap me-2"></i> Manage Programs
+        </a>
+    <?php endif; ?>                   <!-- ADMIN-ONLY LINKS END -->
+
+    <a class="nav-link" href="settings.php">
+        <i class="fas fa-cog me-2"></i> Settings
     </a>
-    <a class="nav-link" href="programs.php">
-        <i class="fas fa-graduation-cap me-2"></i> Manage Programs
-    </a>
-<?php endif; ?>
+</nav>
 
 
     <a class="nav-link" href="settings.php">

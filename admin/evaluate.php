@@ -240,50 +240,102 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = []) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $applicationId = null) {
     global $pdo, $current_application;
     
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     
-    // Get bridging subjects from DATABASE
-    $subjectPlan = ['subjects' => [], 'total_units' => 0, 'remaining_units' => 0];
-    
-    if ($bridgingUnits > 0 && !empty($current_application['program_id'])) {
+    // **MODIFICATION: Load from saved data if available**
+    $useSavedData = false;
+    if ($applicationId) {
+        // Try to load saved bridging requirements
         try {
             $stmt = $pdo->prepare("
-                SELECT subject_name as name, subject_code as code, units
-                FROM subjects 
-                WHERE program_id = ? AND status = 'active'
-                ORDER BY year_level DESC, semester DESC
+                SELECT subject_name as name, subject_code as code, units, priority
+                FROM bridging_requirements
+                WHERE application_id = ?
+                ORDER BY priority ASC, subject_name ASC
             ");
-            $stmt->execute([$current_application['program_id']]);
-            $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt->execute([$applicationId]);
+            $savedBridging = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            $selectedSubjects = [];
-            $totalUnits = 0;
-            
-            foreach ($availableSubjects as $subject) {
-                $units = (int)$subject['units'];
-                if ($totalUnits + $units <= $bridgingUnits) {
-                    $selectedSubjects[] = [
-                        'name' => $subject['name'],
-                        'code' => $subject['code'],
-                        'units' => $units,
-                        'priority' => 1
-                    ];
-                    $totalUnits += $units;
-                }
-                if ($totalUnits >= $bridgingUnits) break;
+            // If saved data exists, use it
+            if (!empty($savedBridging)) {
+                $subjectPlan = [
+                    'subjects' => $savedBridging,
+                    'total_units' => array_sum(array_column($savedBridging, 'units')),
+                    'remaining_units' => 0
+                ];
+                $useSavedData = true;
             }
-            
-            $subjectPlan = [
-                'subjects' => $selectedSubjects,
-                'total_units' => $totalUnits,
-                'remaining_units' => max(0, $bridgingUnits - $totalUnits)
-            ];
         } catch (PDOException $e) {
-            error_log("Error fetching bridging subjects: " . $e->getMessage());
+            error_log("Error loading saved bridging requirements: " . $e->getMessage());
+        }
+        
+        // Try to load saved credited subjects
+        if (empty($passedSubjects)) {
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT subject_name, evidence_type
+                    FROM credited_subjects
+                    WHERE application_id = ?
+                ");
+                $stmt->execute([$applicationId]);
+                $savedCredited = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                if (!empty($savedCredited)) {
+                    $passedSubjects = [];
+                    foreach ($savedCredited as $credited) {
+                        $passedSubjects[$credited['subject_name']] = $credited['evidence_type'];
+                    }
+                }
+            } catch (PDOException $e) {
+                error_log("Error loading saved credited subjects: " . $e->getMessage());
+            }
+        }
+    }
+    
+    // **If no saved data, generate bridging recommendations (original logic)**
+    if (!$useSavedData) {
+        $subjectPlan = ['subjects' => [], 'total_units' => 0, 'remaining_units' => 0];
+        
+        if ($bridgingUnits > 0 && !empty($current_application['program_id'])) {
+            try {
+                $stmt = $pdo->prepare("
+                    SELECT subject_name as name, subject_code as code, units
+                    FROM subjects 
+                    WHERE program_id = ? AND status = 'active'
+                    ORDER BY year_level DESC, semester DESC
+                ");
+                $stmt->execute([$current_application['program_id']]);
+                $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                
+                $selectedSubjects = [];
+                $totalUnits = 0;
+                
+                foreach ($availableSubjects as $subject) {
+                    $units = (int)$subject['units'];
+                    if ($totalUnits + $units <= $bridgingUnits) {
+                        $selectedSubjects[] = [
+                            'name' => $subject['name'],
+                            'code' => $subject['code'],
+                            'units' => $units,
+                            'priority' => 1
+                        ];
+                        $totalUnits += $units;
+                    }
+                    if ($totalUnits >= $bridgingUnits) break;
+                }
+                
+                $subjectPlan = [
+                    'subjects' => $selectedSubjects,
+                    'total_units' => $totalUnits,
+                    'remaining_units' => max(0, $bridgingUnits - $totalUnits)
+                ];
+            } catch (PDOException $e) {
+                error_log("Error fetching bridging subjects: " . $e->getMessage());
+            }
         }
     }
     
@@ -295,6 +347,12 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     $recommendations[] = "Program: {$programCode}";
     $recommendations[] = "Final Assessment Score: {$score}%";
     $recommendations[] = "---";
+    
+    // **Add data source indicator**
+    if ($useSavedData) {
+        $recommendations[] = "_Showing saved evaluation results_";
+        $recommendations[] = "";
+    }
     
     switch($status) {
         case 'qualified':
@@ -342,23 +400,26 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             }
             
             // === REQUIRED BRIDGING SUBJECTS ===
-            if ($bridgingUnits > 0) {
+            if ($bridgingUnits > 0 || !empty($subjectPlan['subjects'])) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "**REQUIRED BRIDGING COURSES**";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
-                $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
+                
+                $actualUnits = $subjectPlan['total_units'] > 0 ? $subjectPlan['total_units'] : $bridgingUnits;
+                $recommendations[] = "To complete your degree, you must fulfill {$actualUnits} units of bridging courses:";
                 $recommendations[] = "";
                 
                 foreach ($subjectPlan['subjects'] as $index => $subject) {
-                    $priorityLabel = $subject['priority'] === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
+                    $priority = isset($subject['priority']) ? (int)$subject['priority'] : 1;
+                    $priorityLabel = $priority === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
                     $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
                     $recommendations[] = "   Units: {$subject['units']} | Priority: {$priorityLabel}";
                     $recommendations[] = "";
                 }
                 
-                $recommendations[] = "**Total Bridging Units Required:** {$bridgingUnits} units";
+                $recommendations[] = "**Total Bridging Units Required:** {$actualUnits} units";
                 
                 if ($subjectPlan['remaining_units'] > 0) {
                     $recommendations[] = "";
@@ -368,7 +429,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
                 $recommendations[] = "• Credited Subjects: " . (count($curriculumSubjects) - count($bridgingSubjectNames)) . " subjects";
-                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
+                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$actualUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
                 $recommendations[] = "";
@@ -383,6 +444,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "3. Complete enrollment requirements for bridging courses";
             $recommendations[] = "4. Begin your accelerated path to degree completion";
             break;
+            
             
         case 'partially_qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: PARTIAL QUALIFICATION**";
@@ -517,8 +579,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "Schedule a consultation with our academic advisors to create a personalized development plan.";
             break;
     }
-    
-    // === ENHANCED SUMMARY ===
+      // === ENHANCED SUMMARY ===
     $recommendations[] = "";
     $recommendations[] = "---";
     $recommendations[] = "**═══════════════════════════════════════════**";
@@ -567,7 +628,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     
     return implode("\n", $recommendations);
 }
-
+ 
 function parse_hier($doc) {
     // 1) JSON column
     if (!empty($doc['hierarchical_data'])) {
@@ -1067,14 +1128,16 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
 
         // **Generate recommendation**
-        $auto_recommendation = generateEnhancedRecommendation(
-            $final_score, 
-            $programCode, 
-            $final_status, 
-            $criteriaMissing,
-            $passedSubjects,
-            $curriculumSubjects
-        );
+      // Just pass the application ID - it will load everything from database
+$auto_recommendation = generateEnhancedRecommendation(
+    $saved_score, 
+    $programCode, 
+    $saved_status, 
+    [],  // empty criteriaMissing
+    [],  // empty passedSubjects - will load from DB
+    $curriculumSubjects,  // still need curriculum structure
+    $app_id  // This triggers loading from database
+);
         
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments

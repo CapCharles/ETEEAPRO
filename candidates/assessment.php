@@ -419,6 +419,63 @@ if ($application) {
                 </div>
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
+<?php
+// Kunin lahat ng credited/passed subjects
+$passedStmt = $pdo->prepare("
+    SELECT ac.criteria_name AS subject, ac.subject_code, ac.units
+    FROM assessment_criteria ac
+    INNER JOIN documents d ON d.criteria_id = ac.id
+    WHERE d.application_id = ?
+    GROUP BY ac.id
+");
+$passedStmt->execute([$application_id]);
+$passedSubjects = $passedStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Kunin lahat ng required/bridging subjects
+$requiredStmt = $pdo->prepare("
+    SELECT subject_name AS subject, subject_code, units
+    FROM bridging_requirements
+    WHERE application_id = ?
+");
+$requiredStmt->execute([$application_id]);
+$requiredSubjects = $requiredStmt->fetchAll(PDO::FETCH_ASSOC);
+?>
+
+<!-- Curriculum Status -->
+<div class="card mt-3">
+  <div class="card-header bg-primary text-white">
+    Curriculum Status
+  </div>
+  <div class="card-body">
+    
+    <!-- Passed Subjects -->
+    <h5>✅ Passed / Credited Subjects</h5>
+    <?php if (!empty($passedSubjects)): ?>
+      <ul>
+        <?php foreach ($passedSubjects as $sub): ?>
+          <li><?= htmlspecialchars($sub['subject']) ?> (<?= $sub['units'] ?> units)</li>
+        <?php endforeach; ?>
+      </ul>
+    <?php else: ?>
+      <p>No passed subjects recorded.</p>
+    <?php endif; ?>
+
+    <hr>
+
+    <!-- Required Subjects -->
+    <h5>📌 Required / Bridging Subjects</h5>
+    <?php if (!empty($requiredSubjects)): ?>
+      <ul>
+        <?php foreach ($requiredSubjects as $sub): ?>
+          <li><?= htmlspecialchars($sub['subject']) ?> (<?= $sub['units'] ?> units)</li>
+        <?php endforeach; ?>
+      </ul>
+    <?php else: ?>
+      <p>No required subjects.</p>
+    <?php endif; ?>
+
+  </div>
+</div>
 
 
                 <!-- Uploaded Documents -->

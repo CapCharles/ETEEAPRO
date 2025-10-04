@@ -241,10 +241,10 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = []) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
-    $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits);
+    $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
     
     // Get bridging subject names
     $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
@@ -469,10 +469,10 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     return implode("\n", $recommendations);
 }
 
-function getSubjectRecommendations($programCode, $requiredUnits) {
-    global $pdo, $current_application;
+function getSubjectRecommendations($programCode, $requiredUnits, $program_id) {
+    global $pdo;
     
-    if (empty($current_application['program_id'])) {
+    if (empty($program_id)) {
         return ['subjects' => [], 'total_units' => 0, 'remaining_units' => $requiredUnits];
     }
     
@@ -483,7 +483,7 @@ function getSubjectRecommendations($programCode, $requiredUnits) {
             WHERE program_id = ? AND status = 'active'
             ORDER BY year_level DESC, semester DESC, subject_name
         ");
-        $stmt->execute([$current_application['program_id']]);
+        $stmt->execute([$program_id]);
         $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         $selectedSubjects = [];
@@ -1022,7 +1022,8 @@ $passedSubjects = $curriculumStatus['passed'];
     $final_status, 
     $criteriaMissing,
     $passedSubjects,        // Add this
-    $curriculumSubjects     // Add this
+    $curriculumSubjects     // Add this.
+     $program_id 
 );
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
@@ -2184,9 +2185,11 @@ if ($hasCriteriaDocs) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         // Enhanced JavaScript for smart evaluation system with document handling
-        const programCode = '<?php echo $current_application['program_code'] ?? ''; ?>';
-        const hasDocuments = <?php echo $hasDocs ? 'true' : 'false'; ?>;
         
+        
+        const programCode = '<?php echo $current_application['program_code'] ?? ''; ?>';
+const programId = <?php echo $current_application['program_id'] ?? 'null'; ?>;
+const hasDocuments = <?php echo $hasDocs ? 'true' : 'false'; ?>;
  
    // Replace the hardcoded subjectData with PHP-generated data
 const subjectData = <?php echo json_encode($predefined_subjects); ?>;
@@ -2324,8 +2327,8 @@ function autoLoadBridgingRequirements(score) {
     // 1. Score is 60% or higher
     // 2. No existing bridging subjects are already loaded
     // 3. Container exists
-    if (required > 0 && container && container.children.length === 0) {
-        const rec = getSubjectRecommendations(programCode || '', required);
+      if (required > 0 && container && container.children.length === 0) {
+         const rec = getSubjectRecommendations(programCode || '', required);
         
         // Clear counter and load suggestions
         subjectCounter = 0;

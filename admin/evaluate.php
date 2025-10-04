@@ -233,6 +233,7 @@ function getPassedSubjects($documents, $programCode) {
 }
 
 
+
 // Add this function near the top of your evaluate.php file, after the predefined_subjects array
 function getFilteredSubjects($programCode, $predefined_subjects) {
     // Since we're already filtering by program_id in the database query,
@@ -240,102 +241,50 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $applicationId = null) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = []) {
     global $pdo, $current_application;
     
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     
-    // **MODIFICATION: Load from saved data if available**
-    $useSavedData = false;
-    if ($applicationId) {
-        // Try to load saved bridging requirements
+    // Get bridging subjects from DATABASE
+    $subjectPlan = ['subjects' => [], 'total_units' => 0, 'remaining_units' => 0];
+    
+    if ($bridgingUnits > 0 && !empty($current_application['program_id'])) {
         try {
             $stmt = $pdo->prepare("
-                SELECT subject_name as name, subject_code as code, units, priority
-                FROM bridging_requirements
-                WHERE application_id = ?
-                ORDER BY priority ASC, subject_name ASC
+                SELECT subject_name as name, subject_code as code, units
+                FROM subjects 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY year_level DESC, semester DESC
             ");
-            $stmt->execute([$applicationId]);
-            $savedBridging = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $stmt->execute([$current_application['program_id']]);
+            $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // If saved data exists, use it
-            if (!empty($savedBridging)) {
-                $subjectPlan = [
-                    'subjects' => $savedBridging,
-                    'total_units' => array_sum(array_column($savedBridging, 'units')),
-                    'remaining_units' => 0
-                ];
-                $useSavedData = true;
+            $selectedSubjects = [];
+            $totalUnits = 0;
+            
+            foreach ($availableSubjects as $subject) {
+                $units = (int)$subject['units'];
+                if ($totalUnits + $units <= $bridgingUnits) {
+                    $selectedSubjects[] = [
+                        'name' => $subject['name'],
+                        'code' => $subject['code'],
+                        'units' => $units,
+                        'priority' => 1
+                    ];
+                    $totalUnits += $units;
+                }
+                if ($totalUnits >= $bridgingUnits) break;
             }
+            
+            $subjectPlan = [
+                'subjects' => $selectedSubjects,
+                'total_units' => $totalUnits,
+                'remaining_units' => max(0, $bridgingUnits - $totalUnits)
+            ];
         } catch (PDOException $e) {
-            error_log("Error loading saved bridging requirements: " . $e->getMessage());
-        }
-        
-        // Try to load saved credited subjects
-        if (empty($passedSubjects)) {
-            try {
-                $stmt = $pdo->prepare("
-                    SELECT subject_name, evidence_type
-                    FROM credited_subjects
-                    WHERE application_id = ?
-                ");
-                $stmt->execute([$applicationId]);
-                $savedCredited = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                if (!empty($savedCredited)) {
-                    $passedSubjects = [];
-                    foreach ($savedCredited as $credited) {
-                        $passedSubjects[$credited['subject_name']] = $credited['evidence_type'];
-                    }
-                }
-            } catch (PDOException $e) {
-                error_log("Error loading saved credited subjects: " . $e->getMessage());
-            }
-        }
-    }
-    
-    // **If no saved data, generate bridging recommendations (original logic)**
-    if (!$useSavedData) {
-        $subjectPlan = ['subjects' => [], 'total_units' => 0, 'remaining_units' => 0];
-        
-        if ($bridgingUnits > 0 && !empty($current_application['program_id'])) {
-            try {
-                $stmt = $pdo->prepare("
-                    SELECT subject_name as name, subject_code as code, units
-                    FROM subjects 
-                    WHERE program_id = ? AND status = 'active'
-                    ORDER BY year_level DESC, semester DESC
-                ");
-                $stmt->execute([$current_application['program_id']]);
-                $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                
-                $selectedSubjects = [];
-                $totalUnits = 0;
-                
-                foreach ($availableSubjects as $subject) {
-                    $units = (int)$subject['units'];
-                    if ($totalUnits + $units <= $bridgingUnits) {
-                        $selectedSubjects[] = [
-                            'name' => $subject['name'],
-                            'code' => $subject['code'],
-                            'units' => $units,
-                            'priority' => 1
-                        ];
-                        $totalUnits += $units;
-                    }
-                    if ($totalUnits >= $bridgingUnits) break;
-                }
-                
-                $subjectPlan = [
-                    'subjects' => $selectedSubjects,
-                    'total_units' => $totalUnits,
-                    'remaining_units' => max(0, $bridgingUnits - $totalUnits)
-                ];
-            } catch (PDOException $e) {
-                error_log("Error fetching bridging subjects: " . $e->getMessage());
-            }
+            error_log("Error fetching bridging subjects: " . $e->getMessage());
         }
     }
     
@@ -347,12 +296,6 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     $recommendations[] = "Program: {$programCode}";
     $recommendations[] = "Final Assessment Score: {$score}%";
     $recommendations[] = "---";
-    
-    // **Add data source indicator**
-    if ($useSavedData) {
-        $recommendations[] = "_Showing saved evaluation results_";
-        $recommendations[] = "";
-    }
     
     switch($status) {
         case 'qualified':
@@ -368,58 +311,40 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
                 
-                // Count and collect credited subjects
                 $creditedCount = 0;
-                $creditedList = [];
                 foreach ($curriculumSubjects as $subject) {
                     if (!in_array($subject['name'], $bridgingSubjectNames)) {
                         $creditedCount++;
                         $evidenceNote = isset($passedSubjects[$subject['name']]) 
                             ? $passedSubjects[$subject['name']] 
                             : 'Credit via ETEEAP assessment';
-                        $creditedList[] = [
-                            'name' => $subject['name'],
-                            'evidence' => $evidenceNote
-                        ];
-                    }
-                }
-                
-                // Show count prominently
-                $recommendations[] = "**TOTAL CREDITED: {$creditedCount} subjects**";
-                $recommendations[] = "";
-                
-                // List all credited subjects with numbering
-                if (!empty($creditedList)) {
-                    foreach ($creditedList as $index => $item) {
-                        $num = $index + 1;
-                        $recommendations[] = "{$num}. ✓ **{$item['name']}**";
-                        $recommendations[] = "   Evidence: {$item['evidence']}";
+                        $recommendations[] = "✓ {$subject['name']}";
+                        $recommendations[] = "   Evidence: {$evidenceNote}";
                         $recommendations[] = "";
                     }
                 }
+                
+                $recommendations[] = "**Summary:** {$creditedCount} subjects credited through prior learning assessment";
             }
             
             // === REQUIRED BRIDGING SUBJECTS ===
-            if ($bridgingUnits > 0 || !empty($subjectPlan['subjects'])) {
+            if ($bridgingUnits > 0) {
                 $recommendations[] = "";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "**REQUIRED BRIDGING COURSES**";
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
-                
-                $actualUnits = $subjectPlan['total_units'] > 0 ? $subjectPlan['total_units'] : $bridgingUnits;
-                $recommendations[] = "To complete your degree, you must fulfill {$actualUnits} units of bridging courses:";
+                $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
                 $recommendations[] = "";
                 
                 foreach ($subjectPlan['subjects'] as $index => $subject) {
-                    $priority = isset($subject['priority']) ? (int)$subject['priority'] : 1;
-                    $priorityLabel = $priority === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
+                    $priorityLabel = $subject['priority'] === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
                     $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
                     $recommendations[] = "   Units: {$subject['units']} | Priority: {$priorityLabel}";
                     $recommendations[] = "";
                 }
                 
-                $recommendations[] = "**Total Bridging Units Required:** {$actualUnits} units";
+                $recommendations[] = "**Total Bridging Units Required:** {$bridgingUnits} units";
                 
                 if ($subjectPlan['remaining_units'] > 0) {
                     $recommendations[] = "";
@@ -429,7 +354,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
                 $recommendations[] = "• Credited Subjects: " . (count($curriculumSubjects) - count($bridgingSubjectNames)) . " subjects";
-                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$actualUnits} units)";
+                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
                 $recommendations[] = "";
@@ -445,7 +370,6 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "4. Begin your accelerated path to degree completion";
             break;
             
-            
         case 'partially_qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: PARTIAL QUALIFICATION**";
             $recommendations[] = "";
@@ -459,35 +383,19 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
                 
-                // Count and collect credited subjects
                 $creditedCount = 0;
-                $creditedList = [];
                 foreach ($curriculumSubjects as $subject) {
                     if (!in_array($subject['name'], $bridgingSubjectNames)) {
                         $creditedCount++;
                         $evidenceNote = isset($passedSubjects[$subject['name']]) 
                             ? $passedSubjects[$subject['name']] 
                             : 'Credit via ETEEAP assessment';
-                        $creditedList[] = [
-                            'name' => $subject['name'],
-                            'evidence' => $evidenceNote
-                        ];
+                        $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
                     }
                 }
                 
-                // Show count prominently
-                $recommendations[] = "**TOTAL CREDITED: {$creditedCount} subjects**";
                 $recommendations[] = "";
-                
-                // List with numbering
-                if (!empty($creditedList)) {
-                    foreach ($creditedList as $index => $item) {
-                        $num = $index + 1;
-                        $recommendations[] = "{$num}. ✓ **{$item['name']}**";
-                        $recommendations[] = "   Evidence: {$item['evidence']}";
-                        $recommendations[] = "";
-                    }
-                }
+                $recommendations[] = "**Credited:** {$creditedCount} subjects recognized";
             }
             
             // === REQUIRED BRIDGING SUBJECTS ===
@@ -546,10 +454,8 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 if ($passedCount > 0) {
                     $recommendations[] = "You demonstrated competencies in {$passedCount} area(s):";
                     $recommendations[] = "";
-                    $num = 1;
                     foreach (array_slice($passedSubjects, 0, 5, true) as $subject => $evidence) {
-                        $recommendations[] = "{$num}. {$subject} (Evidence: {$evidence})";
-                        $num++;
+                        $recommendations[] = "• {$subject} (Evidence: {$evidence})";
                     }
                 }
             }
@@ -579,56 +485,29 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             $recommendations[] = "Schedule a consultation with our academic advisors to create a personalized development plan.";
             break;
     }
-      // === ENHANCED SUMMARY ===
+    
     $recommendations[] = "";
     $recommendations[] = "---";
-    $recommendations[] = "**═══════════════════════════════════════════**";
     $recommendations[] = "**SUMMARY OF CREDITS**";
-    $recommendations[] = "**═══════════════════════════════════════════**";
     
     if (!empty($curriculumSubjects)) {
         $totalSubjects = count($curriculumSubjects);
         $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
         $requiredSubjects = count($bridgingSubjectNames);
         
-        $recommendations[] = "";
-        $recommendations[] = "**CURRICULUM BREAKDOWN:**";
-        $recommendations[] = "• Total Program Subjects: **{$totalSubjects}**";
-        $recommendations[] = "• Credited (Passed): **{$creditedSubjects} subjects**";
-        $recommendations[] = "• Required (Bridging): **{$requiredSubjects} subjects ({$bridgingUnits} units)**";
-        $recommendations[] = "• Completion Rate: **" . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%**";
-        $recommendations[] = "";
-        
-        // Detailed breakdown - Credited
-        if ($creditedSubjects > 0) {
-            $recommendations[] = "**CREDITED SUBJECTS ({$creditedSubjects}):**";
-            $num = 1;
-            foreach ($curriculumSubjects as $subject) {
-                if (!in_array($subject['name'], $bridgingSubjectNames)) {
-                    $recommendations[] = "   {$num}. {$subject['name']}";
-                    $num++;
-                }
-            }
-            $recommendations[] = "";
-        }
-        
-        // Detailed breakdown - Required
-        if ($requiredSubjects > 0) {
-            $recommendations[] = "**REQUIRED BRIDGING SUBJECTS ({$requiredSubjects}):**";
-            $num = 1;
-            foreach ($bridgingSubjectNames as $subjectName) {
-                $recommendations[] = "   {$num}. {$subjectName}";
-                $num++;
-            }
-        }
+        $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
+        $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
+        $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
+        $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
     }
     
     $recommendations[] = "";
-    $recommendations[] = "For questions or appointments, contact the Admissions Office.";
+    $recommendations[] = "For questions or appointments:";
+  
     
     return implode("\n", $recommendations);
 }
- 
+
 function parse_hier($doc) {
     // 1) JSON column
     if (!empty($doc['hierarchical_data'])) {
@@ -994,10 +873,13 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
     $additional_comments = trim($_POST['recommendation']);
     $manual_override = $_POST['final_status'] ?? 'auto';
 
+    // Huwag i-block kapag empty ang $submitted — pwede kasing lahat ay 0.
+    // if (empty($submitted)) { ... }  // alisin ito kung meron ka
+
     try {
         $pdo->beginTransaction();
 
-        // 1) Get program info
+        // 1) Kunin muna ang program_id ng application
         $stmt = $pdo->prepare("SELECT program_id FROM applications WHERE id = ?");
         $stmt->execute([$app_id]);
         $appRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -1006,7 +888,7 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
         $program_id = (int)$appRow['program_id'];
 
-        // 2) Get all active criteria
+        // 2) Kunin lahat ng ACTIVE criteria ng program (ito ang magiging denominator mo)
         $stmt = $pdo->prepare("
             SELECT id, criteria_name, max_score, weight
             FROM assessment_criteria
@@ -1016,20 +898,21 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         $stmt->execute([$program_id]);
         $allCriteria = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Safety: kapag wala talagang criteria, iwasan division by zero
         if (!$allCriteria) {
             throw new Exception("No active assessment criteria found for this program.");
         }
 
-        // 3) Get all documents
+        // 3) Kunin lahat ng documents ng application (gagamitin sa doc-check)
         $stmt = $pdo->prepare("
-            SELECT id, criteria_id, original_filename, hierarchical_data, description
+            SELECT id, criteria_id, original_filename
             FROM documents
             WHERE application_id = ?
         ");
         $stmt->execute([$app_id]);
         $documents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // 4) Calculate score (your existing logic)
+        // --- START: TRUE weighted average across ALL criteria ---
         $total_score = 0;
         $total_weight = 0;
         $passing_threshold = 60;
@@ -1041,21 +924,36 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
             $weight        = (float)$c['weight'];
             $criteria_name = $c['criteria_name'];
 
+            // values mula sa form; default sa 0/blank kung walang na-post
             $input    = $submitted[$criteria_id] ?? ['score' => 0, 'comments' => ''];
             $score    = (float)($input['score'] ?? 0);
             $comments = trim($input['comments'] ?? '');
 
-            $criteriaDocs = array_values(array_filter($documents, fn($doc) => doc_matches_criteria($doc, $c)));
-            $hasCriteriaDocs = count($criteriaDocs) > 0;
+            // check kung may doc para sa criteria na ito
+           // Instead of the simple filter:
+$criteriaDocs = array_filter($documents, function($doc) use ($criteria_id) {
+    return (int)$doc['criteria_id'] === $criteria_id
+        || (empty($doc['criteria_id']) && stripos($doc['original_filename'], 'criteria_' . $criteria_id) !== false);
+});
 
+// Use the same matcher as the UI:
+$criteriaDocs = array_values(array_filter($documents, function($doc) use ($c) {
+    return doc_matches_criteria($doc, $c);
+}));
+$hasCriteriaDocs = count($criteriaDocs) > 0;
+
+
+            // kung walang doc, force 0 at lagyan ng note
             if (!$hasCriteriaDocs) {
                 $score    = 0;
                 $comments = "No supporting documents uploaded for this criteria. " . $comments;
             }
 
+            // clamp sa [0, max]
             if ($score < 0) $score = 0;
             if ($score > $max_score) $score = $max_score;
 
+            // ALWAYS include weight sa denominator, kahit 0 ang score
             $percentage     = ($max_score > 0) ? ($score / $max_score) * 100 : 0;
             $weighted_score = $percentage * $weight;
 
@@ -1066,7 +964,7 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
                 $criteriaMissing[] = ['name' => $criteria_name];
             }
 
-            // Save evaluation
+            // save/update evaluation (kasama ang zeros)
             $stmtSave = $pdo->prepare("
                 INSERT INTO evaluations (application_id, criteria_id, evaluator_id, score, max_score, comments, evaluation_date)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -1079,8 +977,9 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
 
         $final_score = $total_weight > 0 ? round($total_score / $total_weight, 2) : 0;
+        // --- END: TRUE weighted average ---
 
-        // Determine status
+        // Status
         if ($manual_override === 'auto') {
             if ($final_score >= $passing_threshold) {
                 $final_status = 'qualified';
@@ -1093,74 +992,39 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
             $final_status = $manual_override;
         }
 
-        // Get program code
+        // Program code para sa rekomendasyon
         $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
         $stmt->execute([$app_id]);
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
-        // **NEW: Get curriculum and passed subjects**
-        $curriculumStatus = getPassedSubjects($documents, $programCode);
-        $curriculumSubjects = $curriculumStatus['curriculum'];
-        $passedSubjects = $curriculumStatus['passed'];
+// Get curriculum and passed subjects
+$curriculumStatus = getPassedSubjects($documents, $programCode);
+$curriculumSubjects = $curriculumStatus['curriculum'];
+$passedSubjects = $curriculumStatus['passed'];
 
-        // **NEW: Save credited/passed subjects to database**
-        // Clear existing credited subjects first
-        $stmt = $pdo->prepare("DELETE FROM credited_subjects WHERE application_id = ?");
-        $stmt->execute([$app_id]);
-
-        // Insert passed subjects
-        foreach ($passedSubjects as $subjectName => $evidence) {
-            // Find the subject code from curriculum
-            $subjectCode = '';
-            foreach ($curriculumSubjects as $currSubject) {
-                if ($currSubject['name'] === $subjectName) {
-                    $subjectCode = $currSubject['subject_code'] ?? '';
-                    break;
-                }
-            }
-
-            $stmt = $pdo->prepare("
-                INSERT INTO credited_subjects (application_id, subject_name, subject_code, evidence_type, created_by)
-                VALUES (?, ?, ?, ?, ?)
-            ");
-            $stmt->execute([$app_id, $subjectName, $subjectCode, $evidence, $user_id]);
-        }
-$auto_recommendation = generateEnhancedRecommendation(
+       $auto_recommendation = generateEnhancedRecommendation(
     $final_score, 
     $programCode, 
     $final_status, 
     $criteriaMissing,
-    $passedSubjects,
-    $curriculumSubjects,
-    $app_id  // Add this parameter
+    $passedSubjects,        // Add this
+    $curriculumSubjects     // Add this
 );
-        // **Generate recommendation**
-      // Just pass the application ID - it will load everything from database
-$auto_recommendation = generateEnhancedRecommendation(
-    $saved_score, 
-    $programCode, 
-    $saved_status, 
-    [],  // empty criteriaMissing
-    [],  // empty passedSubjects - will load from DB
-    $curriculumSubjects,  // still need curriculum structure
-    $app_id  // This triggers loading from database
-);
-        
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
             : $auto_recommendation;
 
+
+
         // Update application
         $stmt = $pdo->prepare("
             UPDATE applications 
-            SET application_status = ?, total_score = ?, recommendation = ?, 
-                evaluator_id = ?, evaluation_date = NOW()
-            WHERE id = ?
+               SET application_status = ?, total_score = ?, recommendation = ?, 
+                   evaluator_id = ?, evaluation_date = NOW()
+             WHERE id = ?
         ");
         $stmt->execute([$final_status, $final_score, $full_recommendation, $user_id, $app_id]);
-
-        // **Note: Bridging requirements are saved separately via the update_bridging action**
 
         $pdo->commit();
 
@@ -1169,7 +1033,6 @@ $auto_recommendation = generateEnhancedRecommendation(
         if ($final_score >= $passing_threshold && $bridgingUnits > 0) {
             $success_message .= " | Bridging Units Required: {$bridgingUnits}";
         }
-        
     } catch (Exception $e) {
         $pdo->rollBack();
         $errors[] = "Failed to save evaluation: " . $e->getMessage();
@@ -1177,23 +1040,8 @@ $auto_recommendation = generateEnhancedRecommendation(
 }
 
 
-// Get credited subjects
-$stmt = $pdo->prepare("
-    SELECT * FROM credited_subjects
-    WHERE application_id = ?
-    ORDER BY subject_name ASC
-");
-$stmt->execute([$application_id]);
-$credited_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Get bridging requirements (already in your code)
-$stmt = $pdo->prepare("
-    SELECT * FROM bridging_requirements
-    WHERE application_id = ?
-    ORDER BY priority ASC, subject_name ASC
-");
-$stmt->execute([$application_id]);
-$bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 
 
 // Get application data with enhanced document checking

@@ -589,8 +589,9 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
             <i class="fas fa-lightbulb me-2"></i>
             <strong>Susunod na hakbang:</strong> I-enroll ang HIGH PRIORITY subjects. 
             Estimated time: <strong><?php 
-                echo $totalBridgingUnits <= 12 ? '1 semester' : ($totalBridgingUnits <= 24 ? '2 semesters' : '3 semesters';
-            ?></strong>.
+              echo ($totalBridgingUnits <= 12)
+    ? '1 semester'
+    : (($totalBridgingUnits <= 24) ? '2 semesters' : '3 semesters');; ?></strong>.
         </div>
     </div>
     <?php else: ?>

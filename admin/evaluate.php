@@ -1034,19 +1034,10 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
-       $auto_recommendation = generateEnhancedRecommendation(
-    $final_score, 
-    $programCode, 
-    $final_status, 
-    $criteriaMissing,
-    $passedSubjects,        // Add this
-    $curriculumSubjects     // Add this
-);
-        $full_recommendation = !empty($additional_comments)
-            ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
-            : $auto_recommendation;
 
-            // Update application
+
+
+// Update application
         $stmt = $pdo->prepare("
             UPDATE applications 
                SET application_status = ?, total_score = ?, recommendation = ?, 
@@ -1063,6 +1054,21 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         $pdo->commit();
 
 
+       $auto_recommendation = generateEnhancedRecommendation(
+    $final_score, 
+    $programCode, 
+    $final_status, 
+    $criteriaMissing,
+    $passedSubjects,        // Add this
+    $curriculumSubjects     // Add this
+);
+        $full_recommendation = !empty($additional_comments)
+            ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
+            : $auto_recommendation;
+
+
+
+     
 
         $bridgingUnits = calculateBridgingUnits($final_score);
         $success_message = "Evaluation completed! Final Score: {$final_score}% | Status: " . ucfirst($final_status);
@@ -1089,23 +1095,6 @@ $hasDocs = false;
 $docCounts = [];
 $predefined_subjects = []; // Initialize empty
 
-
-$saved_passed_subjects = [];
-if ($current_application) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name, evidence_comment 
-            FROM passed_subjects 
-            WHERE application_id = ?
-        ");
-        $stmt->execute([$application_id]);
-        while ($row = $stmt->fetch()) {
-            $saved_passed_subjects[$row['subject_name']] = $row['evidence_comment'];
-        }
-    } catch (PDOException $e) {
-        $saved_passed_subjects = [];
-    }
-}
 if ($application_id) {
     try {
         // 1. GET APPLICATION DETAILS FIRST

@@ -467,7 +467,7 @@ if ($application) {
     }
     
     if (!empty($curriculumSubjects)):
-
+        
     // Get curriculum status
     $curriculumStatus = getPassedSubjects($documents, $application['program_code']);
     $curriculumSubjects = $curriculumStatus['curriculum'];
@@ -549,84 +549,28 @@ if ($application) {
     
     <!-- Required Bridging Subjects -->
     <?php if (!empty($bridging_requirements)): ?>
- <div class="assessment-card p-4 mb-4">
-    <h5 class="mb-3">
-        <i class="fas fa-graduation-cap me-2"></i>
-        Your Curriculum Status for <?php echo htmlspecialchars($application['program_code']); ?>
-    </h5>
-    
-    <!-- Credited Subjects -->
-    <?php if (!empty($creditedSubjects)): ?>
     <div class="mb-4">
-        <h6 class="text-success mb-3">
-            <i class="fas fa-check-circle me-2"></i>
-            Credited Subjects
-        </h6>
-        <div class="table-responsive">
-            <table class="table table-bordered table-sm">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width: 50%;">Subject</th>
-                        <th style="width: 20%;">Code</th>
-                        <th style="width: 15%;" class="text-center">Status</th>
-                        <th style="width: 15%;">Evidence</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($creditedSubjects as $subject): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($subject['subject_name']); ?></td>
-                        <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($subject['subject_code']); ?></span></td>
-                        <td class="text-center">
-                            <span class="badge bg-success">Credited</span>
-                        </td>
-                        <td class="small text-muted">Credit via ETEEAP assessment</td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
-    
-    <!-- Required Bridging Courses -->
-    <?php if (!empty($bridgingRequirements)): ?>
-    <div class="mb-3">
         <h6 class="text-warning mb-3">
             <i class="fas fa-book me-2"></i>
             Required Bridging Courses
         </h6>
         <div class="table-responsive">
-            <table class="table table-bordered table-sm">
-                <thead class="table-light">
+            <table class="table table-sm table-bordered">
+                <thead style="background-color: #fff3cd;">
                     <tr>
-                        <th style="width: 40%;">Subject</th>
-                        <th style="width: 20%;">Code</th>
+                        <th style="width: 45%;">Subject</th>
+                        <th style="width: 15%;">Code</th>
                         <th style="width: 15%;" class="text-center">Units</th>
                         <th style="width: 25%;" class="text-center">Priority</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
-                    $totalUnits = 0;
-                    foreach ($bridgingRequirements as $req): 
-                        $totalUnits += (int)$req['units'];
-                        $priorityClass = '';
-                        $priorityText = '';
-                        
-                        switch($req['priority']) {
-                            case 1:
-                                $priorityClass = 'danger';
-                                $priorityText = 'HIGH PRIORITY';
-                                break;
-                            case 2:
-                                $priorityClass = 'warning';
-                                $priorityText = 'MEDIUM';
-                                break;
-                            default:
-                                $priorityClass = 'secondary';
-                                $priorityText = 'LOW';
-                        }
+                    $totalBridgingUnits = 0;
+                    foreach ($bridging_requirements as $req): 
+                        $totalBridgingUnits += (int)$req['units'];
+                        $priorityClass = ($req['priority'] == 1) ? 'danger' : (($req['priority'] == 2) ? 'warning' : 'secondary');
+                        $priorityText = ($req['priority'] == 1) ? 'HIGH PRIORITY' : (($req['priority'] == 2) ? 'MEDIUM' : 'LOW');
                     ?>
                     <tr>
                         <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
@@ -639,10 +583,10 @@ if ($application) {
                         </td>
                     </tr>
                     <?php endforeach; ?>
-                    <tr class="table-light">
+                    <tr style="background-color: #f8f9fa;">
                         <td colspan="2" class="text-end fw-bold">Total Bridging Units Required:</td>
-                        <td class="text-center">
-                            <span class="badge bg-primary"><?php echo $totalUnits; ?> units</span>
+                        <td class="text-center fw-bold">
+                            <span class="badge bg-primary"><?php echo $totalBridgingUnits; ?> units</span>
                         </td>
                         <td></td>
                     </tr>
@@ -650,12 +594,12 @@ if ($application) {
             </table>
         </div>
         
-        <div class="alert alert-info mt-3 mb-0">
+        <div class="alert alert-info mt-3 small mb-0">
             <i class="fas fa-info-circle me-1"></i>
             <strong>Important:</strong> You must complete all required bridging courses to fulfill your degree requirements. 
             High priority subjects should be enrolled in first. 
             <strong>Estimated completion:</strong> <?php 
-            echo $totalUnits <= 12 ? '2 semesters' : ($totalUnits <= 18 ? '2 semesters' : '2-3 semesters'); 
+            echo $totalBridgingUnits <= 12 ? '1 semester' : ($totalBridgingUnits <= 24 ? '2 semesters' : '2-3 semesters'); 
             ?>.
         </div>
     </div>

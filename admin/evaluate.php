@@ -233,7 +233,6 @@ function getPassedSubjects($documents, $programCode) {
 }
 
 
-
 // Add this function near the top of your evaluate.php file, after the predefined_subjects array
 function getFilteredSubjects($programCode, $predefined_subjects) {
     // Since we're already filtering by program_id in the database query,

@@ -420,6 +420,9 @@ if ($application) {
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
 
+
+
+
                 <!-- Uploaded Documents -->
                 <div class="assessment-card p-4">
                     <h5 class="mb-3">

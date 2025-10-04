@@ -1922,6 +1922,15 @@ if ($hasCriteriaDocs) {
                     <i class="fas fa-magic me-1"></i>Auto-Generated
                 </span>
             </h6>
+            <?php 
+$reqUnits = 0;
+if ($application_id && !empty($current_application)) {
+    $currentScore = (float)($current_application['total_score'] ?? 0);
+    if ($currentScore >= 60) {
+        $reqUnits = calculateBridgingUnits($currentScore);
+    }
+}
+?>
             <div class="d-flex gap-2">
                 <span class="badge bg-primary">
                     Required: <span id="summaryRequiredUnits"><?php echo $reqUnits ?: '—'; ?></span>

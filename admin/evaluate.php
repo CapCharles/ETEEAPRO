@@ -469,6 +469,57 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     return implode("\n", $recommendations);
 }
 
+function getSubjectRecommendations($programCode, $requiredUnits) {
+    global $pdo, $current_application;
+    
+    if (empty($current_application['program_id'])) {
+        return ['subjects' => [], 'total_units' => 0, 'remaining_units' => $requiredUnits];
+    }
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT subject_name as name, subject_code as code, units
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $selectedSubjects = [];
+        $totalUnits = 0;
+        
+        foreach ($availableSubjects as $subject) {
+            $units = (int)$subject['units'];
+            if ($totalUnits + $units <= $requiredUnits) {
+                $selectedSubjects[] = [
+                    'name' => $subject['name'],
+                    'code' => $subject['code'],
+                    'units' => $units,
+                    'priority' => 1
+                ];
+                $totalUnits += $units;
+            }
+            if ($totalUnits >= $requiredUnits) break;
+        }
+        
+        $remaining = $requiredUnits - $totalUnits;
+        if ($remaining > 0 && !empty($selectedSubjects)) {
+            $selectedSubjects[count($selectedSubjects) - 1]['units'] += $remaining;
+            $totalUnits = $requiredUnits;
+        }
+        
+        return [
+            'subjects' => $selectedSubjects,
+            'total_units' => $totalUnits,
+            'remaining_units' => max(0, $requiredUnits - $totalUnits)
+        ];
+        
+    } catch (PDOException $e) {
+        error_log("Error in getSubjectRecommendations: " . $e->getMessage());
+        return ['subjects' => [], 'total_units' => 0, 'remaining_units' => $requiredUnits];
+    }
+}
 
 function parse_hier($doc) {
     // 1) JSON column

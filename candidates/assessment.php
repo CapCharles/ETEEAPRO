@@ -495,26 +495,28 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
     }
     
     // Get curriculum status
- $curriculumStatus = getPassedSubjects($documents, $current_application['program_code'] ?? '');
-$curriculumSubjects = $curriculumStatus['curriculum'];
-$passedSubjects = $curriculumStatus['passed'];
-
-// Get bridging requirements from database
-$bridging_requirements = [];
-try {
-    $stmt = $pdo->prepare("
-        SELECT * FROM bridging_requirements
-        WHERE application_id = ?
-        ORDER BY priority ASC, subject_name ASC
-    ");
-    $stmt->execute([$current_application['id']]);
-    $bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $bridging_requirements = [];
-}
-
-// Create list of bridging subject names for filtering
-$bridgingSubjectNames = array_column($bridging_requirements, 'subject_name');
+    $curriculumStatus = getPassedSubjects($documents, $application['program_code']);
+    $curriculumSubjects = $curriculumStatus['curriculum'];
+    $passedSubjects = $curriculumStatus['passed'];
+    
+    // Get bridging requirements
+    try {
+        $stmt = $pdo->prepare("
+            SELECT subject_name, subject_code, units, priority 
+            FROM bridging_requirements 
+            WHERE application_id = ? 
+            ORDER BY priority ASC, subject_name ASC
+        ");
+        $stmt->execute([$application['id']]);
+        $bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $bridging_subject_names = array_column($bridging_requirements, 'subject_name');
+    } catch (PDOException $e) {
+        $bridging_requirements = [];
+        $bridging_subject_names = [];
+    }
+    
+    // Only display if we have curriculum data
+    if (!empty($curriculumSubjects)):
 ?>
 <div class="assessment-card p-4 mb-4">
     <h5 class="mb-4">

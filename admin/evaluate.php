@@ -223,20 +223,6 @@ function getPassedSubjects($documents, $programCode) {
                     if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
                     
                     $passed[$subject['name']] = implode(', ', $evidence);
-                    try {
-    $stmt = $pdo->prepare("
-        INSERT INTO passed_subjects (application_id, subject_name, evidence_comment, passed_by)
-        VALUES (?, ?, ?, ?)
-    ");
-    $stmt->execute([
-        $applicationId,               // current application id
-        $subject['name'],             // subject name
-        implode(', ', $evidence),     // comment/evidence
-        $_SESSION['user_id']          // evaluator/admin na nag-login
-    ]);
-} catch (Exception $e) {
-    error_log("Failed to insert passed subject: " . $e->getMessage());
-}
                     break 2;
                 }
             }
@@ -245,8 +231,6 @@ function getPassedSubjects($documents, $programCode) {
     
     return ['curriculum' => $curriculum, 'passed' => $passed];
 }
-
-
 
 
 
@@ -369,18 +353,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                // >>> COUNT PASSED SUBJECTS FROM DATABASE <<<
-$stmt = $pdo->prepare("SELECT COUNT(*) FROM passed_subjects WHERE application_id = ?");
-$stmt->execute([$applicationId]);
-$creditedSubjects = $stmt->fetchColumn();
-
-// fallback kung walang laman pa sa DB
-if ($creditedSubjects === false) {
-    $creditedSubjects = 0;
-}
-
-$recommendations[] = "• Credited Subjects: " . $creditedSubjects . " subjects";
-
+                $recommendations[] = "• Credited Subjects: " . (count($curriculumSubjects) - count($bridgingSubjectNames)) . " subjects";
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {

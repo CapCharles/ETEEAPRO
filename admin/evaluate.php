@@ -1797,16 +1797,17 @@ if ($hasCriteriaDocs) {
     </div>
     <?php endforeach; ?>
 </div>
-<?php else: ?>
 
-                                                <div class="mb-3 p-3 rounded" style="background: #fff3cd; border-left: 4px solid #ffc107;">
-                                                    <div class="d-flex align-items-center">
-                                                        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-                                                        <span class="text-warning"><strong>No documents uploaded for this criteria</strong></span>
-                                                    </div>
-                                                    <small class="text-muted">Score will automatically be set to 0</small>
-                                                </div>
-                                                <?php endif; ?>
+
+                                                <?php else: ?>
+<div class="mb-3 p-3 rounded" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+        <span class="text-warning"><strong>No supporting documents uploaded for this criteria.</strong></span>
+    </div>
+    <small class="text-muted">Score will automatically be set to 0</small>
+</div>
+<?php endif; ?>
                                                 
                                                 <textarea class="form-control" 
                                                         name="evaluations[<?php echo $criteria['id']; ?>][comments]" 

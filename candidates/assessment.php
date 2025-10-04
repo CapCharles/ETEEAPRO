@@ -528,21 +528,27 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
             <table class="table table-sm table-bordered">
                 <thead style="background-color: #d1e7dd;">
                     <tr>
-                        <th style="width: 60%;">Subject</th>
-                        <th style="width: 20%;" class="text-center">Status</th>
-                        <th style="width: 20%;">Evidence</th>
+                        <th style="width: 45%;">Subject</th>
+                        <th style="width: 15%;">Code</th>
+                        <th style="width: 10%;" class="text-center">Units</th>
+                        <th style="width: 15%;" class="text-center">Status</th>
+                        <th style="width: 15%;">Evidence</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     $creditedCount = 0;
+                    $creditedUnits = 0;
                     foreach ($curriculumSubjects as $subject): 
-                        if (!in_array($subject['name'], $bridging_subject_names)):
+                        if (!in_array($subject['subject_name'], $bridging_subject_names)):
                             $creditedCount++;
-                            $evidence = $passedSubjects[$subject['name']] ?? 'Credit via ETEEAP assessment';
+                            $creditedUnits += (int)$subject['units'];
+                            $evidence = $passedSubjects[$subject['subject_name']] ?? 'Credit via ETEEAP assessment';
                     ?>
                     <tr>
-                        <td><?php echo htmlspecialchars($subject['name']); ?></td>
+                        <td><?php echo htmlspecialchars($subject['subject_name']); ?></td>
+                        <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($subject['subject_code']); ?></span></td>
+                        <td class="text-center"><?php echo (int)$subject['units']; ?></td>
                         <td class="text-center">
                             <span class="badge bg-success">Credited</span>
                         </td>
@@ -556,10 +562,18 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
                     
                     if ($creditedCount === 0): ?>
                     <tr>
-                        <td colspan="3" class="text-center text-muted py-3">
+                        <td colspan="5" class="text-center text-muted py-3">
                             <i class="fas fa-info-circle me-1"></i>
                             No subjects credited yet
                         </td>
+                    </tr>
+                    <?php else: ?>
+                    <tr style="background-color: #f8f9fa;">
+                        <td colspan="2" class="text-end fw-bold">Total Credited Units:</td>
+                        <td class="text-center fw-bold">
+                            <span class="badge bg-success"><?php echo $creditedUnits; ?></span>
+                        </td>
+                        <td colspan="2"></td>
                     </tr>
                     <?php endif; ?>
                 </tbody>
@@ -596,7 +610,7 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
                         <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
                         <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($req['subject_code']); ?></span></td>
                         <td class="text-center">
-                            <span class="badge bg-info"><?php echo (int)$req['units']; ?> units</span>
+                            <span class="badge bg-info"><?php echo (int)$req['units']; ?></span>
                         </td>
                         <td class="text-center">
                             <span class="badge bg-<?php echo $priorityClass; ?>"><?php echo $priorityText; ?></span>
@@ -606,7 +620,7 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
                     <tr style="background-color: #f8f9fa;">
                         <td colspan="2" class="text-end fw-bold">Total Bridging Units Required:</td>
                         <td class="text-center fw-bold">
-                            <span class="badge bg-primary"><?php echo $totalBridgingUnits; ?> units</span>
+                            <span class="badge bg-primary"><?php echo $totalBridgingUnits; ?></span>
                         </td>
                         <td></td>
                     </tr>
@@ -628,15 +642,19 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
     <!-- Summary Statistics -->
     <div class="mt-4 p-3 rounded" style="background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-left: 4px solid #4caf50;">
         <div class="row text-center">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="fw-bold text-success h4 mb-1"><?php echo $creditedCount; ?></div>
                 <small class="text-muted">Subjects Credited</small>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <div class="fw-bold text-info h4 mb-1"><?php echo $creditedUnits; ?></div>
+                <small class="text-muted">Units Credited</small>
+            </div>
+            <div class="col-md-3">
                 <div class="fw-bold text-warning h4 mb-1"><?php echo count($bridging_requirements); ?></div>
                 <small class="text-muted">Subjects Required</small>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="fw-bold text-primary h4 mb-1">
                     <?php 
                     $totalSubjects = count($curriculumSubjects);
@@ -651,7 +669,7 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
 </div>
 <?php 
     endif; // end curriculum subjects check
-endif; // end draft status check
+endif; // end status check
 ?>
 
                 <!-- Uploaded Documents -->

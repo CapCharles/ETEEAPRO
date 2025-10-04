@@ -1126,7 +1126,15 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
             ");
             $stmt->execute([$app_id, $subjectName, $subjectCode, $evidence, $user_id]);
         }
-
+$auto_recommendation = generateEnhancedRecommendation(
+    $final_score, 
+    $programCode, 
+    $final_status, 
+    $criteriaMissing,
+    $passedSubjects,
+    $curriculumSubjects,
+    $app_id  // Add this parameter
+);
         // **Generate recommendation**
       // Just pass the application ID - it will load everything from database
 $auto_recommendation = generateEnhancedRecommendation(

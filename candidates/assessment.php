@@ -419,26 +419,25 @@ if ($application) {
                 </div>
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
-<?php 
+                    <?php 
 // Only show if evaluated and has a program
 if ($application['application_status'] !== 'draft' && !empty($application['program_code'])): 
     
-    // Fetch subjects from database
+    // 1. Get ALL subjects for this program
     try {
         $stmt = $pdo->prepare("
-            SELECT subject_name, subject_code, units, year_level, semester
+            SELECT subject_name, subject_code, units
             FROM subjects 
             WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level, semester, subject_name
+            ORDER BY subject_name
         ");
         $stmt->execute([$application['program_id']]);
-        $curriculumSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
+        $allSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        $curriculumSubjects = [];
+        $allSubjects = [];
     }
     
-    // Get bridging requirements
+    // 2. Get bridging requirements for THIS application
     try {
         $stmt = $pdo->prepare("
             SELECT subject_name, subject_code, units, priority 
@@ -447,18 +446,25 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
             ORDER BY priority ASC, subject_name ASC
         ");
         $stmt->execute([$application['id']]);
-        $bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $bridgingRequirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // Create array of bridging subject names for comparison
-        $bridging_names = array_map('strtolower', array_column($bridging_requirements, 'subject_name'));
-        
+        // Create lookup array (lowercase for case-insensitive matching)
+        $bridgingNames = array_map('strtolower', array_column($bridgingRequirements, 'subject_name'));
     } catch (PDOException $e) {
-        $bridging_requirements = [];
-        $bridging_names = [];
+        $bridgingRequirements = [];
+        $bridgingNames = [];
     }
     
-    // Only display if we have curriculum subjects
-    if (!empty($curriculumSubjects)):
+    // 3. Split subjects: Credited = NOT in bridging, Required = IN bridging
+    $creditedSubjects = [];
+    foreach ($allSubjects as $subject) {
+        if (!in_array(strtolower($subject['subject_name']), $bridgingNames)) {
+            $creditedSubjects[] = $subject;
+        }
+    }
+    
+    // Only show if we have subjects
+    if (!empty($allSubjects)):
 ?>
 
 <div class="assessment-card p-4 mb-4">
@@ -467,36 +473,34 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
         Curriculum Status for <?php echo htmlspecialchars($application['program_code']); ?>
     </h5>
     
-    <!-- ============================================ -->
-    <!-- TABLE 1: CREDITED SUBJECTS (SA TAAS) -->
-    <!-- ============================================ -->
+    <!-- TABLE 1: CREDITED SUBJECTS -->
     <div class="mb-4">
         <h6 class="text-success mb-3">
             <i class="fas fa-check-circle me-2"></i>
             Credited Subjects
         </h6>
         <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead style="background-color: #d1e7dd;">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
                     <tr>
-                        <th style="width: 50%;">Subject Name</th>
-                        <th style="width: 15%;">Code</th>
-                        <th style="width: 10%;" class="text-center">Units</th>
-                        <th style="width: 25%;" class="text-center">Status</th>
+                        <th>Subject Name</th>
+                        <th style="width: 150px;">Code</th>
+                        <th style="width: 100px;" class="text-center">Units</th>
+                        <th style="width: 120px;" class="text-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
-                    $creditedCount = 0;
                     $creditedUnits = 0;
                     
-                    // Loop through ALL subjects from curriculum
-                    foreach ($curriculumSubjects as $subject): 
-                        $subjectNameLower = strtolower($subject['subject_name']);
-                        
-                        // Subject is CREDITED if NOT in bridging_requirements
-                        if (!in_array($subjectNameLower, $bridging_names)):
-                            $creditedCount++;
+                    if (empty($creditedSubjects)): ?>
+                    <tr>
+                        <td colspan="4" class="text-center text-muted py-3">
+                            No subjects credited yet
+                        </td>
+                    </tr>
+                    <?php else:
+                        foreach ($creditedSubjects as $subject): 
                             $creditedUnits += (int)$subject['units'];
                     ?>
                     <tr>
@@ -508,110 +512,89 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
                         </td>
                     </tr>
                     <?php 
-                        endif; // not in bridging
-                    endforeach; 
-                    
-                    // Show message if no credited subjects
-                    if ($creditedCount === 0): ?>
+                        endforeach;
+                    endif; ?>
+                </tbody>
+                <?php if (!empty($creditedSubjects)): ?>
+                <tfoot class="table-light">
                     <tr>
-                        <td colspan="4" class="text-center text-muted py-3">
-                            <i class="fas fa-info-circle me-1"></i>
-                            No subjects credited yet
-                        </td>
-                    </tr>
-                    <?php endif; ?>
-                    
-                    <!-- Total credited units -->
-                    <?php if ($creditedCount > 0): ?>
-                    <tr style="background-color: #e8f5e9; font-weight: bold;">
-                        <td colspan="2" class="text-end">Total Credited Units:</td>
+                        <td colspan="2" class="text-end fw-bold">Total Credited Units:</td>
                         <td class="text-center">
-                            <span class="badge bg-success"><?php echo $creditedUnits; ?></span>
+                            <span class="badge bg-success fs-6"><?php echo $creditedUnits; ?></span>
                         </td>
                         <td></td>
                     </tr>
-                    <?php endif; ?>
-                </tbody>
+                </tfoot>
+                <?php endif; ?>
             </table>
         </div>
     </div>
     
-    <!-- ============================================ -->
-    <!-- TABLE 2: REQUIRED BRIDGING (SA BABA) -->
-    <!-- ============================================ -->
-    <?php if (!empty($bridging_requirements)): ?>
+    <!-- TABLE 2: REQUIRED BRIDGING COURSES -->
+    <?php if (!empty($bridgingRequirements)): ?>
     <div class="mb-4">
         <h6 class="text-warning mb-3">
             <i class="fas fa-book me-2"></i>
             Required Bridging Courses
         </h6>
-        <div class="alert alert-warning small mb-3">
-            <i class="fas fa-exclamation-triangle me-1"></i>
+        
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i>
             <strong>Kailangan mo pang tapusin ang mga subject na ito</strong> para makumpleto ang iyong <?php echo htmlspecialchars($application['program_code']); ?> degree.
         </div>
         
         <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead style="background-color: #fff3cd;">
+            <table class="table table-bordered table-hover">
+                <thead class="table-light">
                     <tr>
-                        <th style="width: 50%;">Subject Name</th>
-                        <th style="width: 15%;">Code</th>
-                        <th style="width: 10%;" class="text-center">Units</th>
-                        <th style="width: 25%;" class="text-center">Priority</th>
+                        <th>Subject Name</th>
+                        <th style="width: 150px;">Code</th>
+                        <th style="width: 100px;" class="text-center">Units</th>
+                        <th style="width: 150px;" class="text-center">Priority</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     $totalBridgingUnits = 0;
-                    foreach ($bridging_requirements as $req): 
+                    foreach ($bridgingRequirements as $req): 
                         $totalBridgingUnits += (int)$req['units'];
-                        
-                        // Priority badge
-                        if ($req['priority'] == 1) {
-                            $priorityClass = 'danger';
-                            $priorityText = 'HIGH PRIORITY';
-                        } elseif ($req['priority'] == 2) {
-                            $priorityClass = 'warning';
-                            $priorityText = 'MEDIUM';
-                        } else {
-                            $priorityClass = 'secondary';
-                            $priorityText = 'LOW';
-                        }
+                        $priorityClass = $req['priority'] == 1 ? 'danger' : ($req['priority'] == 2 ? 'warning' : 'secondary');
+                        $priorityText = $req['priority'] == 1 ? 'HIGH PRIORITY' : ($req['priority'] == 2 ? 'MEDIUM' : 'LOW');
                     ?>
                     <tr>
                         <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
-                        <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($req['subject_code']); ?></span></td>
-                        <td class="text-center"><span class="badge bg-info"><?php echo (int)$req['units']; ?></span></td>
+                        <td><?php echo htmlspecialchars($req['subject_code']); ?></td>
+                        <td class="text-center">
+                            <span class="badge bg-info"><?php echo (int)$req['units']; ?></span>
+                        </td>
                         <td class="text-center">
                             <span class="badge bg-<?php echo $priorityClass; ?>"><?php echo $priorityText; ?></span>
                         </td>
                     </tr>
                     <?php endforeach; ?>
-                    
-                    <!-- Total bridging units -->
-                    <tr style="background-color: #fff8e1; font-weight: bold;">
-                        <td colspan="2" class="text-end">Total Bridging Units:</td>
+                </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="2" class="text-end fw-bold">Total Bridging Units:</td>
                         <td class="text-center">
-                            <span class="badge bg-warning text-dark"><?php echo $totalBridgingUnits; ?></span>
+                            <span class="badge bg-warning text-dark fs-6"><?php echo $totalBridgingUnits; ?></span>
                         </td>
                         <td></td>
                     </tr>
-                </tbody>
+                </tfoot>
             </table>
         </div>
         
-        <div class="alert alert-info mt-3 small mb-0">
-            <i class="fas fa-lightbulb me-1"></i>
+        <div class="alert alert-info mt-3">
+            <i class="fas fa-lightbulb me-2"></i>
             <strong>Susunod na hakbang:</strong> I-enroll ang HIGH PRIORITY subjects. 
             Estimated time: <strong><?php 
-                if ($totalBridgingUnits <= 12) echo '1 semester';
-                elseif ($totalBridgingUnits <= 24) echo '2 semesters';
-                else echo '2-3 semesters';
+                echo $totalBridgingUnits <= 12 ? '1 semester' : ($totalBridgingUnits <= 24 ? '2 semesters' : '3 semesters';
             ?></strong>.
         </div>
     </div>
     <?php else: ?>
-    <!-- No bridging needed - lahat credited -->
+    <!-- No bridging required -->
     <div class="alert alert-success mb-4">
         <i class="fas fa-check-circle me-2"></i>
         <strong>Congratulations!</strong> Walang required bridging courses. Lahat ng subjects ay credited na.
@@ -619,43 +602,41 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
     <?php endif; ?>
     
     <!-- SUMMARY STATISTICS -->
-    <div class="mt-4 p-3 rounded" style="background: linear-gradient(135deg, #e3f2fd, #f3e5f5); border-left: 4px solid #2196f3;">
-        <div class="row text-center">
-            <div class="col-md-3">
-                <div class="fw-bold text-success h4 mb-1"><?php echo $creditedCount; ?></div>
-                <small class="text-muted">Credited</small>
-            </div>
-            <div class="col-md-3">
-                <div class="fw-bold text-warning h4 mb-1"><?php echo count($bridging_requirements); ?></div>
-                <small class="text-muted">Required</small>
-            </div>
-            <div class="col-md-3">
-                <div class="fw-bold text-info h4 mb-1"><?php echo $creditedUnits; ?> / <?php echo $creditedUnits + $totalBridgingUnits; ?></div>
-                <small class="text-muted">Units</small>
-            </div>
-            <div class="col-md-3">
-                <div class="fw-bold text-primary h4 mb-1">
-                    <?php 
-                    $totalSubjects = count($curriculumSubjects);
-                    echo $totalSubjects > 0 ? round(($creditedCount / $totalSubjects) * 100, 1) : 0;
-                    ?>%
+    <div class="card border-primary mt-4">
+        <div class="card-body">
+            <div class="row text-center">
+                <div class="col-3">
+                    <div class="display-4 fw-bold text-success"><?php echo count($creditedSubjects); ?></div>
+                    <small class="text-muted">Credited</small>
                 </div>
-                <small class="text-muted">Complete</small>
+                <div class="col-3">
+                    <div class="display-4 fw-bold text-warning"><?php echo count($bridgingRequirements); ?></div>
+                    <small class="text-muted">Required</small>
+                </div>
+                <div class="col-3">
+                    <div class="display-4 fw-bold text-info">
+                        <?php echo $creditedUnits; ?> / <?php echo $creditedUnits + $totalBridgingUnits; ?>
+                    </div>
+                    <small class="text-muted">Units</small>
+                </div>
+                <div class="col-3">
+                    <div class="display-4 fw-bold text-primary">
+                        <?php 
+                        $totalSubjects = count($allSubjects);
+                        echo $totalSubjects > 0 ? round((count($creditedSubjects) / $totalSubjects) * 100) : 0;
+                        ?>%
+                    </div>
+                    <small class="text-muted">Complete</small>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <?php 
-    else: // no curriculum subjects
-        // Debug info kung bakit walang laman
-        echo '<div class="alert alert-info">';
-        echo '<strong>Note:</strong> Walang subjects sa database para sa program na ito (program_id: ' . $application['program_id'] . ')';
-        echo '</div>';
-    endif; // has curriculum
-    
+    endif; // has subjects
 endif; // not draft
-?>
+?>        
 
                 <!-- Uploaded Documents -->
                 <div class="assessment-card p-4">

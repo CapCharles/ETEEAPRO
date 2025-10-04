@@ -1022,7 +1022,7 @@ $passedSubjects = $curriculumStatus['passed'];
     $final_status, 
     $criteriaMissing,
     $passedSubjects,        // Add this
-    $curriculumSubjects     // Add this.
+    $curriculumSubjects,     // Add this.
      $program_id 
 );
         $full_recommendation = !empty($additional_comments)

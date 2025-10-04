@@ -933,13 +933,10 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
     $additional_comments = trim($_POST['recommendation']);
     $manual_override = $_POST['final_status'] ?? 'auto';
 
-    // Huwag i-block kapag empty ang $submitted — pwede kasing lahat ay 0.
-    // if (empty($submitted)) { ... }  // alisin ito kung meron ka
-
     try {
         $pdo->beginTransaction();
 
-        // 1) Kunin muna ang program_id ng application
+        // 1) Get program info
         $stmt = $pdo->prepare("SELECT program_id FROM applications WHERE id = ?");
         $stmt->execute([$app_id]);
         $appRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -948,7 +945,7 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
         $program_id = (int)$appRow['program_id'];
 
-        // 2) Kunin lahat ng ACTIVE criteria ng program (ito ang magiging denominator mo)
+        // 2) Get all active criteria
         $stmt = $pdo->prepare("
             SELECT id, criteria_name, max_score, weight
             FROM assessment_criteria
@@ -958,21 +955,20 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         $stmt->execute([$program_id]);
         $allCriteria = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // Safety: kapag wala talagang criteria, iwasan division by zero
         if (!$allCriteria) {
             throw new Exception("No active assessment criteria found for this program.");
         }
 
-        // 3) Kunin lahat ng documents ng application (gagamitin sa doc-check)
+        // 3) Get all documents
         $stmt = $pdo->prepare("
-            SELECT id, criteria_id, original_filename
+            SELECT id, criteria_id, original_filename, hierarchical_data, description
             FROM documents
             WHERE application_id = ?
         ");
         $stmt->execute([$app_id]);
         $documents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // --- START: TRUE weighted average across ALL criteria ---
+        // 4) Calculate score (your existing logic)
         $total_score = 0;
         $total_weight = 0;
         $passing_threshold = 60;
@@ -984,36 +980,21 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
             $weight        = (float)$c['weight'];
             $criteria_name = $c['criteria_name'];
 
-            // values mula sa form; default sa 0/blank kung walang na-post
             $input    = $submitted[$criteria_id] ?? ['score' => 0, 'comments' => ''];
             $score    = (float)($input['score'] ?? 0);
             $comments = trim($input['comments'] ?? '');
 
-            // check kung may doc para sa criteria na ito
-           // Instead of the simple filter:
-$criteriaDocs = array_filter($documents, function($doc) use ($criteria_id) {
-    return (int)$doc['criteria_id'] === $criteria_id
-        || (empty($doc['criteria_id']) && stripos($doc['original_filename'], 'criteria_' . $criteria_id) !== false);
-});
+            $criteriaDocs = array_values(array_filter($documents, fn($doc) => doc_matches_criteria($doc, $c)));
+            $hasCriteriaDocs = count($criteriaDocs) > 0;
 
-// Use the same matcher as the UI:
-$criteriaDocs = array_values(array_filter($documents, function($doc) use ($c) {
-    return doc_matches_criteria($doc, $c);
-}));
-$hasCriteriaDocs = count($criteriaDocs) > 0;
-
-
-            // kung walang doc, force 0 at lagyan ng note
             if (!$hasCriteriaDocs) {
                 $score    = 0;
                 $comments = "No supporting documents uploaded for this criteria. " . $comments;
             }
 
-            // clamp sa [0, max]
             if ($score < 0) $score = 0;
             if ($score > $max_score) $score = $max_score;
 
-            // ALWAYS include weight sa denominator, kahit 0 ang score
             $percentage     = ($max_score > 0) ? ($score / $max_score) * 100 : 0;
             $weighted_score = $percentage * $weight;
 
@@ -1024,7 +1005,7 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
                 $criteriaMissing[] = ['name' => $criteria_name];
             }
 
-            // save/update evaluation (kasama ang zeros)
+            // Save evaluation
             $stmtSave = $pdo->prepare("
                 INSERT INTO evaluations (application_id, criteria_id, evaluator_id, score, max_score, comments, evaluation_date)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -1037,9 +1018,8 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         }
 
         $final_score = $total_weight > 0 ? round($total_score / $total_weight, 2) : 0;
-        // --- END: TRUE weighted average ---
 
-        // Status
+        // Determine status
         if ($manual_override === 'auto') {
             if ($final_score >= $passing_threshold) {
                 $final_status = 'qualified';
@@ -1052,39 +1032,64 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
             $final_status = $manual_override;
         }
 
-        // Program code para sa rekomendasyon
+        // Get program code
         $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
         $stmt->execute([$app_id]);
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
-// Get curriculum and passed subjects
-$curriculumStatus = getPassedSubjects($documents, $programCode);
-$curriculumSubjects = $curriculumStatus['curriculum'];
-$passedSubjects = $curriculumStatus['passed'];
+        // **NEW: Get curriculum and passed subjects**
+        $curriculumStatus = getPassedSubjects($documents, $programCode);
+        $curriculumSubjects = $curriculumStatus['curriculum'];
+        $passedSubjects = $curriculumStatus['passed'];
 
-       $auto_recommendation = generateEnhancedRecommendation(
-    $final_score, 
-    $programCode, 
-    $final_status, 
-    $criteriaMissing,
-    $passedSubjects,        // Add this
-    $curriculumSubjects     // Add this
-);
+        // **NEW: Save credited/passed subjects to database**
+        // Clear existing credited subjects first
+        $stmt = $pdo->prepare("DELETE FROM credited_subjects WHERE application_id = ?");
+        $stmt->execute([$app_id]);
+
+        // Insert passed subjects
+        foreach ($passedSubjects as $subjectName => $evidence) {
+            // Find the subject code from curriculum
+            $subjectCode = '';
+            foreach ($curriculumSubjects as $currSubject) {
+                if ($currSubject['name'] === $subjectName) {
+                    $subjectCode = $currSubject['subject_code'] ?? '';
+                    break;
+                }
+            }
+
+            $stmt = $pdo->prepare("
+                INSERT INTO credited_subjects (application_id, subject_name, subject_code, evidence_type, created_by)
+                VALUES (?, ?, ?, ?, ?)
+            ");
+            $stmt->execute([$app_id, $subjectName, $subjectCode, $evidence, $user_id]);
+        }
+
+        // **Generate recommendation**
+        $auto_recommendation = generateEnhancedRecommendation(
+            $final_score, 
+            $programCode, 
+            $final_status, 
+            $criteriaMissing,
+            $passedSubjects,
+            $curriculumSubjects
+        );
+        
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
             : $auto_recommendation;
 
-
-
         // Update application
         $stmt = $pdo->prepare("
             UPDATE applications 
-               SET application_status = ?, total_score = ?, recommendation = ?, 
-                   evaluator_id = ?, evaluation_date = NOW()
-             WHERE id = ?
+            SET application_status = ?, total_score = ?, recommendation = ?, 
+                evaluator_id = ?, evaluation_date = NOW()
+            WHERE id = ?
         ");
         $stmt->execute([$final_status, $final_score, $full_recommendation, $user_id, $app_id]);
+
+        // **Note: Bridging requirements are saved separately via the update_bridging action**
 
         $pdo->commit();
 
@@ -1093,6 +1098,7 @@ $passedSubjects = $curriculumStatus['passed'];
         if ($final_score >= $passing_threshold && $bridgingUnits > 0) {
             $success_message .= " | Bridging Units Required: {$bridgingUnits}";
         }
+        
     } catch (Exception $e) {
         $pdo->rollBack();
         $errors[] = "Failed to save evaluation: " . $e->getMessage();
@@ -1100,8 +1106,23 @@ $passedSubjects = $curriculumStatus['passed'];
 }
 
 
+// Get credited subjects
+$stmt = $pdo->prepare("
+    SELECT * FROM credited_subjects
+    WHERE application_id = ?
+    ORDER BY subject_name ASC
+");
+$stmt->execute([$application_id]);
+$credited_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-
+// Get bridging requirements (already in your code)
+$stmt = $pdo->prepare("
+    SELECT * FROM bridging_requirements
+    WHERE application_id = ?
+    ORDER BY priority ASC, subject_name ASC
+");
+$stmt->execute([$application_id]);
+$bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 // Get application data with enhanced document checking

@@ -405,7 +405,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: " . (count($curriculumSubjects) - count($bridgingSubjectNames)) . " subjects";
+               $recommendations[] = "• Credited Subjects: " . count($passedSubjects) . " subjects";
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
@@ -543,9 +543,9 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     $recommendations[] = "**SUMMARY OF CREDITS**";
     
     if (!empty($curriculumSubjects)) {
-        $totalSubjects = count($curriculumSubjects);
-$creditedSubjects = isset($passedSubjects['passed']) ? count($passedSubjects['passed']) : 0;
-$requiredSubjects = count($bridgingSubjectNames);
+  $totalSubjects   = count($curriculumSubjects);
+$creditedSubjects = count($passedSubjects);
+$requiredSubjects = max(0, $totalSubjects - $creditedSubjects);
         
         $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
         $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";

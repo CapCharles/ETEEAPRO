@@ -423,87 +423,97 @@ if ($application) {
 // Only show if evaluated and has a program
 if ($application['application_status'] !== 'draft' && !empty($application['program_code'])): 
     
-    // [Keep your getPassedSubjects() function as is]
-    function getPassedSubjects($documents, $programCode) {
-    global $pdo, $current_application;
-    
-    $curriculum = [];
-    
-    // Fetch curriculum from database instead of hardcoded arrays
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name as name, subject_code
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level, semester, subject_name
-        ");
-        $stmt->execute([$current_application['program_id']]);
-        $dbSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Function to get curriculum from DATABASE
+    function getPassedSubjects($pdo, $application, $documents) {
+        $curriculum = [];
         
-        // Build curriculum with keywords for matching
-        foreach ($dbSubjects as $subject) {
-            $keywords = [];
+        // Fetch curriculum subjects from database
+        try {
+            $stmt = $pdo->prepare("
+                SELECT subject_name, subject_code, units, year_level, semester
+                FROM subjects 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY year_level, semester, subject_name
+            ");
+            $stmt->execute([$application['program_id']]);
+            $dbSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Generate keywords from subject name and code
-            $nameParts = explode(' ', strtolower($subject['name']));
-            $keywords = array_merge($keywords, $nameParts);
-            
-            if (!empty($subject['subject_code'])) {
-                $keywords[] = strtolower($subject['subject_code']);
+            // Build curriculum with auto-generated keywords
+            foreach ($dbSubjects as $subject) {
+                $keywords = [];
+                
+                // Extract words from subject name
+                $nameLower = strtolower($subject['subject_name']);
+                $nameParts = preg_split('/[\s\-\_]+/', $nameLower);
+                
+                // Add subject code as keyword
+                if (!empty($subject['subject_code'])) {
+                    $keywords[] = strtolower($subject['subject_code']);
+                }
+                
+                // Filter out common words
+                $stopwords = ['and', 'of', 'the', 'with', 'for', 'to', 'in', 'a', 'an'];
+                foreach ($nameParts as $word) {
+                    $word = trim($word);
+                    if (strlen($word) >= 3 && !in_array($word, $stopwords)) {
+                        $keywords[] = $word;
+                    }
+                }
+                
+                $curriculum[] = [
+                    'name' => $subject['subject_name'],
+                    'code' => $subject['subject_code'],
+                    'keywords' => array_unique($keywords)
+                ];
             }
             
-            // Remove common words
-            $keywords = array_filter($keywords, function($word) {
-                return !in_array($word, ['and', 'of', 'the', 'with', 'for', 'to']);
-            });
-            
-            $curriculum[] = [
-                'name' => $subject['name'],
-                'keywords' => array_unique($keywords)
-            ];
+        } catch (PDOException $e) {
+            error_log("Curriculum fetch error: " . $e->getMessage());
+            return ['curriculum' => [], 'passed' => []];
         }
         
-    } catch (PDOException $e) {
-        error_log("Error fetching curriculum: " . $e->getMessage());
-        // Fallback to empty curriculum
-        $curriculum = [];
-    }
-    
-    $passed = [];
-    foreach ($curriculum as $subject) {
-        foreach ($documents as $doc) {
-            $filename = strtolower($doc['original_filename']);
-            $desc = strtolower($doc['description'] ?? '');
-            
-            foreach ($subject['keywords'] as $keyword) {
-                if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
-                    $evidence = [];
-                    if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
-                        $evidence[] = 'TOR';
+        // Match documents to subjects
+        $passed = [];
+        foreach ($curriculum as $subject) {
+            foreach ($documents as $doc) {
+                $filename = strtolower($doc['original_filename']);
+                $desc = strtolower($doc['description'] ?? '');
+                
+                // Check if any keyword matches
+                foreach ($subject['keywords'] as $keyword) {
+                    if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
+                        // Determine evidence type
+                        $evidence = [];
+                        if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
+                            $evidence[] = 'Transcript of Records';
+                        }
+                        if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
+                            $evidence[] = 'Certificate';
+                        }
+                        if (strpos($filename, 'diploma') !== false) {
+                            $evidence[] = 'Diploma';
+                        }
+                        
+                        if (empty($evidence)) {
+                            $evidence[] = 'Supporting Document';
+                        }
+                        
+                        $passed[$subject['name']] = implode(', ', $evidence);
+                        break 2; // Found match, move to next subject
                     }
-                    if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
-                        $evidence[] = 'Certificate';
-                    }
-                    if (strpos($filename, 'diploma') !== false) {
-                        $evidence[] = 'Diploma';
-                    }
-                    if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
-                    
-                    $passed[$subject['name']] = implode(', ', $evidence);
-                    break 2;
                 }
             }
         }
+        
+        return ['curriculum' => $curriculum, 'passed' => $passed];
     }
     
-    return ['curriculum' => $curriculum, 'passed' => $passed];
-}
-    
-    $curriculumStatus = getPassedSubjects($documents, $application['program_code']);
+    // Call function with database connection
+    $curriculumStatus = getPassedSubjects($pdo, $application, $documents);
     $curriculumSubjects = $curriculumStatus['curriculum'];
     $passedSubjects = $curriculumStatus['passed'];
     
-    // Get bridging requirements from database
+    // Get bridging requirements
     try {
         $stmt = $pdo->prepare("
             SELECT subject_name, subject_code, units, priority 
@@ -513,14 +523,13 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
         ");
         $stmt->execute([$application['id']]);
         $bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Create lookup array for faster checking
         $bridging_subject_names = array_map('strtolower', array_column($bridging_requirements, 'subject_name'));
     } catch (PDOException $e) {
         $bridging_requirements = [];
         $bridging_subject_names = [];
     }
     
+    // Only show if we have subjects
     if (!empty($curriculumSubjects)):
 ?>
 <div class="assessment-card p-4 mb-4">
@@ -547,22 +556,13 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
                 <tbody>
                     <?php 
                     $creditedCount = 0;
-                    
-                    // Loop through ALL curriculum subjects
                     foreach ($curriculumSubjects as $subject): 
                         $subjectNameLower = strtolower($subject['name']);
                         
-                        // A subject is CREDITED if it's NOT in bridging requirements
-                        // (Whether from documents OR from ETEEAP assessment credit)
+                        // Credited if NOT in bridging requirements
                         if (!in_array($subjectNameLower, $bridging_subject_names)):
                             $creditedCount++;
-                            
-                            // Check if we have document evidence
-                            if (isset($passedSubjects[$subject['name']])):
-                                $evidence = $passedSubjects[$subject['name']];
-                            else:
-                                $evidence = 'Credited via ETEEAP Assessment';
-                            endif;
+                            $evidence = $passedSubjects[$subject['name']] ?? 'Credited via ETEEAP Assessment';
                     ?>
                     <tr>
                         <td><?php echo htmlspecialchars($subject['name']); ?></td>
@@ -574,8 +574,8 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
                         </td>
                     </tr>
                     <?php 
-                        endif; // end if not in bridging
-                    endforeach; 
+                        endif;
+                    endforeach;
                     
                     if ($creditedCount === 0): ?>
                     <tr>
@@ -590,7 +590,7 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
         </div>
     </div>
     
-    <!-- TABLE 2: REQUIRED BRIDGING COURSES (from database) -->
+    <!-- TABLE 2: REQUIRED BRIDGING COURSES -->
     <?php if (!empty($bridging_requirements)): ?>
     <div class="mb-4">
         <h6 class="text-warning mb-3">
@@ -617,64 +617,34 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
                     $totalBridgingUnits = 0;
                     foreach ($bridging_requirements as $req): 
                         $totalBridgingUnits += (int)$req['units'];
-                        
-                        // Priority badge
-                        if ($req['priority'] == 1) {
-                            $priorityClass = 'danger';
-                            $priorityText = 'HIGH';
-                        } elseif ($req['priority'] == 2) {
-                            $priorityClass = 'warning';
-                            $priorityText = 'MEDIUM';
-                        } else {
-                            $priorityClass = 'secondary';
-                            $priorityText = 'LOW';
-                        }
+                        $priorityClass = $req['priority'] == 1 ? 'danger' : ($req['priority'] == 2 ? 'warning' : 'secondary');
+                        $priorityText = $req['priority'] == 1 ? 'HIGH' : ($req['priority'] == 2 ? 'MEDIUM' : 'LOW');
                     ?>
                     <tr>
                         <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
-                        <td>
-                            <span class="badge bg-light text-dark">
-                                <?php echo htmlspecialchars($req['subject_code']); ?>
-                            </span>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-info"><?php echo (int)$req['units']; ?></span>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-<?php echo $priorityClass; ?>">
-                                <?php echo $priorityText; ?>
-                            </span>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-warning text-dark">Required</span>
-                        </td>
+                        <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($req['subject_code']); ?></span></td>
+                        <td class="text-center"><span class="badge bg-info"><?php echo (int)$req['units']; ?></span></td>
+                        <td class="text-center"><span class="badge bg-<?php echo $priorityClass; ?>"><?php echo $priorityText; ?></span></td>
+                        <td class="text-center"><span class="badge bg-warning text-dark">Required</span></td>
                     </tr>
                     <?php endforeach; ?>
-                    
-                    <!-- Total row -->
                     <tr style="background-color: #f8f9fa; font-weight: bold;">
                         <td colspan="2" class="text-end">Total Bridging Units:</td>
-                        <td class="text-center">
-                            <span class="badge bg-primary"><?php echo $totalBridgingUnits; ?></span>
-                        </td>
+                        <td class="text-center"><span class="badge bg-primary"><?php echo $totalBridgingUnits; ?></span></td>
                         <td colspan="2"></td>
                     </tr>
                 </tbody>
             </table>
         </div>
-        
         <div class="alert alert-info mt-3 small mb-0">
             <i class="fas fa-lightbulb me-1"></i>
             <strong>Next Steps:</strong> Enroll in HIGH priority subjects first. 
-            Estimated time to complete: <strong><?php 
-                if ($totalBridgingUnits <= 12) echo '1 semester';
-                elseif ($totalBridgingUnits <= 24) echo '2 semesters';
-                else echo '2-3 semesters';
+            Estimated time: <strong><?php 
+                echo $totalBridgingUnits <= 12 ? '1 semester' : ($totalBridgingUnits <= 24 ? '2 semesters' : '2-3 semesters');
             ?></strong>.
         </div>
     </div>
     <?php else: ?>
-    <!-- No bridging required -->
     <div class="alert alert-success mb-4">
         <i class="fas fa-check-circle me-2"></i>
         <strong>Congratulations!</strong> No bridging courses required. All curriculum subjects have been credited.
@@ -699,10 +669,7 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
             <div class="col-md-3">
                 <div class="fw-bold text-primary h4 mb-1">
                     <?php 
-                    $completionRate = count($curriculumSubjects) > 0 
-                        ? round(($creditedCount / count($curriculumSubjects)) * 100, 1) 
-                        : 0;
-                    echo $completionRate; 
+                    echo count($curriculumSubjects) > 0 ? round(($creditedCount / count($curriculumSubjects)) * 100, 1) : 0;
                     ?>%
                 </div>
                 <small class="text-muted">Complete</small>
@@ -711,7 +678,7 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
     </div>
 </div>
 <?php 
-    endif; // curriculum subjects exist
+    endif; // has curriculum
 endif; // not draft
 ?>
 

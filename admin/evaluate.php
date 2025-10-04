@@ -241,10 +241,10 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $programId = null) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = []) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
-    $subjectPlan = getSubjectRecommendations($programId ?: $programCode, $bridgingUnits);
+    $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits);
     
     // Get bridging subject names
     $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
@@ -1023,7 +1023,6 @@ $passedSubjects = $curriculumStatus['passed'];
     $criteriaMissing,
     $passedSubjects,        // Add this
     $curriculumSubjects     // Add this
-     $program_id
 );
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
@@ -2193,67 +2192,66 @@ if ($hasCriteriaDocs) {
 const subjectData = <?php echo json_encode($predefined_subjects); ?>;
 
 // Simple: Just pick subjects from database until we reach required units
-// replace your existing getSubjectRecommendations with this version
-function getSubjectRecommendations($programIdOrCode, $requiredUnits) {
-    global $pdo, $current_application;
-
-    // Resolve $pid from id or code or fallback to current_application
-    $pid = null;
-    if (is_numeric($programIdOrCode)) {
-        $pid = (int)$programIdOrCode;
-    } elseif (!empty($programIdOrCode)) {
-        $stmt = $pdo->prepare("SELECT id FROM programs WHERE program_code = ? LIMIT 1");
-        $stmt->execute([$programIdOrCode]);
-        $pid = (int)($stmt->fetchColumn() ?: 0);
+function getSubjectRecommendations(programCode, requiredUnits) {
+    if (!subjectData || subjectData.length === 0) {
+        return { subjects: [], totalUnits: 0, remaining: requiredUnits };
     }
-    if (!$pid && !empty($current_application['program_id'])) {
-        $pid = (int)$current_application['program_id'];
+    
+    let selectedSubjects = [];
+    let totalUnits = 0;
+    
+    // Add subjects until we're close
+    for (let subject of subjectData) {
+        const units = parseInt(subject.units) || 3;
+        
+        if (totalUnits + units <= requiredUnits) {
+            selectedSubjects.push({
+                name: subject.name,
+                code: subject.code,
+                units: units,
+                priority: 1
+            });
+            totalUnits += units;
+        }
+        
+        if (totalUnits === requiredUnits) break;
     }
-    if (!$pid) {
-        return ['subjects' => [], 'total_units' => 0, 'remaining_units' => $requiredUnits];
-    }
-
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name as name, subject_code as code, units
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level DESC, semester DESC, subject_name
-        ");
-        $stmt->execute([$pid]);
-        $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        $selected = [];
-        $total = 0;
-
-        foreach ($availableSubjects as $s) {
-            $u = (int)$s['units'];
-            if ($total + $u <= $requiredUnits) {
-                $selected[] = [
-                    'name' => $s['name'],
-                    'code' => $s['code'],
-                    'units' => $u,
-                    'priority' => 1
-                ];
-                $total += $u;
+    
+    // If there's a small gap remaining, adjust the last subject or add a flexible one
+    const remaining = requiredUnits - totalUnits;
+    if (remaining > 0 && remaining <= 3 && selectedSubjects.length > 0) {
+        // Add the remaining units to the last subject
+        selectedSubjects[selectedSubjects.length - 1].units += remaining;
+        totalUnits = requiredUnits;
+    } else if (remaining > 0) {
+        // Add more subjects to fill the gap
+        let index = 0;
+        while (totalUnits < requiredUnits && index < subjectData.length) {
+            const subject = subjectData[index];
+            const isDuplicate = selectedSubjects.some(s => s.name === subject.name);
+            
+            if (!isDuplicate) {
+                const unitsNeeded = requiredUnits - totalUnits;
+                const subjectUnits = Math.min(parseInt(subject.units) || 3, unitsNeeded);
+                
+                selectedSubjects.push({
+                    name: subject.name,
+                    code: subject.code,
+                    units: subjectUnits,
+                    priority: 2
+                });
+                totalUnits += subjectUnits;
             }
-            if ($total >= $requiredUnits) break;
+            index++;
         }
-
-        // fill small gap if needed
-        $remaining = $requiredUnits - $total;
-        if ($remaining > 0 && !empty($selected)) {
-            $selected[count($selected)-1]['units'] += $remaining;
-            $total = $requiredUnits;
-        }
-
-        return ['subjects'=>$selected, 'total_units'=>$total, 'remaining_units'=>max(0, $requiredUnits - $total)];
-    } catch (PDOException $e) {
-        error_log("Error in getSubjectRecommendations: ".$e->getMessage());
-        return ['subjects'=>[], 'total_units'=>0, 'remaining_units'=>$requiredUnits];
     }
+    
+    return { 
+        subjects: selectedSubjects, 
+        totalUnits: totalUnits,
+        remaining: 0 // Should always be 0 now
+    };
 }
-
         
   function calculateBridgingUnits(score) {
     if (score >= 95) return 3;

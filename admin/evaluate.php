@@ -1201,6 +1201,32 @@ try {
 } catch (PDOException $e) {
     $applications = [];
 }
+
+function getSavedCreditedSubjects($pdo, $application_id) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT cs.*, s.subject_code 
+            FROM credited_subjects cs
+            LEFT JOIN subjects s ON cs.subject_name = s.subject_name
+            WHERE cs.application_id = ?
+            ORDER BY cs.subject_name
+        ");
+        $stmt->execute([$application_id]);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Convert to the format expected by the rest of the code
+        $passedSubjects = [];
+        foreach ($results as $row) {
+            $passedSubjects[$row['subject_name']] = $row['evidence_type'];
+        }
+        
+        return $passedSubjects;
+    } catch (PDOException $e) {
+        error_log("Error fetching credited subjects: " . $e->getMessage());
+        return [];
+    }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -1912,9 +1938,18 @@ if ($hasCriteriaDocs) {
     </h5>
 
     <?php 
+   
+   
+$passedSubjects = getSavedCreditedSubjects($pdo, $application_id);
+// Get curriculum for comparison
+$curriculumStatus = getPassedSubjects($documents, $current_application['program_code']);
+$curriculumSubjects = $curriculumStatus['curriculum'];
+
+// Fallback: If no saved subjects and evaluation not complete, calculate from documents
+if (empty($passedSubjects) && in_array($current_application['application_status'], ['draft', 'submitted', 'under_review'])) {
     $curriculumStatus = getPassedSubjects($documents, $current_application['program_code']);
-    $curriculumSubjects = $curriculumStatus['curriculum'];
     $passedSubjects = $curriculumStatus['passed'];
+}
     ?>
 
 

@@ -156,16 +156,16 @@ if (!empty($application_id)) {
 }
 
 
-
 function getPassedSubjects($documents, $programCode) {
     global $pdo, $current_application;
     
     $curriculum = [];
+    $passed = [];
     
-    // Fetch curriculum from database instead of hardcoded arrays
     try {
+        // Fetch curriculum from database
         $stmt = $pdo->prepare("
-            SELECT subject_name as name, subject_code
+            SELECT subject_name as name, subject_code, year_level, semester
             FROM subjects 
             WHERE program_id = ? AND status = 'active'
             ORDER BY year_level, semester, subject_name
@@ -173,60 +173,112 @@ function getPassedSubjects($documents, $programCode) {
         $stmt->execute([$current_application['program_id']]);
         $dbSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        // Build curriculum with keywords for matching
+        // Get assessment criteria for mapping
+        $stmt = $pdo->prepare("
+            SELECT id, criteria_name, criteria_type, section_number
+            FROM assessment_criteria
+            WHERE program_id = ? AND status = 'active'
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $allCriteria = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Build curriculum
         foreach ($dbSubjects as $subject) {
-            $keywords = [];
-            
-            // Generate keywords from subject name and code
-            $nameParts = explode(' ', strtolower($subject['name']));
-            $keywords = array_merge($keywords, $nameParts);
-            
-            if (!empty($subject['subject_code'])) {
-                $keywords[] = strtolower($subject['subject_code']);
-            }
-            
-            // Remove common words
-            $keywords = array_filter($keywords, function($word) {
-                return !in_array($word, ['and', 'of', 'the', 'with', 'for', 'to']);
-            });
-            
             $curriculum[] = [
                 'name' => $subject['name'],
-                'keywords' => array_unique($keywords)
+                'code' => $subject['subject_code']
             ];
         }
         
-    } catch (PDOException $e) {
-        error_log("Error fetching curriculum: " . $e->getMessage());
-        // Fallback to empty curriculum
-        $curriculum = [];
-    }
-    
-    $passed = [];
-    foreach ($curriculum as $subject) {
+        // For each document, check what it proves
         foreach ($documents as $doc) {
-            $filename = strtolower($doc['original_filename']);
+            $hier = parse_hier($doc);
+            $filename = strtolower($doc['original_filename'] ?? '');
             $desc = strtolower($doc['description'] ?? '');
             
-            foreach ($subject['keywords'] as $keyword) {
-                if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
-                    $evidence = [];
-                    if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
-                        $evidence[] = 'TOR';
-                    }
-                    if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
-                        $evidence[] = 'Certificate';
-                    }
-                    if (strpos($filename, 'diploma') !== false) {
-                        $evidence[] = 'Diploma';
-                    }
-                    if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
+            // Evidence type
+            $evidenceType = 'Document';
+            if (stripos($filename, 'transcript') !== false || stripos($filename, 'tor') !== false) {
+                $evidenceType = 'TOR';
+            } elseif (stripos($filename, 'certificate') !== false) {
+                $evidenceType = 'Certificate';
+            } elseif (stripos($filename, 'diploma') !== false) {
+                $evidenceType = 'Diploma';
+            }
+            
+            // Match to subjects through criteria
+            foreach ($allCriteria as $crit) {
+                if (doc_matches_criteria($doc, $crit)) {
+                    // Map criteria to subjects
+                    $critName = strtolower($crit['criteria_name']);
                     
-                    $passed[$subject['name']] = implode(', ', $evidence);
-                    break 2;
+                    foreach ($curriculum as $subject) {
+                        $subName = strtolower($subject['name']);
+                        
+                        // Skip if already passed
+                        if (isset($passed[$subject['name']])) continue;
+                        
+                        // Smart subject matching
+                        $matched = false;
+                        
+                        // Section 1: Education → Educational subjects
+                        if ($crit['section_number'] == 1 && !empty($hier['education_level'])) {
+                            if (stripos($subName, 'education') !== false || 
+                                stripos($subName, 'foundation') !== false) {
+                                $matched = true;
+                            }
+                        }
+                        
+                        // Section 2: Work Experience → Practice/Teaching subjects
+                        if ($crit['section_number'] == 2 && !empty($hier['years_experience'])) {
+                            if (stripos($subName, 'practice') !== false || 
+                                stripos($subName, 'teaching') !== false ||
+                                stripos($subName, 'field') !== false ||
+                                stripos($subName, 'internship') !== false) {
+                                $matched = true;
+                                $evidenceType = 'Work Experience (' . $hier['years_experience'] . ' years)';
+                            }
+                        }
+                        
+                        // Section 3: Publications → Research subjects
+                        if ($crit['section_number'] == 3) {
+                            if (stripos($subName, 'research') !== false || 
+                                stripos($subName, 'thesis') !== false ||
+                                stripos($subName, 'capstone') !== false) {
+                                $matched = true;
+                                $evidenceType = 'Publication/Research Output';
+                            }
+                        }
+                        
+                        // Section 4: Professional Development → Seminars/Training
+                        if ($crit['section_number'] == 4) {
+                            if (stripos($subName, 'seminar') !== false || 
+                                stripos($subName, 'training') !== false ||
+                                stripos($subName, 'development') !== false) {
+                                $matched = true;
+                                $evidenceType = 'Professional Development';
+                            }
+                        }
+                        
+                        // Direct name/code matching as fallback
+                        if (!$matched) {
+                            if (stripos($filename, $subName) !== false || 
+                                stripos($desc, $subName) !== false ||
+                                (!empty($subject['code']) && stripos($filename, strtolower($subject['code'])) !== false)) {
+                                $matched = true;
+                            }
+                        }
+                        
+                        if ($matched) {
+                            $passed[$subject['name']] = $evidenceType;
+                        }
+                    }
                 }
             }
         }
+        
+    } catch (PDOException $e) {
+        error_log("Error in getPassedSubjects: " . $e->getMessage());
     }
     
     return ['curriculum' => $curriculum, 'passed' => $passed];

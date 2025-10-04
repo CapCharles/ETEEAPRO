@@ -424,6 +424,80 @@ if ($application) {
 if ($application['application_status'] !== 'draft' && !empty($application['program_code'])): 
     
     // [Keep your getPassedSubjects() function as is]
+    function getPassedSubjects($documents, $programCode) {
+    global $pdo, $current_application;
+    
+    $curriculum = [];
+    
+    // Fetch curriculum from database instead of hardcoded arrays
+    try {
+        $stmt = $pdo->prepare("
+            SELECT subject_name as name, subject_code
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level, semester, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $dbSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Build curriculum with keywords for matching
+        foreach ($dbSubjects as $subject) {
+            $keywords = [];
+            
+            // Generate keywords from subject name and code
+            $nameParts = explode(' ', strtolower($subject['name']));
+            $keywords = array_merge($keywords, $nameParts);
+            
+            if (!empty($subject['subject_code'])) {
+                $keywords[] = strtolower($subject['subject_code']);
+            }
+            
+            // Remove common words
+            $keywords = array_filter($keywords, function($word) {
+                return !in_array($word, ['and', 'of', 'the', 'with', 'for', 'to']);
+            });
+            
+            $curriculum[] = [
+                'name' => $subject['name'],
+                'keywords' => array_unique($keywords)
+            ];
+        }
+        
+    } catch (PDOException $e) {
+        error_log("Error fetching curriculum: " . $e->getMessage());
+        // Fallback to empty curriculum
+        $curriculum = [];
+    }
+    
+    $passed = [];
+    foreach ($curriculum as $subject) {
+        foreach ($documents as $doc) {
+            $filename = strtolower($doc['original_filename']);
+            $desc = strtolower($doc['description'] ?? '');
+            
+            foreach ($subject['keywords'] as $keyword) {
+                if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
+                    $evidence = [];
+                    if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
+                        $evidence[] = 'TOR';
+                    }
+                    if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
+                        $evidence[] = 'Certificate';
+                    }
+                    if (strpos($filename, 'diploma') !== false) {
+                        $evidence[] = 'Diploma';
+                    }
+                    if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
+                    
+                    $passed[$subject['name']] = implode(', ', $evidence);
+                    break 2;
+                }
+            }
+        }
+    }
+    
+    return ['curriculum' => $curriculum, 'passed' => $passed];
+}
     
     $curriculumStatus = getPassedSubjects($documents, $application['program_code']);
     $curriculumSubjects = $curriculumStatus['curriculum'];

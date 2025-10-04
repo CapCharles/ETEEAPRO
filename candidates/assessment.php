@@ -423,83 +423,13 @@ if ($application) {
 // Only show if evaluated and has a program
 if ($application['application_status'] !== 'draft' && !empty($application['program_code'])): 
     
-    // Helper function to get passed subjects (copy from evaluate.php)
-    function getPassedSubjects($documents, $programCode) {
-        $curriculum = [];
-        
-        $PC = strtoupper($programCode);
-        if (strpos($PC, 'BSED') !== false) {
-            $curriculum = [
-                ['name' => 'Educational Psychology', 'keywords' => ['psychology', 'edpsy']],
-                ['name' => 'Foundations of Education 1', 'keywords' => ['foe1', 'foundations', 'education 1']],
-                ['name' => 'Foundations of Education 2', 'keywords' => ['foe2', 'foundations', 'education 2']],
-                ['name' => 'Principles and Methods of Teaching', 'keywords' => ['pmt', 'teaching methods', 'principles']],
-                ['name' => 'Educational Measurement and Evaluation', 'keywords' => ['measurement', 'evaluation', 'eme']],
-                ['name' => 'Prep. And Utilization of Instr\'l Materials', 'keywords' => ['instructional materials', 'puim']],
-                ['name' => 'Teaching Strategies for the Major Fields', 'keywords' => ['teaching strategies', 'tsmf']],
-                ['name' => 'Guidance and Counseling with SPED', 'keywords' => ['guidance', 'counseling', 'sped', 'gcs']],
-                ['name' => 'School Administration and Supervision', 'keywords' => ['administration', 'supervision', 'sas']],
-                ['name' => 'Observation and Participation', 'keywords' => ['observation', 'participation', 'op']],
-                ['name' => 'Introduction to Educational Research', 'keywords' => ['research', 'ier']],
-                ['name' => 'Professional Ethics', 'keywords' => ['ethics', 'pe']],
-                ['name' => 'Student Teaching', 'keywords' => ['student teaching', 'st', 'practicum']],
-                ['name' => 'Teaching Strategies 3', 'keywords' => ['strategies 3', 'ts3']],
-            ];
-        } elseif (strpos($PC, 'BEED') !== false) {
-            $curriculum = [
-                ['name' => 'Educational Psychology', 'keywords' => ['psychology', 'edpsy']],
-                ['name' => 'Foundations of Education 1', 'keywords' => ['foe1', 'foundations', 'education 1']],
-                ['name' => 'Foundations of Education 2', 'keywords' => ['foe2', 'foundations', 'education 2']],
-                ['name' => 'Principles and Methods of Teaching', 'keywords' => ['pmt', 'teaching methods', 'principles']],
-                ['name' => 'Educational Measurement and Evaluation', 'keywords' => ['measurement', 'evaluation', 'eme']],
-                ['name' => 'Prep. And Utilization of Instr\'l Materials', 'keywords' => ['instructional materials', 'puim']],
-                ['name' => 'Teaching Strategies for the Major Fields (BEEd)', 'keywords' => ['teaching strategies', 'tsmf', 'beed']],
-                ['name' => 'Guidance and Counseling with SPED', 'keywords' => ['guidance', 'counseling', 'sped', 'gcs']],
-                ['name' => 'School Administration and Supervision', 'keywords' => ['administration', 'supervision', 'sas']],
-                ['name' => 'Observation and Participation', 'keywords' => ['observation', 'participation', 'op']],
-                ['name' => 'Introduction to Educational Research', 'keywords' => ['research', 'ier']],
-                ['name' => 'Professional Ethics', 'keywords' => ['ethics', 'pe']],
-                ['name' => 'Student Teaching', 'keywords' => ['student teaching', 'st', 'practicum']],
-                ['name' => 'Teaching Strategies 2', 'keywords' => ['strategies 2', 'ts2']],
-            ];
-        }
-        
-        $passed = [];
-        foreach ($curriculum as $subject) {
-            foreach ($documents as $doc) {
-                $filename = strtolower($doc['original_filename']);
-                $desc = strtolower($doc['description'] ?? '');
-                
-                foreach ($subject['keywords'] as $keyword) {
-                    if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
-                        $evidence = [];
-                        if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
-                            $evidence[] = 'TOR';
-                        }
-                        if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
-                            $evidence[] = 'Certificate';
-                        }
-                        if (strpos($filename, 'diploma') !== false) {
-                            $evidence[] = 'Diploma';
-                        }
-                        if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
-                        
-                        $passed[$subject['name']] = implode(', ', $evidence);
-                        break 2;
-                    }
-                }
-            }
-        }
-        
-        return ['curriculum' => $curriculum, 'passed' => $passed];
-    }
+    // [Keep your getPassedSubjects() function as is]
     
-    // Get curriculum status
     $curriculumStatus = getPassedSubjects($documents, $application['program_code']);
     $curriculumSubjects = $curriculumStatus['curriculum'];
     $passedSubjects = $curriculumStatus['passed'];
     
-    // Get bridging requirements
+    // Get bridging requirements from database
     try {
         $stmt = $pdo->prepare("
             SELECT subject_name, subject_code, units, priority 
@@ -509,22 +439,23 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
         ");
         $stmt->execute([$application['id']]);
         $bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        $bridging_subject_names = array_column($bridging_requirements, 'subject_name');
+        
+        // Create lookup array for faster checking
+        $bridging_subject_names = array_map('strtolower', array_column($bridging_requirements, 'subject_name'));
     } catch (PDOException $e) {
         $bridging_requirements = [];
         $bridging_subject_names = [];
     }
     
-    // Only display if we have curriculum data
     if (!empty($curriculumSubjects)):
 ?>
 <div class="assessment-card p-4 mb-4">
     <h5 class="mb-4">
         <i class="fas fa-graduation-cap me-2"></i>
-        Your Curriculum Status for <?php echo htmlspecialchars($application['program_code']); ?>
+        Curriculum Status for <?php echo htmlspecialchars($application['program_code']); ?>
     </h5>
     
-    <!-- Passed/Credited Subjects -->
+    <!-- TABLE 1: CREDITED SUBJECTS -->
     <div class="mb-4">
         <h6 class="text-success mb-3">
             <i class="fas fa-check-circle me-2"></i>
@@ -534,18 +465,30 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
             <table class="table table-sm table-bordered">
                 <thead style="background-color: #d1e7dd;">
                     <tr>
-                        <th style="width: 60%;">Subject</th>
+                        <th style="width: 60%;">Subject Name</th>
                         <th style="width: 20%;" class="text-center">Status</th>
-                        <th style="width: 20%;">Evidence</th>
+                        <th style="width: 20%;">Evidence/Source</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php 
                     $creditedCount = 0;
+                    
+                    // Loop through ALL curriculum subjects
                     foreach ($curriculumSubjects as $subject): 
-                        if (!in_array($subject['name'], $bridging_subject_names)):
+                        $subjectNameLower = strtolower($subject['name']);
+                        
+                        // A subject is CREDITED if it's NOT in bridging requirements
+                        // (Whether from documents OR from ETEEAP assessment credit)
+                        if (!in_array($subjectNameLower, $bridging_subject_names)):
                             $creditedCount++;
-                            $evidence = $passedSubjects[$subject['name']] ?? 'Credit via ETEEAP assessment';
+                            
+                            // Check if we have document evidence
+                            if (isset($passedSubjects[$subject['name']])):
+                                $evidence = $passedSubjects[$subject['name']];
+                            else:
+                                $evidence = 'Credited via ETEEAP Assessment';
+                            endif;
                     ?>
                     <tr>
                         <td><?php echo htmlspecialchars($subject['name']); ?></td>
@@ -557,14 +500,14 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
                         </td>
                     </tr>
                     <?php 
-                        endif;
-                    endforeach;
+                        endif; // end if not in bridging
+                    endforeach; 
                     
                     if ($creditedCount === 0): ?>
                     <tr>
                         <td colspan="3" class="text-center text-muted py-3">
                             <i class="fas fa-info-circle me-1"></i>
-                            No subjects credited yet
+                            No subjects credited yet. Complete evaluation to see results.
                         </td>
                     </tr>
                     <?php endif; ?>
@@ -573,21 +516,26 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
         </div>
     </div>
     
-    <!-- Required Bridging Subjects -->
+    <!-- TABLE 2: REQUIRED BRIDGING COURSES (from database) -->
     <?php if (!empty($bridging_requirements)): ?>
     <div class="mb-4">
         <h6 class="text-warning mb-3">
             <i class="fas fa-book me-2"></i>
             Required Bridging Courses
         </h6>
+        <div class="alert alert-warning small mb-3">
+            <i class="fas fa-exclamation-triangle me-1"></i>
+            <strong>These subjects must be completed</strong> to fulfill your <?php echo htmlspecialchars($application['program_code']); ?> degree requirements.
+        </div>
         <div class="table-responsive">
             <table class="table table-sm table-bordered">
                 <thead style="background-color: #fff3cd;">
                     <tr>
-                        <th style="width: 45%;">Subject</th>
+                        <th style="width: 45%;">Subject Name</th>
                         <th style="width: 15%;">Code</th>
-                        <th style="width: 15%;" class="text-center">Units</th>
-                        <th style="width: 25%;" class="text-center">Priority</th>
+                        <th style="width: 12%;" class="text-center">Units</th>
+                        <th style="width: 15%;" class="text-center">Priority</th>
+                        <th style="width: 13%;" class="text-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -595,69 +543,102 @@ if ($application['application_status'] !== 'draft' && !empty($application['progr
                     $totalBridgingUnits = 0;
                     foreach ($bridging_requirements as $req): 
                         $totalBridgingUnits += (int)$req['units'];
-                        $priorityClass = ($req['priority'] == 1) ? 'danger' : (($req['priority'] == 2) ? 'warning' : 'secondary');
-                        $priorityText = ($req['priority'] == 1) ? 'HIGH PRIORITY' : (($req['priority'] == 2) ? 'MEDIUM' : 'LOW');
+                        
+                        // Priority badge
+                        if ($req['priority'] == 1) {
+                            $priorityClass = 'danger';
+                            $priorityText = 'HIGH';
+                        } elseif ($req['priority'] == 2) {
+                            $priorityClass = 'warning';
+                            $priorityText = 'MEDIUM';
+                        } else {
+                            $priorityClass = 'secondary';
+                            $priorityText = 'LOW';
+                        }
                     ?>
                     <tr>
                         <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
-                        <td><span class="badge bg-light text-dark"><?php echo htmlspecialchars($req['subject_code']); ?></span></td>
-                        <td class="text-center">
-                            <span class="badge bg-info"><?php echo (int)$req['units']; ?> units</span>
+                        <td>
+                            <span class="badge bg-light text-dark">
+                                <?php echo htmlspecialchars($req['subject_code']); ?>
+                            </span>
                         </td>
                         <td class="text-center">
-                            <span class="badge bg-<?php echo $priorityClass; ?>"><?php echo $priorityText; ?></span>
+                            <span class="badge bg-info"><?php echo (int)$req['units']; ?></span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-<?php echo $priorityClass; ?>">
+                                <?php echo $priorityText; ?>
+                            </span>
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-warning text-dark">Required</span>
                         </td>
                     </tr>
                     <?php endforeach; ?>
-                    <tr style="background-color: #f8f9fa;">
-                        <td colspan="2" class="text-end fw-bold">Total Bridging Units Required:</td>
-                        <td class="text-center fw-bold">
-                            <span class="badge bg-primary"><?php echo $totalBridgingUnits; ?> units</span>
+                    
+                    <!-- Total row -->
+                    <tr style="background-color: #f8f9fa; font-weight: bold;">
+                        <td colspan="2" class="text-end">Total Bridging Units:</td>
+                        <td class="text-center">
+                            <span class="badge bg-primary"><?php echo $totalBridgingUnits; ?></span>
                         </td>
-                        <td></td>
+                        <td colspan="2"></td>
                     </tr>
                 </tbody>
             </table>
         </div>
         
         <div class="alert alert-info mt-3 small mb-0">
-            <i class="fas fa-info-circle me-1"></i>
-            <strong>Important:</strong> You must complete all required bridging courses to fulfill your degree requirements. 
-            High priority subjects should be enrolled in first. 
-            <strong>Estimated completion:</strong> <?php 
-            echo $totalBridgingUnits <= 12 ? '1 semester' : ($totalBridgingUnits <= 24 ? '2 semesters' : '2-3 semesters'); 
-            ?>.
+            <i class="fas fa-lightbulb me-1"></i>
+            <strong>Next Steps:</strong> Enroll in HIGH priority subjects first. 
+            Estimated time to complete: <strong><?php 
+                if ($totalBridgingUnits <= 12) echo '1 semester';
+                elseif ($totalBridgingUnits <= 24) echo '2 semesters';
+                else echo '2-3 semesters';
+            ?></strong>.
         </div>
+    </div>
+    <?php else: ?>
+    <!-- No bridging required -->
+    <div class="alert alert-success mb-4">
+        <i class="fas fa-check-circle me-2"></i>
+        <strong>Congratulations!</strong> No bridging courses required. All curriculum subjects have been credited.
     </div>
     <?php endif; ?>
     
-    <!-- Summary Statistics -->
-    <div class="mt-4 p-3 rounded" style="background: linear-gradient(135deg, #e8f5e9, #f1f8e9); border-left: 4px solid #4caf50;">
+    <!-- SUMMARY STATISTICS -->
+    <div class="mt-4 p-3 rounded" style="background: linear-gradient(135deg, #e3f2fd, #f3e5f5); border-left: 4px solid #2196f3;">
         <div class="row text-center">
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="fw-bold text-success h4 mb-1"><?php echo $creditedCount; ?></div>
-                <small class="text-muted">Subjects Credited</small>
+                <small class="text-muted">Credited</small>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <div class="fw-bold text-warning h4 mb-1"><?php echo count($bridging_requirements); ?></div>
-                <small class="text-muted">Subjects Required</small>
+                <small class="text-muted">Required</small>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+                <div class="fw-bold text-secondary h4 mb-1"><?php echo count($curriculumSubjects); ?></div>
+                <small class="text-muted">Total Subjects</small>
+            </div>
+            <div class="col-md-3">
                 <div class="fw-bold text-primary h4 mb-1">
                     <?php 
-                    $totalSubjects = count($curriculumSubjects);
-                    $completionRate = $totalSubjects > 0 ? round(($creditedCount / $totalSubjects) * 100, 1) : 0;
+                    $completionRate = count($curriculumSubjects) > 0 
+                        ? round(($creditedCount / count($curriculumSubjects)) * 100, 1) 
+                        : 0;
                     echo $completionRate; 
                     ?>%
                 </div>
-                <small class="text-muted">Completion Rate</small>
+                <small class="text-muted">Complete</small>
             </div>
         </div>
     </div>
 </div>
 <?php 
-    endif; // end curriculum subjects check
-endif; // end draft status check
+    endif; // curriculum subjects exist
+endif; // not draft
 ?>
 
                 <!-- Uploaded Documents -->

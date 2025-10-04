@@ -544,8 +544,8 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     
     if (!empty($curriculumSubjects)) {
         $totalSubjects = count($curriculumSubjects);
-        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
-        $requiredSubjects = count($bridgingSubjectNames);
+$creditedSubjects = isset($passedSubjects['passed']) ? count($passedSubjects['passed']) : 0;
+$requiredSubjects = count($bridgingSubjectNames);
         
         $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
         $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";

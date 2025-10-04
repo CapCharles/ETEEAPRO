@@ -422,52 +422,79 @@ if ($application) {
 <?php 
 // Only show if evaluated and has a program
 
-  if (in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified']) && !empty($application['program_id'])):
+    if (in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified']) && !empty($application['program_code'])):
     
-    // Get ALL curriculum subjects from subjects table
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name, subject_code, units 
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY subject_code
-        ");
-        $stmt->execute([$application['program_id']]);
-        $curriculumSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Helper function to get passed subjects (copy from evaluate.php)
+    function getPassedSubjects($documents, $programCode) {
+        $curriculum = [];
         
-    } catch (PDOException $e) {
-        $curriculumSubjects = [];
-    }
-    
-    // Get bridging requirements from database
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name, subject_code, units, priority 
-            FROM bridging_requirements 
-            WHERE application_id = ? 
-            ORDER BY priority ASC, subject_name ASC
-        ");
-        $stmt->execute([$application['id']]);
-        $bridgingRequirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
-        // Create array of bridging subject names for easy lookup
-        $bridgingSubjectNames = array_column($bridgingRequirements, 'subject_name');
-        
-    } catch (PDOException $e) {
-        $bridgingRequirements = [];
-        $bridgingSubjectNames = [];
-    }
-    
-    // Separate subjects into credited and required
-    $creditedSubjects = [];
-    foreach ($curriculumSubjects as $subject) {
-        if (!in_array($subject['subject_name'], $bridgingSubjectNames)) {
-            $creditedSubjects[] = $subject;
+        $PC = strtoupper($programCode);
+        if (strpos($PC, 'BSED') !== false) {
+            $curriculum = [
+                ['name' => 'Educational Psychology', 'keywords' => ['psychology', 'edpsy']],
+                ['name' => 'Foundations of Education 1', 'keywords' => ['foe1', 'foundations', 'education 1']],
+                ['name' => 'Foundations of Education 2', 'keywords' => ['foe2', 'foundations', 'education 2']],
+                ['name' => 'Principles and Methods of Teaching', 'keywords' => ['pmt', 'teaching methods', 'principles']],
+                ['name' => 'Educational Measurement and Evaluation', 'keywords' => ['measurement', 'evaluation', 'eme']],
+                ['name' => 'Prep. And Utilization of Instr\'l Materials', 'keywords' => ['instructional materials', 'puim']],
+                ['name' => 'Teaching Strategies for the Major Fields', 'keywords' => ['teaching strategies', 'tsmf']],
+                ['name' => 'Guidance and Counseling with SPED', 'keywords' => ['guidance', 'counseling', 'sped', 'gcs']],
+                ['name' => 'School Administration and Supervision', 'keywords' => ['administration', 'supervision', 'sas']],
+                ['name' => 'Observation and Participation', 'keywords' => ['observation', 'participation', 'op']],
+                ['name' => 'Introduction to Educational Research', 'keywords' => ['research', 'ier']],
+                ['name' => 'Professional Ethics', 'keywords' => ['ethics', 'pe']],
+                ['name' => 'Student Teaching', 'keywords' => ['student teaching', 'st', 'practicum']],
+                ['name' => 'Teaching Strategies 3', 'keywords' => ['strategies 3', 'ts3']],
+            ];
+        } elseif (strpos($PC, 'BEED') !== false) {
+            $curriculum = [
+                ['name' => 'Educational Psychology', 'keywords' => ['psychology', 'edpsy']],
+                ['name' => 'Foundations of Education 1', 'keywords' => ['foe1', 'foundations', 'education 1']],
+                ['name' => 'Foundations of Education 2', 'keywords' => ['foe2', 'foundations', 'education 2']],
+                ['name' => 'Principles and Methods of Teaching', 'keywords' => ['pmt', 'teaching methods', 'principles']],
+                ['name' => 'Educational Measurement and Evaluation', 'keywords' => ['measurement', 'evaluation', 'eme']],
+                ['name' => 'Prep. And Utilization of Instr\'l Materials', 'keywords' => ['instructional materials', 'puim']],
+                ['name' => 'Teaching Strategies for the Major Fields (BEEd)', 'keywords' => ['teaching strategies', 'tsmf', 'beed']],
+                ['name' => 'Guidance and Counseling with SPED', 'keywords' => ['guidance', 'counseling', 'sped', 'gcs']],
+                ['name' => 'School Administration and Supervision', 'keywords' => ['administration', 'supervision', 'sas']],
+                ['name' => 'Observation and Participation', 'keywords' => ['observation', 'participation', 'op']],
+                ['name' => 'Introduction to Educational Research', 'keywords' => ['research', 'ier']],
+                ['name' => 'Professional Ethics', 'keywords' => ['ethics', 'pe']],
+                ['name' => 'Student Teaching', 'keywords' => ['student teaching', 'st', 'practicum']],
+                ['name' => 'Teaching Strategies 2', 'keywords' => ['strategies 2', 'ts2']],
+            ];
         }
+        
+        $passed = [];
+        foreach ($curriculum as $subject) {
+            foreach ($documents as $doc) {
+                $filename = strtolower($doc['original_filename']);
+                $desc = strtolower($doc['description'] ?? '');
+                
+                foreach ($subject['keywords'] as $keyword) {
+                    if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
+                        $evidence = [];
+                        if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
+                            $evidence[] = 'TOR';
+                        }
+                        if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
+                            $evidence[] = 'Certificate';
+                        }
+                        if (strpos($filename, 'diploma') !== false) {
+                            $evidence[] = 'Diploma';
+                        }
+                        if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
+                        
+                        $passed[$subject['name']] = implode(', ', $evidence);
+                        break 2;
+                    }
+                }
+            }
+        }
+        
+        return ['curriculum' => $curriculum, 'passed' => $passed];
     }
     
-    if (!empty($curriculumSubjects)):
-        
     // Get curriculum status
     $curriculumStatus = getPassedSubjects($documents, $application['program_code']);
     $curriculumSubjects = $curriculumStatus['curriculum'];

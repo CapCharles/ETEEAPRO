@@ -957,11 +957,10 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
 
 
             // kung walang doc, force 0 at lagyan ng note
-          if (empty($documentsForThisCriteria)) {
-    $comments = "No supporting documents uploaded for this criteria.";
-} else {
-    // Normal evaluation logic
-}
+            if (!$hasCriteriaDocs) {
+                $score    = 0;
+                $comments = "No supporting documents uploaded for this criteria. " . $comments;
+            }
 
             // clamp sa [0, max]
             if ($score < 0) $score = 0;

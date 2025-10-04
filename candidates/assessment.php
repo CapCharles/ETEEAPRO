@@ -27,6 +27,49 @@ try {
         ");
         $stmt->execute([$application_id, $user_id]);
         $application = $stmt->fetch();
+        // ===== Curriculum Status Data =====
+
+// Kunin required (bridging) subjects para sa application
+$reqStmt = $pdo->prepare("
+    SELECT subject_name AS subject, subject_code AS code, units
+    FROM bridging_requirements
+    WHERE application_id = ?
+    ORDER BY priority ASC, subject_name ASC
+");
+$reqStmt->execute([$application_id]);
+$requiredSubjects = $reqStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Kunin ang buong curriculum list gaya ng evaluate.php
+// (gamitin mo yung same function/include kung meron ka)
+if (!isset($curriculumSubjects) || !is_array($curriculumSubjects)) {
+    $curriculumSubjects = [];
+}
+
+// Gawing mabilis ang lookup ng required subjects
+$requiredMap = [];
+foreach ($requiredSubjects as $r) {
+    $requiredMap[mb_strtolower(trim($r['subject']))] = $r;
+}
+
+// Hiwalayin sa Passed at Required
+$passedSubjects = [];
+$finalRequired = [];
+
+foreach ($curriculumSubjects as $row) {
+    $name  = $row['subject'] ?? ($row['criteria_name'] ?? '');
+    $code  = $row['code']    ?? ($row['subject_code'] ?? '');
+    $units = (int)($row['units'] ?? 0);
+
+    if ($name === '') continue;
+    $lk = mb_strtolower(trim($name));
+
+    if (isset($requiredMap[$lk])) {
+        $finalRequired[] = ['subject'=>$name,'code'=>$code,'units'=>$units];
+    } else {
+        $passedSubjects[] = ['subject'=>$name,'code'=>$code,'units'=>$units];
+    }
+}
+
         
         if (!$application) {
             header('Location: assessment.php');
@@ -419,6 +462,49 @@ if ($application) {
                 </div>
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
+<!-- ===== Curriculum Status ===== -->
+<div class="card mb-4 mt-3">
+  <div class="card-header fw-semibold">
+    <i class="fas fa-clipboard-check me-2"></i> Curriculum Status
+  </div>
+  <div class="card-body">
+
+    <!-- Passed Subjects -->
+    <h5>✅ Passed Subjects</h5>
+    <?php if (!empty($passedSubjects)): ?>
+      <ul class="list-group mb-3">
+        <?php foreach ($passedSubjects as $sub): ?>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <?= htmlspecialchars($sub['subject']) ?>
+            <span class="badge bg-success">
+              <?= (int)$sub['units'] ?> units
+            </span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    <?php else: ?>
+      <p>No passed subjects.</p>
+    <?php endif; ?>
+
+    <!-- Required Subjects -->
+    <h5>📌 Required / Bridging Subjects</h5>
+    <?php if (!empty($finalRequired)): ?>
+      <ul class="list-group">
+        <?php foreach ($finalRequired as $sub): ?>
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <?= htmlspecialchars($sub['subject']) ?>
+            <span class="badge bg-warning text-dark">
+              <?= (int)$sub['units'] ?> units
+            </span>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+    <?php else: ?>
+      <p>No required subjects.</p>
+    <?php endif; ?>
+
+  </div>
+</div>
 
 
                 <!-- Uploaded Documents -->

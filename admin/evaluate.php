@@ -1089,6 +1089,23 @@ $hasDocs = false;
 $docCounts = [];
 $predefined_subjects = []; // Initialize empty
 
+
+$saved_passed_subjects = [];
+if ($current_application) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT subject_name, evidence_comment 
+            FROM passed_subjects 
+            WHERE application_id = ?
+        ");
+        $stmt->execute([$application_id]);
+        while ($row = $stmt->fetch()) {
+            $saved_passed_subjects[$row['subject_name']] = $row['evidence_comment'];
+        }
+    } catch (PDOException $e) {
+        $saved_passed_subjects = [];
+    }
+}
 if ($application_id) {
     try {
         // 1. GET APPLICATION DETAILS FIRST

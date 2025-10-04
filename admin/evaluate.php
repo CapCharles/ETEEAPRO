@@ -447,9 +447,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
             break;
     }
     
-    $recommendations[] = "";
-    $recommendations[] = "---";
-    $recommendations[] = "**SUMMARY OF CREDITS**";
+
     
     if (!empty($curriculumSubjects)) {
         $totalSubjects = count($curriculumSubjects);

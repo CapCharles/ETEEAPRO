@@ -419,11 +419,38 @@ if ($application) {
                 </div>
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
+<!-- Curriculum Status Breakdown -->
 <?php 
+// DEBUG: Let's see what's happening
+echo "<!-- DEBUG INFO:";
+echo "\nApplication Status: " . ($application['application_status'] ?? 'NULL');
+echo "\nProgram ID: " . ($application['program_id'] ?? 'NULL');
+echo "\nStatus Check: " . (in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified']) ? 'PASS' : 'FAIL');
+echo "\nProgram ID Check: " . (!empty($application['program_id']) ? 'PASS' : 'FAIL');
+echo "\n-->";
+
 // Only show if evaluated and has a program
 if (in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified']) && !empty($application['program_id'])):
     
-    // Helper function to get passed subjects from documents
+    // Fetch curriculum subjects from database
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM program_subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level ASC, semester ASC, subject_name ASC
+        ");
+        $stmt->execute([$application['program_id']]);
+        $curriculumSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // DEBUG: Check if we got subjects
+        echo "<!-- DEBUG: Found " . count($curriculumSubjects) . " subjects in database -->";
+        
+    } catch (PDOException $e) {
+        echo "<!-- DEBUG ERROR: " . $e->getMessage() . " -->";
+        $curriculumSubjects = [];
+    }
+    
+    // Helper function (same as before)
     function getPassedSubjectsFromDB($documents, $curriculum) {
         $passed = [];
         
@@ -431,13 +458,11 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
             $subjectName = strtolower($subject['subject_name']);
             $subjectCode = strtolower($subject['subject_code']);
             
-            // Generate keywords from subject name and code
             $keywords = array_filter([
                 $subjectCode,
                 $subjectName,
-                // Break subject name into words for better matching
                 ...array_filter(explode(' ', $subjectName), function($word) {
-                    return strlen($word) > 3; // Only use words longer than 3 chars
+                    return strlen($word) > 3;
                 })
             ]);
             
@@ -447,10 +472,9 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
                 
                 foreach ($keywords as $keyword) {
                     $keyword = trim($keyword);
-                    if (strlen($keyword) < 3) continue; // Skip very short keywords
+                    if (strlen($keyword) < 3) continue;
                     
                     if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
-                        // Determine evidence type
                         $evidence = [];
                         if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
                             $evidence[] = 'TOR';
@@ -475,20 +499,6 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
         return $passed;
     }
     
-    // Fetch curriculum subjects from database
-    try {
-        $stmt = $pdo->prepare("
-            SELECT * FROM program_subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level ASC, semester ASC, subject_name ASC
-        ");
-        $stmt->execute([$application['program_id']]);
-        $curriculumSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        $curriculumSubjects = [];
-    }
-    
-    // Get passed subjects based on documents
     $passedSubjects = getPassedSubjectsFromDB($documents, $curriculumSubjects);
     
     // Get bridging requirements
@@ -509,16 +519,15 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
     
     // Only display if we have curriculum data
     if (!empty($curriculumSubjects)):
+        echo "<!-- DEBUG: Showing curriculum section -->";
 ?>
-
-
 <div class="assessment-card p-4 mb-4">
     <h5 class="mb-4">
         <i class="fas fa-graduation-cap me-2"></i>
         Your Curriculum Status for <?php echo htmlspecialchars($application['program_code']); ?>
     </h5>
     
-    <!-- Passed/Credited Subjects -->
+    <!-- Rest of the curriculum display code stays the same -->
     <div class="mb-4">
         <h6 class="text-success mb-3">
             <i class="fas fa-check-circle me-2"></i>
@@ -581,7 +590,7 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
         </div>
     </div>
     
-    <!-- Required Bridging Subjects -->
+    <!-- Bridging requirements section stays the same -->
     <?php if (!empty($bridging_requirements)): ?>
     <div class="mb-4">
         <h6 class="text-warning mb-3">
@@ -668,8 +677,12 @@ if (in_array($application['application_status'], ['qualified', 'partially_qualif
     </div>
 </div>
 <?php 
-    endif; // end curriculum subjects check
-endif; // end status check
+    else:
+        echo "<!-- DEBUG: No curriculum subjects found, section hidden -->";
+    endif;
+else:
+    echo "<!-- DEBUG: Application status or program_id condition failed -->";
+endif;
 ?>
 
                 <!-- Uploaded Documents -->

@@ -233,6 +233,29 @@ function getPassedSubjects($documents, $programCode) {
 }
 
 
+function savePassedSubjects($pdo, $applicationId, $passedSubjects, $userId) {
+    try {
+        // Clear existing passed subjects for this application
+        $stmt = $pdo->prepare("DELETE FROM passed_subjects WHERE application_id = ?");
+        $stmt->execute([$applicationId]);
+        
+        // Insert new passed subjects
+        $stmt = $pdo->prepare("
+            INSERT INTO passed_subjects (application_id, subject_name, evidence_comment, passed_by)
+            VALUES (?, ?, ?, ?)
+        ");
+        
+        foreach ($passedSubjects as $subjectName => $evidence) {
+            $stmt->execute([$applicationId, $subjectName, $evidence, $userId]);
+        }
+        
+        return true;
+    } catch (PDOException $e) {
+        error_log("Error saving passed subjects: " . $e->getMessage());
+        return false;
+    }
+}
+
 
 // Add this function near the top of your evaluate.php file, after the predefined_subjects array
 function getFilteredSubjects($programCode, $predefined_subjects) {
@@ -1011,11 +1034,6 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
-// Get curriculum and passed subjects
-$curriculumStatus = getPassedSubjects($documents, $programCode);
-$curriculumSubjects = $curriculumStatus['curriculum'];
-$passedSubjects = $curriculumStatus['passed'];
-
        $auto_recommendation = generateEnhancedRecommendation(
     $final_score, 
     $programCode, 
@@ -1028,9 +1046,7 @@ $passedSubjects = $curriculumStatus['passed'];
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
             : $auto_recommendation;
 
-
-
-        // Update application
+            // Update application
         $stmt = $pdo->prepare("
             UPDATE applications 
                SET application_status = ?, total_score = ?, recommendation = ?, 
@@ -1039,7 +1055,14 @@ $passedSubjects = $curriculumStatus['passed'];
         ");
         $stmt->execute([$final_status, $final_score, $full_recommendation, $user_id, $app_id]);
 
+        // ✅ ADD THIS: Save passed subjects to database
+        $curriculumStatus = getPassedSubjects($documents, $programCode);
+        $passedSubjects = $curriculumStatus['passed'];
+        savePassedSubjects($pdo, $app_id, $passedSubjects, $user_id);
+
         $pdo->commit();
+
+
 
         $bridgingUnits = calculateBridgingUnits($final_score);
         $success_message = "Evaluation completed! Final Score: {$final_score}% | Status: " . ucfirst($final_status);

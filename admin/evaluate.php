@@ -1,6 +1,7 @@
 <?php
 session_start();
-
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 // top of evaluate.php
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
 

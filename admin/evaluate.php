@@ -992,6 +992,33 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
             $final_status = $manual_override;
         }
 
+           $curriculumStatus = getPassedSubjects($documents, $programCode);
+        $passedSubjects = $curriculumStatus['passed'];
+        
+        // Clear existing credited subjects for this application
+        $stmt = $pdo->prepare("DELETE FROM credited_subjects WHERE application_id = ?");
+        $stmt->execute([$app_id]);
+        
+        // Save each passed subject
+        foreach ($passedSubjects as $subjectName => $evidence) {
+            // Find matching document
+            $docId = null;
+            foreach ($documents as $doc) {
+                if (stripos($doc['original_filename'], strtolower($subjectName)) !== false ||
+                    stripos($doc['description'] ?? '', strtolower($subjectName)) !== false) {
+                    $docId = $doc['id'];
+                    break;
+                }
+            }
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO credited_subjects (application_id, subject_name, evidence_type, document_id)
+                VALUES (?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE evidence_type = VALUES(evidence_type), document_id = VALUES(document_id)
+            ");
+            $stmt->execute([$app_id, $subjectName, $evidence, $docId]);
+        }
+
         // Program code para sa rekomendasyon
         $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
         $stmt->execute([$app_id]);

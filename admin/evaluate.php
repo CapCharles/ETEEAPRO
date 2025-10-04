@@ -241,7 +241,6 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-
 function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = []) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
@@ -2081,9 +2080,10 @@ if ($hasCriteriaDocs) {
     </div>
     
     <div class="mt-4">
-          <button type="submit" name="submit_evaluation" value="1" class="btn btn-primary">
-      <i class="fas fa-save me-1"></i> Save & Compute
-    </button>
+        <button type="submit" name="submit_evaluation" class="btn btn-success btn-lg">
+            <i class="fas fa-brain me-2"></i>
+            Submit Smart Evaluation
+        </button>
         <a href="evaluate.php" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
     </div>
 

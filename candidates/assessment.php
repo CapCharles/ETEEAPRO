@@ -483,182 +483,210 @@ if ($application) {
                             
 <!-- Curriculum Breakdown: Credited & Bridging -->
 <?php if (!empty($credited_subjects) || !empty($bridging_requirements)): ?>
+<!-- ========== START: TWO-TABLE CURRICULUM DISPLAY ========== -->
 <div class="row g-4 mb-4">
-    <!-- Credited Subjects -->
+    <!-- LEFT: Credited/Passed Subjects -->
     <div class="col-lg-6">
-        <div class="assessment-card p-4">
-            <h5 class="mb-3">
+        <div class="p-4 rounded border" style="background: linear-gradient(135deg, #e8f5e9, #f1f8e9);">
+            <h6 class="mb-3">
                 <i class="fas fa-check-circle me-2 text-success"></i>
-                Credited Subjects
-                <span class="badge bg-success ms-2"><?php echo count($credited_subjects); ?></span>
-            </h5>
+                Passed Subjects (Credited)
+                <span class="badge bg-success ms-2" id="passedCount">0</span>
+            </h6>
             
-            <?php if (empty($credited_subjects)): ?>
-                <div class="text-center py-4 text-muted">
-                    <i class="fas fa-info-circle fa-2x mb-3"></i>
-                    <p>No credited subjects yet. Complete your evaluation to see results.</p>
-                </div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Subject</th>
-                                <th class="text-center">Units</th>
-                                <th>Evidence</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($credited_subjects as $subject): ?>
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($subject['subject_name']); ?></div>
-                                    <?php if (!empty($subject['subject_code'])): ?>
-                                        <small class="text-muted"><?php echo htmlspecialchars($subject['subject_code']); ?></small>
-                                    <?php endif; ?>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover mb-0" id="passedSubjectsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 25%;">Subject Code</th>
+                            <th style="width: 50%;">Subject Name</th>
+                            <th style="width: 25%;">Evidence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="passedSubjectsBody">
+                        <?php 
+                        // Get passed subjects from existing logic
+                        $curriculumStatus = getPassedSubjects($documents, $current_application['program_code']);
+                        $curriculumSubjects = $curriculumStatus['curriculum'];
+                        $passedSubjects = $curriculumStatus['passed'];
+                        
+                        // Filter out subjects that are in bridging requirements
+                        $bridgingSubjectNames = array_column($bridging_requirements, 'subject_name');
+                        $displayPassedSubjects = [];
+                        
+                        foreach ($curriculumSubjects as $subject) {
+                            if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                                $displayPassedSubjects[] = $subject;
+                            }
+                        }
+                        
+                        if (empty($displayPassedSubjects)): 
+                        ?>
+                        <tr>
+                            <td colspan="3" class="text-center text-muted py-3">
+                                <i class="fas fa-info-circle me-1"></i>
+                                No subjects credited yet.
+                            </td>
+                        </tr>
+                        <?php else: ?>
+                            <?php foreach ($displayPassedSubjects as $subject): ?>
+                            <tr data-subject="<?php echo htmlspecialchars($subject['name']); ?>">
+                                <td class="small">
+                                    <?php 
+                                    // Try to get subject code from subjects table
+                                    $subjectCode = '';
+                                    try {
+                                        $stmt = $pdo->prepare("SELECT subject_code FROM subjects WHERE subject_name = ? AND program_id = ? AND status = 'active' LIMIT 1");
+                                        $stmt->execute([$subject['name'], $current_application['program_id']]);
+                                        $codeResult = $stmt->fetch(PDO::FETCH_ASSOC);
+                                        $subjectCode = $codeResult ? $codeResult['subject_code'] : '—';
+                                    } catch (PDOException $e) {
+                                        $subjectCode = '—';
+                                    }
+                                    echo htmlspecialchars($subjectCode);
+                                    ?>
                                 </td>
-                                <td class="text-center">
-                                    <span class="badge bg-light text-dark"><?php echo (int)$subject['units']; ?></span>
+                                <td class="fw-semibold small">
+                                    <?php echo htmlspecialchars($subject['name']); ?>
                                 </td>
-                                <td>
-                                    <small class="text-success">
-                                        <i class="fas fa-certificate me-1"></i>
-                                        <?php echo htmlspecialchars($subject['evidence']); ?>
-                                    </small>
+                                <td class="small text-success">
+                                    <?php 
+                                    echo isset($passedSubjects[$subject['name']]) 
+                                        ? htmlspecialchars($passedSubjects[$subject['name']]) 
+                                        : 'ETEEAP Credit'; 
+                                    ?>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
-                        </tbody>
-                        <tfoot class="table-light">
-                            <tr>
-                                <td colspan="3" class="text-end">
-                                    <strong>Total Credited: 
-                                        <?php echo array_sum(array_column($credited_subjects, 'units')); ?> units
-                                    </strong>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                
-                <div class="alert alert-success small mb-0 mt-3">
-                    <i class="fas fa-info-circle me-1"></i>
-                    These subjects have been <strong>credited</strong> through your ETEEAP assessment and prior learning recognition.
-                </div>
-            <?php endif; ?>
+                        <?php endif; ?>
+                    </tbody>
+                    <?php if (!empty($displayPassedSubjects)): ?>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="3" class="text-end small fw-bold">
+                                Total Passed: <span id="passedSubjectsCount"><?php echo count($displayPassedSubjects); ?></span> subjects
+                            </td>
+                        </tr>
+                    </tfoot>
+                    <?php endif; ?>
+                </table>
+            </div>
+            
+            <div class="alert alert-success small mb-0 mt-3">
+                <i class="fas fa-info-circle me-1"></i>
+                These subjects have been <strong>credited</strong> through your ETEEAP assessment.
+            </div>
         </div>
     </div>
     
-    <!-- Required Bridging Courses -->
+    <!-- RIGHT: Required Bridging Subjects -->
     <div class="col-lg-6">
-        <div class="assessment-card p-4">
-            <h5 class="mb-3">
+        <div class="p-4 rounded border" style="background: linear-gradient(135deg, #fff3e0, #ffe0b2);">
+            <h6 class="mb-3">
                 <i class="fas fa-graduation-cap me-2 text-warning"></i>
-                Required Bridging Courses
-                <span class="badge bg-warning text-dark ms-2"><?php echo count($bridging_requirements); ?></span>
-            </h5>
+                Required Bridging Subjects
+                <span class="badge bg-warning text-dark ms-2" id="bridgingCount"><?php echo count($bridging_requirements); ?></span>
+            </h6>
             
-            <?php if (empty($bridging_requirements)): ?>
-                <div class="text-center py-4 text-muted">
-                    <i class="fas fa-info-circle fa-2x mb-3"></i>
-                    <p>No bridging requirements yet. Complete your evaluation to see results.</p>
-                </div>
-            <?php else: ?>
-                <div class="table-responsive">
-                    <table class="table table-hover table-sm">
-                        <thead class="table-light">
-                            <tr>
-                                <th>Subject</th>
-                                <th class="text-center">Units</th>
-                                <th class="text-center">Priority</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered table-hover mb-0" id="bridgingSubjectsTable">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width: 25%;">Subject Code</th>
+                            <th style="width: 50%;">Subject Name</th>
+                            <th style="width: 15%;" class="text-center">Units</th>
+                            <th style="width: 10%;" class="text-center">Priority</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bridgingSubjectsBody">
+                        <?php if (empty($bridging_requirements)): ?>
+                        <tr>
+                            <td colspan="4" class="text-center text-muted py-3">
+                                <i class="fas fa-info-circle me-1"></i>
+                                No bridging subjects required.
+                            </td>
+                        </tr>
+                        <?php else: ?>
                             <?php foreach ($bridging_requirements as $req): ?>
-                            <tr>
-                                <td>
-                                    <div class="fw-semibold"><?php echo htmlspecialchars($req['subject_name']); ?></div>
-                                    <?php if (!empty($req['subject_code'])): ?>
-                                        <small class="text-muted"><?php echo htmlspecialchars($req['subject_code']); ?></small>
-                                    <?php endif; ?>
+                            <tr data-subject="<?php echo htmlspecialchars($req['subject_name']); ?>">
+                                <td class="small">
+                                    <?php echo htmlspecialchars($req['subject_code'] ?? '—'); ?>
+                                </td>
+                                <td class="fw-semibold small">
+                                    <?php echo htmlspecialchars($req['subject_name']); ?>
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-light text-dark"><?php echo (int)$req['units']; ?></span>
+                                    <span class="badge bg-light text-dark">
+                                        <?php echo (int)$req['units']; ?>
+                                    </span>
                                 </td>
                                 <td class="text-center">
                                     <?php 
-                                    $priority = (int)$req['priority'];
+                                    $priority = (int)($req['priority'] ?? 2);
                                     $priorityClass = $priority === 1 ? 'danger' : ($priority === 2 ? 'warning' : 'secondary');
-                                    $priorityText = $priority === 1 ? 'HIGH' : ($priority === 2 ? 'MEDIUM' : 'LOW');
+                                    $priorityText = $priority === 1 ? 'HIGH' : ($priority === 2 ? 'MED' : 'LOW');
                                     ?>
-                                    <span class="badge bg-<?php echo $priorityClass; ?>"><?php echo $priorityText; ?></span>
+                                    <span class="badge bg-<?php echo $priorityClass; ?> small">
+                                        <?php echo $priorityText; ?>
+                                    </span>
                                 </td>
                             </tr>
                             <?php endforeach; ?>
-                        </tbody>
-                        <tfoot class="table-light">
-                            <tr>
-                                <td colspan="3" class="text-end">
-                                    <strong>Total Required: 
-                                        <?php echo array_sum(array_column($bridging_requirements, 'units')); ?> units
-                                    </strong>
-                                </td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-                
-                <div class="alert alert-warning small mb-0 mt-3">
-                    <i class="fas fa-exclamation-triangle me-1"></i>
-                    You must <strong>complete</strong> these bridging courses to fulfill your degree requirements.
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-<!-- Summary Statistics -->
-<?php if (!empty($credited_subjects) || !empty($bridging_requirements)): ?>
-<div class="assessment-card p-4 mb-4">
-    <h5 class="mb-3">
-        <i class="fas fa-chart-pie me-2"></i>
-        Curriculum Completion Summary
-    </h5>
-    
-    <?php 
-    $totalSubjects = count($all_program_subjects);
-    $creditedCount = count($credited_subjects);
-    $bridgingCount = count($bridging_requirements);
-    $completionRate = $totalSubjects > 0 ? round(($creditedCount / $totalSubjects) * 100, 1) : 0;
-    ?>
-    
-    <div class="row text-center g-4">
-        <div class="col-md-3">
-            <div class="h3 text-primary mb-1"><?php echo $totalSubjects; ?></div>
-            <div class="small text-muted">Total Subjects</div>
-        </div>
-        <div class="col-md-3">
-            <div class="h3 text-success mb-1"><?php echo $creditedCount; ?></div>
-            <div class="small text-muted">Credited</div>
-        </div>
-        <div class="col-md-3">
-            <div class="h3 text-warning mb-1"><?php echo $bridgingCount; ?></div>
-            <div class="small text-muted">Required</div>
-        </div>
-        <div class="col-md-3">
-            <div class="h3 text-info mb-1"><?php echo $completionRate; ?>%</div>
-            <div class="small text-muted">Completion Rate</div>
-        </div>
-    </div>
-    
-    <div class="mt-3">
-        <div class="progress" style="height: 25px;">
-            <div class="progress-bar bg-success" style="width: <?php echo $completionRate; ?>%">
-                <?php echo $completionRate; ?>% Complete
+                        <?php endif; ?>
+                    </tbody>
+                    <?php if (!empty($bridging_requirements)): ?>
+                    <tfoot class="table-light">
+                        <tr>
+                            <td colspan="4" class="text-end small fw-bold">
+                                Total Required: <?php echo array_sum(array_column($bridging_requirements, 'units')); ?> units 
+                                (<?php echo count($bridging_requirements); ?> subjects)
+                            </td>
+                        </tr>
+                    </tfoot>
+                    <?php endif; ?>
+                </table>
+            </div>
+            
+            <div class="alert alert-warning small mb-0 mt-3">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                These subjects must be <strong>completed</strong> as bridging courses.
             </div>
         </div>
     </div>
 </div>
+
+<!-- Summary Statistics Row -->
+<?php if (!empty($displayPassedSubjects) || !empty($bridging_requirements)): ?>
+<div class="assessment-card p-3 mb-3">
+    <div class="row text-center g-3">
+        <div class="col-md-3">
+            <div class="h5 text-primary mb-0"><?php echo count($curriculumSubjects); ?></div>
+            <div class="small text-muted">Total Subjects</div>
+        </div>
+        <div class="col-md-3">
+            <div class="h5 text-success mb-0"><?php echo count($displayPassedSubjects); ?></div>
+            <div class="small text-muted">Credited</div>
+        </div>
+        <div class="col-md-3">
+            <div class="h5 text-warning mb-0"><?php echo count($bridging_requirements); ?></div>
+            <div class="small text-muted">Required</div>
+        </div>
+        <div class="col-md-3">
+            <div class="h5 text-info mb-0">
+                <?php 
+                $completionRate = count($curriculumSubjects) > 0 
+                    ? round((count($displayPassedSubjects) / count($curriculumSubjects)) * 100, 1) 
+                    : 0;
+                echo $completionRate; 
+                ?>%
+            </div>
+            <div class="small text-muted">Completion Rate</div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+<!-- ========== END: TWO-TABLE CURRICULUM DISPLAY ========== -->
+  
 <?php endif; ?>
 <?php endif; ?>
                 <!-- Uploaded Documents -->
@@ -816,6 +844,71 @@ if ($application) {
             location.reload();
         }, 30000);
         <?php endif; ?>
+
+        function updateCurriculumStatus() {
+    const scoreText = document.getElementById('currentLiveScore')?.textContent;
+    let score = parseFloat(scoreText || '0');
+    
+    // Get all current bridging subjects from the form
+    const bridgingSubjects = [];
+    document.querySelectorAll('.bridging-subject-item').forEach(row => {
+        const selectElement = row.querySelector('select.subject-selector');
+        const customInput = row.querySelector('input[name*="[custom_name]"]');
+        
+        let subjectName = '';
+        if (selectElement.value === 'custom') {
+            subjectName = customInput.value.trim();
+        } else {
+            subjectName = selectElement.value;
+        }
+        
+        if (subjectName) {
+            bridgingSubjects.push(subjectName);
+        }
+    });
+    
+    // Update Passed Subjects Table
+    const passedBody = document.getElementById('passedSubjectsBody');
+    const passedCount = document.getElementById('passedCount');
+    const passedSubjectsCount = document.getElementById('passedSubjectsCount');
+    
+    if (passedBody) {
+        let passedRowCount = 0;
+        const passedRows = passedBody.querySelectorAll('tr[data-subject]');
+        
+        passedRows.forEach(row => {
+            const subjectName = row.getAttribute('data-subject');
+            
+            if (score < 60) {
+                // Below 60% = hide from passed, will appear in required
+                row.style.display = 'none';
+            } else if (bridgingSubjects.includes(subjectName)) {
+                // In bridging list = hide from passed
+                row.style.display = 'none';
+            } else {
+                // Passed = show
+                row.style.display = '';
+                passedRowCount++;
+            }
+        });
+        
+        // Update passed count badges
+        if (passedCount) passedCount.textContent = passedRowCount;
+        if (passedSubjectsCount) passedSubjectsCount.textContent = passedRowCount;
+        
+        // Show/hide "no subjects" message
+        const noPassedMsg = passedBody.querySelector('td[colspan="3"]');
+        if (noPassedMsg) {
+            noPassedMsg.closest('tr').style.display = passedRowCount > 0 ? 'none' : '';
+        }
+    }
+    
+    // Update Bridging Subjects Count Badge
+    const bridgingCount = document.getElementById('bridgingCount');
+    if (bridgingCount) {
+        bridgingCount.textContent = bridgingSubjects.length;
+    }
+}
     </script>
 </body>
 </html>

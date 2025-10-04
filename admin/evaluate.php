@@ -1,7 +1,6 @@
 <?php
 session_start();
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+
 // top of evaluate.php
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
 
@@ -2143,73 +2142,38 @@ if ($hasCriteriaDocs) {
 const subjectData = <?php echo json_encode($predefined_subjects); ?>;
 
 // Simple: Just pick subjects from database until we reach required units
-<?php
-$reqUnits = 0;
-if ($application_id && !empty($current_application)) {
-    $currentScore = (float)($current_application['total_score'] ?? 0);
-    if ($currentScore >= 60) {
-        $reqUnits = calculateBridgingUnits($currentScore);
-    }
-}
-
-function getSubjectRecommendations($programCode, $requiredUnits) {
-    global $pdo, $current_application;
-    
-    if (!$current_application || empty($current_application['program_id'])) {
-        return ['subjects' => [], 'totalUnits' => 0, 'remaining_units' => $requiredUnits];
+function getSubjectRecommendations(programCode, requiredUnits) {
+    if (!subjectData || subjectData.length === 0) {
+        return { subjects: [], totalUnits: 0, remaining: requiredUnits };
     }
     
-    // Get subjects from database
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name as name, subject_code as code, units
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level DESC, semester DESC, subject_name
-        ");
-        $stmt->execute([$current_application['program_id']]);
-        $dbSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    let selectedSubjects = [];
+    let totalUnits = 0;
+    
+    // Add subjects until we're close
+    for (let subject of subjectData) {
+        const units = parseInt(subject.units) || 3;
         
-    } catch (PDOException $e) {
-        error_log("Error fetching subjects: " . $e->getMessage());
-        return ['subjects' => [], 'totalUnits' => 0, 'remaining_units' => $requiredUnits];
-    }
-    
-    if (empty($dbSubjects)) {
-        return ['subjects' => [], 'totalUnits' => 0, 'remaining_units' => $requiredUnits];
-    }
-    
-    $selectedSubjects = [];
-    $totalUnits = 0;
-    
-    // Add subjects until we reach required units
-    foreach ($dbSubjects as $subject) {
-        $units = (int)($subject['units'] ?? 3);
-        
-        if ($totalUnits + $units <= $requiredUnits) {
-            $selectedSubjects[] = [
-                'name' => $subject['name'],
-                'code' => $subject['code'],
-                'units' => $units,
-                'priority' => 1
-            ];
-            $totalUnits += $units;
+        if (totalUnits + units <= requiredUnits) {
+            selectedSubjects.push({
+                name: subject.name,
+                code: subject.code,
+                units: units,
+                priority: 1
+            });
+            totalUnits += units;
         }
         
-        if ($totalUnits >= $requiredUnits) {
-            break;
-        }
+        if (totalUnits === requiredUnits) break;
     }
     
-    // Handle remaining units
-    $remaining = $requiredUnits - $totalUnits;
-    if ($remaining > 0 && count($selectedSubjects) > 0 && $remaining <= 3) {
-        // Add remaining to last subject
-        $selectedSubjects[count($selectedSubjects) - 1]['units'] += $remaining;
-        $totalUnits = $requiredUnits;
-        $remaining = 0;
-    }
-    else if (remaining > 0) {
+    // If there's a small gap remaining, adjust the last subject or add a flexible one
+    const remaining = requiredUnits - totalUnits;
+    if (remaining > 0 && remaining <= 3 && selectedSubjects.length > 0) {
+        // Add the remaining units to the last subject
+        selectedSubjects[selectedSubjects.length - 1].units += remaining;
+        totalUnits = requiredUnits;
+    } else if (remaining > 0) {
         // Add more subjects to fill the gap
         let index = 0;
         while (totalUnits < requiredUnits && index < subjectData.length) {
@@ -2232,15 +2196,13 @@ function getSubjectRecommendations($programCode, $requiredUnits) {
         }
     }
     
-    return [
-        'subjects' => $selectedSubjects,
-        'totalUnits' => $totalUnits,
-        'remaining_units' => max(0, $remaining)
-    ];
+    return { 
+        subjects: selectedSubjects, 
+        totalUnits: totalUnits,
+        remaining: 0 // Should always be 0 now
+    };
 }
         
-
-
   function calculateBridgingUnits(score) {
     if (score >= 95) return 3;
     if (score >= 91) return 6;

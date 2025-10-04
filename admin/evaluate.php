@@ -247,7 +247,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     $bridgingUnits = calculateBridgingUnits($score);
     
     // Get bridging subjects from DATABASE
-    $subjectPlan = ['subjects' => [], 'total_units' => 0, 'remaining_units' => 0];
+    $subjectPlan = ['subjects' => 0, 'total_units' => 0, 'remaining_units' => 0];
     
     if ($bridgingUnits > 0 && !empty($current_application['program_id'])) {
         try {

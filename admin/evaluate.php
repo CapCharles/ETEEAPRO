@@ -241,7 +241,7 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null, $creditedSubjects = []) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);

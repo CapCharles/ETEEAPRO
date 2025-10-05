@@ -178,6 +178,7 @@ if (!empty($documents) && !empty($curriculum_subjects)) {
             }
         }
     }
+}
 
 // Separate into credited and required
 $required_subject_names = array_column($bridging_requirements, 'subject_name');

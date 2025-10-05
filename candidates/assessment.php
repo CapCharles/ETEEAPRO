@@ -157,8 +157,9 @@ if ($application) {
         }
         
         // Separate passed and required subjects
-        $required_subject_names = array_column($bridging_requirements, 'subject_name');
-        // Get ALL passed subjects (those with evidence)
+$required_subject_names = array_column($bridging_requirements, 'subject_name');
+
+// Get ALL passed subjects (those with evidence)
 foreach ($curriculum_subjects as $subject) {
     if (isset($passed_subjects[$subject['name']])) {
         $credited_subjects[] = [

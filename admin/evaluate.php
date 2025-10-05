@@ -241,7 +241,7 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null, $creditedSubjects = []) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
@@ -314,7 +314,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: " . ( count($bridgingSubjectNames)) - count($passedSubjects) . " subjects"; 
+        $recommendations[] = "• Credited Subjects: " . count($credited_subjects) . " subjects";
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {

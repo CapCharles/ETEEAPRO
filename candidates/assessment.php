@@ -66,7 +66,6 @@ try {
 
 // Get assessment criteria and evaluations if application exists
 $criteria_evaluations = [];
-$hasEvaluation         = false;
 $documents = [];
 if ($application) {
     try {
@@ -94,7 +93,8 @@ if ($application) {
         $criteria_evaluations = [];
         $documents = [];
     }
-       $stmt = $pdo->prepare("
+    
+      $stmt = $pdo->prepare("
             SELECT * FROM bridging_requirements
             WHERE application_id = ?
             ORDER BY priority ASC, subject_name ASC
@@ -147,7 +147,7 @@ if ($application) {
                     }
                 }
             }
-        
+        }
         
         // Separate passed and required subjects
         $required_subject_names = array_column($bridging_requirements, 'subject_name');
@@ -183,7 +183,7 @@ if ($application) {
         $credited_subjects = [];
         $required_subjects_full = [];
     }
-}
+
 
 
 
@@ -510,7 +510,7 @@ if ($application) {
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
 <!-- Curriculum Status Breakdown -->
- <?php if ($hasEvaluation): ?>
+<?php if (!empty($credited_subjects) || !empty($required_subjects_full)): ?>
 <div class="assessment-card p-4 mb-4">
     <h5 class="mb-4">
         <i class="fas fa-list-check me-2"></i>
@@ -647,7 +647,6 @@ if ($application) {
     <?php endif; ?>
 </div>
 <?php endif; ?>
-
 
                 <!-- Uploaded Documents -->
                 <div class="assessment-card p-4">

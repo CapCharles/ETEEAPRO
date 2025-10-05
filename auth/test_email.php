@@ -1,4 +1,3 @@
-// test_email.php - Place in your auth/ folder
 <?php
 require_once '../includes/email_notifications.php';
 

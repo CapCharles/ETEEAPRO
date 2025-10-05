@@ -146,7 +146,7 @@ if ($application) {
                     }
                 }
             }
-        }
+        
         
         // Separate passed and required subjects
         $required_subject_names = array_column($bridging_requirements, 'subject_name');
@@ -174,7 +174,9 @@ if ($application) {
                     'code' => $subject['code'] ?? '',
                     'evidence' => $evidence
                 ];
-            } 
+            }
+        }
+        
     } catch (PDOException $e) {
         $bridging_requirements = [];
         $credited_subjects = [];

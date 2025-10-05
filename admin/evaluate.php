@@ -271,27 +271,19 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "The following subjects have been CREDITED based on your demonstrated competencies and uploaded evidence:";
                 $recommendations[] = "";
                 
-              $creditedCount = 0;
-$seen = []; // prevent double count
-
-foreach ($curriculumSubjects as $subject) {
-    $name = $subject['name'] ?? '';
-    if ($name === '') continue;
-
-    // must be passed
-    if (!isset($passedSubjects[$name])) continue;
-
-    $n = norm_subj($name);
-
-    // required wins
-    if (isset($bridgingSet[$n])) continue;
-
-    // dedup
-    if (isset($seen[$n])) continue;
-    $seen[$n] = true;
-
-    $creditedCount++;
-}
+                $creditedCount = 1;
+                foreach ($curriculumSubjects as $subject) {
+                    // Only show subjects NOT in bridging requirements (i.e., passed/credited)
+                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                        $creditedCount++;
+                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                            ? $passedSubjects[$subject['name']] 
+                            : 'Credit via ETEEAP assessment';
+                        $recommendations[] = "✓ {$subject['name']}";
+                        $recommendations[] = "   Evidence: {$evidenceNote}";
+                        $recommendations[] = "";
+                    }
+                }
                 
                 $recommendations[] = "**Summary:** {$creditedCount} subjects credited through prior learning assessment";
             }
@@ -322,7 +314,7 @@ foreach ($curriculumSubjects as $subject) {
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: {$creditedCount} subjects";
+                $recommendations[] = "• Credited Subjects: " . ( count($bridgingSubjectNames)) - count($passedSubjects) . " subjects"; 
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {

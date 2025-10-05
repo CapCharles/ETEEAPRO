@@ -207,18 +207,31 @@ if (empty($bridging_requirements)) {
             ];
         }
     }
-} else {
-    // Else: use DB bridging as source of truth
+}else {
+    // Else: use DB bridging as source of truth but exclude already passed subjects
     foreach ($bridging_requirements as $req) {
-        $required_subjects_full[] = [
-            'name'     => $req['subject_name'],
-            'code'     => $req['subject_code'] ?? '',
-            'units'    => $req['units'] ?? 3,
-            'priority' => $req['priority'] ?? 2
-        ];
+        $req_name = trim($req['subject_name']);
+
+        // Skip if already credited/passed
+        $already_passed = false;
+        foreach ($credited_subjects as $passed) {
+            if (strcasecmp($passed['name'], $req_name) === 0) {
+                $already_passed = true;
+                break;
+            }
+        }
+
+        if (!$already_passed) {
+            $required_subjects_full[] = [
+                'name'     => $req['subject_name'],
+                'code'     => $req['subject_code'] ?? '',
+                'units'    => $req['units'] ?? 3,
+                'priority' => $req['priority'] ?? 2
+            ];
+        }
     }
 }
-     
+    
     } catch (PDOException $e) {
         // If tables don't exist or query fails, just set empty arrays
         $bridging_requirements = [];

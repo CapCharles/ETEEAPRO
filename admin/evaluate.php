@@ -248,17 +248,6 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     
     // Get bridging subject names
     $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
-
-     // REPLACE THIS SECTION (near the end of generateEnhancedRecommendation function):
-if (!empty($curriculumSubjects)) {
-    $totalSubjects = count($curriculumSubjects);
-    
-    // Calculate credited subjects the SAME way as the display section
-    $creditedCount = 0;
-    foreach ($curriculumSubjects as $subject) {
-        if (!in_array($subject['name'], $bridgingSubjectNames)) {
-            $creditedCount++;
-        }
     
     // Header with assessment outcome
     $recommendations[] = "**ETEEAP ASSESSMENT RESULTS**";
@@ -325,7 +314,14 @@ if (!empty($curriculumSubjects)) {
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: " . ( count($bridgingSubjectNames)) - count($passedSubjects) . " subjects"; 
+              $creditedCount = 0;
+foreach ($curriculumSubjects as $subject) {
+    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+        $creditedCount++;
+    }
+}
+$recommendations[] = "• Credited Subjects: " . $creditedCount . " subjects";
+                
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
@@ -459,8 +455,12 @@ if (!empty($curriculumSubjects)) {
     }
     
 
-
-    }
+ // REPLACE THIS SECTION (near the end of generateEnhancedRecommendation function):
+if (!empty($curriculumSubjects)) {
+    $totalSubjects = count($curriculumSubjects);
+    
+    // Calculate credited subjects the SAME way as the display section
+ 
     
     $requiredSubjects = count($bridgingSubjectNames);
     

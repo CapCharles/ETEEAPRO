@@ -158,33 +158,27 @@ if ($application) {
         
         // Separate passed and required subjects
         $required_subject_names = array_column($bridging_requirements, 'subject_name');
-        
-        foreach ($curriculum_subjects as $subject) {
-            if (in_array($subject['name'], $required_subject_names)) {
-                // This is a required subject
-                $req_data = array_filter($bridging_requirements, function($r) use ($subject) {
-                    return $r['subject_name'] === $subject['name'];
-                });
-                $req_data = reset($req_data);
-                $required_subjects_full[] = [
-                    'name' => $subject['name'],
-                    'code' => $subject['code'] ?? $req_data['subject_code'] ?? '',
-                    'units' => $req_data['units'] ?? $subject['units'] ?? 3,
-                    'priority' => $req_data['priority'] ?? 2
-                ];
-            } else {
-                // This is a credited/passed subject
-                if (isset($passed_subjects[$subject['name']])) {
-                    $evidence = $passed_subjects[$subject['name']];
-                    $credited_subjects[] = [
-                        'name' => $subject['name'],
-                        'code' => $subject['code'] ?? '',
-                        'evidence' => $evidence
-                    ];
-                }
-            }
-        }
-        
+        // Get ALL passed subjects (those with evidence)
+foreach ($curriculum_subjects as $subject) {
+    if (isset($passed_subjects[$subject['name']])) {
+        $credited_subjects[] = [
+            'name' => $subject['name'],
+            'code' => $subject['code'] ?? '',
+            'evidence' => $passed_subjects[$subject['name']]
+        ];
+    }
+}
+
+// Get ALL required/bridging subjects
+foreach ($bridging_requirements as $req) {
+    $required_subjects_full[] = [
+        'name' => $req['subject_name'],
+        'code' => $req['subject_code'] ?? '',
+        'units' => $req['units'] ?? 3,
+        'priority' => $req['priority'] ?? 2
+    ];
+}
+     
     } catch (PDOException $e) {
         // If tables don't exist or query fails, just set empty arrays
         $bridging_requirements = [];

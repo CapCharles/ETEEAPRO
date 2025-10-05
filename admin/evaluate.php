@@ -314,7 +314,8 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-        $recommendations[] = "• Credited Subjects: " . count($credited_subjects) . " subjects";
+  if ($creditedCount === null) { $creditedCount = 0; } // fallback
+    $recommendations[] = "• Credited Subjects: {$creditedCount} subjects";
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {

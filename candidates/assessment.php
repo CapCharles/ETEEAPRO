@@ -120,46 +120,70 @@ if ($application) {
         $curriculum_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Get passed subjects using the same logic as evaluate.php
-        $passed_subjects = [];
-        if (!empty($documents) && !empty($curriculum_subjects)) {
-            foreach ($curriculum_subjects as $subject) {
-                $keywords = explode(' ', strtolower($subject['name']));
-                $keywords = array_filter($keywords, function($word) {
-                    return !in_array($word, ['and', 'of', 'the', 'with', 'for', 'to']);
-                });
-                
-                foreach ($documents as $doc) {
-                    $filename = strtolower($doc['original_filename']);
-                    $desc = strtolower($doc['description'] ?? '');
-                    
-                    foreach ($keywords as $keyword) {
-                        if (strlen($keyword) > 2 && (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false)) {
-                            $evidence = [];
-                            if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
-                                $evidence[] = 'TOR';
-                            }
-                            if (strpos($filename, 'certificate') !== false) {
-                                $evidence[] = 'Certificate';
-                            }
-                            if (strpos($filename, 'diploma') !== false) {
-                                $evidence[] = 'Diploma';
-                            }
-                            if (!$evidence) {
-                                $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
-                            }
-                            
-                            $passed_subjects[$subject['name']] = implode(', ', $evidence);
-                            break 2;
-                        }
-                    }
+     // Get passed subjects - EXACT SAME LOGIC AS EVALUATE.PHP
+$passed_subjects = [];
+if (!empty($documents) && !empty($curriculum_subjects)) {
+    foreach ($curriculum_subjects as $subject) {
+        // Extract keywords from subject name
+        $subject_name_lower = strtolower($subject['name']);
+        $keywords = preg_split('/[\s\-\_]+/', $subject_name_lower);
+        
+        // Filter out common words
+        $keywords = array_filter($keywords, function($word) {
+            return strlen($word) > 2 && 
+                   !in_array($word, ['and', 'of', 'the', 'with', 'for', 'to', 'in', 'on', 'at']);
+        });
+        
+        // Skip if no valid keywords
+        if (empty($keywords)) continue;
+        
+        // Check each document
+        foreach ($documents as $doc) {
+            $doc_content = strtolower($doc['original_filename'] . ' ' . ($doc['description'] ?? ''));
+            
+            // Check if any keyword matches
+            $match_found = false;
+            foreach ($keywords as $keyword) {
+                if (strpos($doc_content, $keyword) !== false) {
+                    $match_found = true;
+                    break;
                 }
             }
+            
+            if ($match_found) {
+                // Determine evidence type
+                $evidence = [];
+                
+                if (strpos($doc_content, 'transcript') !== false || 
+                    strpos($doc_content, 'tor') !== false || 
+                    strpos($doc_content, 'grade') !== false) {
+                    $evidence[] = 'Transcript of Records';
+                }
+                
+                if (strpos($doc_content, 'certificate') !== false) {
+                    $evidence[] = 'Certificate';
+                }
+                
+                if (strpos($doc_content, 'diploma') !== false) {
+                    $evidence[] = 'Diploma';
+                }
+                
+                if (empty($evidence)) {
+                    $doc_type = ucfirst(str_replace('_', ' ', $doc['document_type']));
+                    $evidence[] = $doc_type;
+                }
+                
+                $passed_subjects[$subject['name']] = implode(', ', $evidence);
+                break; // Found match, move to next subject
+            }
         }
-        
-        // Separate passed and required subjects
+    }
+}
+
+// Separate into credited and required
 $required_subject_names = array_column($bridging_requirements, 'subject_name');
 
-// Get ALL passed subjects (those with evidence)
+// ALL PASSED SUBJECTS (with evidence)
 foreach ($curriculum_subjects as $subject) {
     if (isset($passed_subjects[$subject['name']])) {
         $credited_subjects[] = [
@@ -170,7 +194,7 @@ foreach ($curriculum_subjects as $subject) {
     }
 }
 
-// Get ALL required/bridging subjects
+// ALL REQUIRED/BRIDGING SUBJECTS
 foreach ($bridging_requirements as $req) {
     $required_subjects_full[] = [
         'name' => $req['subject_name'],
@@ -186,6 +210,39 @@ foreach ($bridging_requirements as $req) {
         $credited_subjects = [];
         $required_subjects_full = [];
     }
+    if (isset($_GET['debug'])) {
+    echo "<div class='container mt-4'>";
+    echo "<div class='alert alert-info'>";
+    echo "<h5>🐛 DEBUG INFO</h5>";
+    echo "<strong>Curriculum Subjects:</strong> " . count($curriculum_subjects ?? []) . "<br>";
+    echo "<strong>Documents:</strong> " . count($documents ?? []) . "<br>";
+    echo "<strong>Passed Subjects:</strong> " . count($passed_subjects ?? []) . "<br>";
+    echo "<strong>Bridging Requirements:</strong> " . count($bridging_requirements ?? []) . "<br>";
+    echo "<strong>Credited Subjects:</strong> " . count($credited_subjects ?? []) . "<br>";
+    echo "<strong>Required Subjects:</strong> " . count($required_subjects_full ?? []) . "<br>";
+    
+    if (!empty($passed_subjects)) {
+        echo "<hr><strong>Passed Subjects List:</strong><br>";
+        foreach ($passed_subjects as $name => $evidence) {
+            echo "- $name → $evidence<br>";
+        }
+    }
+    
+    if (!empty($curriculum_subjects)) {
+        echo "<hr><strong>First 5 Curriculum Subjects:</strong><br>";
+        foreach (array_slice($curriculum_subjects, 0, 5) as $subj) {
+            echo "- {$subj['name']} ({$subj['code']})<br>";
+        }
+    }
+    
+    if (!empty($documents)) {
+        echo "<hr><strong>Documents:</strong><br>";
+        foreach ($documents as $doc) {
+            echo "- {$doc['original_filename']}<br>";
+        }
+    }
+    echo "</div></div>";
+}
 }
 
 ?>

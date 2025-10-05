@@ -241,7 +241,7 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null, $creditedSubjects = []) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
@@ -314,8 +314,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-  if ($creditedCount === null) { $creditedCount = 0; } // fallback
-    $recommendations[] = "• Credited Subjects: {$creditedCount} subjects";
+                $recommendations[] = "• Credited Subjects: " . count($creditedSubjects) . " subjects";
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
@@ -1033,7 +1032,9 @@ $passedSubjects = $curriculumStatus['passed'];
     $criteriaMissing,
     $passedSubjects,        // Add this
     $curriculumSubjects,     // Add this.
-     $program_id 
+     $program_id, 
+     $credited_subjects
+
 );
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments

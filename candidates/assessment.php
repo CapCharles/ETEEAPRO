@@ -399,27 +399,28 @@ if ($application) {
 
                 
                                     
-          <!-- Recommendation -->
-<?php if ($application['recommendation']): ?>
-<div class="assessment-card p-4 mb-4">
-    <h5 class="mb-3">
-        <i class="fas fa-lightbulb me-2"></i>
-        Evaluator's Recommendation
-    </h5>
-    <div class="alert alert-<?php echo $application['application_status'] === 'qualified' ? 'success' : ($application['application_status'] === 'partially_qualified' ? 'warning' : 'info'); ?>">
-        <?php echo nl2br(htmlspecialchars($application['recommendation'])); ?>
-    </div>
-    <?php if ($application['evaluator_first_name']): ?>
-    <div class="text-end">
-        <small class="text-muted">
-            Evaluated by: <?php echo htmlspecialchars($application['evaluator_first_name'] . ' ' . $application['evaluator_last_name']); ?>
-        </small>
-    </div>
-    <?php endif; ?>
-</div>
+                <!-- Recommendation -->
+                <?php if ($application['recommendation']): ?>
+                <div class="assessment-card p-4 mb-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Evaluator's Recommendation
+                    </h5>
+                    <div class="alert alert-<?php echo $application['application_status'] === 'qualified' ? 'success' : ($application['application_status'] === 'partially_qualified' ? 'warning' : 'info'); ?>">
+                        <?php echo nl2br(htmlspecialchars($application['recommendation'])); ?>
+                    </div>
+                    <?php if ($application['evaluator_first_name']): ?>
+                    <div class="text-end">
+                        <small class="text-muted">
+                            Evaluated by: <?php echo htmlspecialchars($application['evaluator_first_name'] . ' ' . $application['evaluator_last_name']); ?>
+                        </small>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+                <!-- Curriculum Status Breakdown -->
 
-<!-- Credited/Passed Subjects Table -->
-<?php 
+                <?php 
 // Get curriculum status for this application
 $curriculumStatus = getPassedSubjects($documents, $current_application['program_code']);
 $curriculumSubjects = $curriculumStatus['curriculum'];
@@ -581,8 +582,7 @@ foreach ($curriculumSubjects as $subject) {
 </div>
 <?php endif; ?>
 
-<?php endif; ?>>
-
+<?php endif; ?>
 
 
 

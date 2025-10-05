@@ -70,6 +70,7 @@ $documents = [];
 $bridging_requirements = [];
 $credited_subjects = [];
 $required_subjects_full = [];
+$passed_subjects = $passed_subjects ?? [];
 
 if ($application) {
     try {
@@ -194,14 +195,28 @@ foreach ($curriculum_subjects as $subject) {
     }
 }
 
-// ALL REQUIRED/BRIDGING SUBJECTS
-foreach ($bridging_requirements as $req) {
-    $required_subjects_full[] = [
-        'name' => $req['subject_name'],
-        'code' => $req['subject_code'] ?? '',
-        'units' => $req['units'] ?? 3,
-        'priority' => $req['priority'] ?? 2
-    ];
+if (empty($bridging_requirements)) {
+    foreach ($curriculum_subjects as $subject) {
+        $name = $subject['name'];
+        if (!isset($passed_subjects[$name])) {
+            $required_subjects_full[] = [
+                'name'     => $name,
+                'code'     => $subject['code'] ?? '',
+                'units'    => $subject['units'] ?? 3,
+                'priority' => 2
+            ];
+        }
+    }
+} else {
+    // Else: use DB bridging as source of truth
+    foreach ($bridging_requirements as $req) {
+        $required_subjects_full[] = [
+            'name'     => $req['subject_name'],
+            'code'     => $req['subject_code'] ?? '',
+            'units'    => $req['units'] ?? 3,
+            'priority' => $req['priority'] ?? 2
+        ];
+    }
 }
      
     } catch (PDOException $e) {

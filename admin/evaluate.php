@@ -241,13 +241,27 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null, $actual_bridging = []) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
-    $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
+    
+    // Use ACTUAL bridging subjects if available, otherwise generate
+    if (!empty($actual_bridging)) {
+        $subjectPlan = [
+            'subjects' => $actual_bridging,
+            'total_units' => array_sum(array_column($actual_bridging, 'units')),
+            'remaining_units' => 0
+        ];
+    } else {
+        $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
+    }
     
     // Get bridging subject names
-    $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
+    $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'subject_name');
+    // Fallback to 'name' key if 'subject_name' doesn't exist
+    if (empty($bridgingSubjectNames)) {
+        $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
+    }
     
     // Header with assessment outcome
     $recommendations[] = "**ETEEAP ASSESSMENT RESULTS**";
@@ -272,18 +286,18 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "";
                 
                 $creditedCount = 0;
-                foreach ($curriculumSubjects as $subject) {
-                    // Only show subjects NOT in bridging requirements (i.e., passed/credited)
-                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
-                        $creditedCount++;
-                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
-                            ? $passedSubjects[$subject['name']] 
-                            : 'Credit via ETEEAP assessment';
-                        $recommendations[] = "✓ {$subject['name']}";
-                        $recommendations[] = "   Evidence: {$evidenceNote}";
-                        $recommendations[] = "";
-                    }
-                }
+              foreach ($curriculumSubjects as $subject) {
+    // Only show subjects NOT in bridging requirements (i.e., passed/credited)
+    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+        $creditedCount++;
+        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+            ? $passedSubjects[$subject['name']] 
+            : 'Credit via ETEEAP assessment';
+        $recommendations[] = "✓ {$subject['name']}";
+        $recommendations[] = "   Evidence: {$evidenceNote}";
+        $recommendations[] = "";
+    }
+}
                 
                 $recommendations[] = "**Summary:** {$creditedCount} subjects credited through prior learning assessment";
             }
@@ -298,12 +312,19 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
                 $recommendations[] = "";
                 
-                foreach ($subjectPlan['subjects'] as $index => $subject) {
-                    $priorityLabel = $subject['priority'] === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
-                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']})";
-                    $recommendations[] = "   Units: {$subject['units']} | Priority: {$priorityLabel}";
-                    $recommendations[] = "";
-                }
+               // In the "REQUIRED BRIDGING COURSES" section
+foreach ($subjectPlan['subjects'] as $index => $subject) {
+    // Handle both 'subject_name' (from DB) and 'name' (from auto-generation)
+    $subjectName = $subject['subject_name'] ?? $subject['name'] ?? 'Unknown Subject';
+    $subjectCode = $subject['subject_code'] ?? $subject['code'] ?? '';
+    $units = $subject['units'] ?? 3;
+    $priority = $subject['priority'] ?? 2;
+    
+    $priorityLabel = $priority === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
+    $recommendations[] = ($index + 1) . ". {$subjectName} ({$subjectCode})";
+    $recommendations[] = "   Units: {$units} | Priority: {$priorityLabel}";
+    $recommendations[] = "";
+}
                 
                 $recommendations[] = "**Total Bridging Units Required:** {$bridgingUnits} units";
                 
@@ -1009,19 +1030,37 @@ $hasCriteriaDocs = count($criteriaDocs) > 0;
         $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
         $programCode = $programInfo['program_code'] ?? '';
 
+
+
+  $actual_bridging_subjects = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT subject_name, subject_code, units, priority
+        FROM bridging_requirements
+        WHERE application_id = ?
+        ORDER BY priority ASC, subject_name ASC
+    ");
+    $stmt->execute([$app_id]);
+    $actual_bridging_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $actual_bridging_subjects = [];
+}
+
 // Get curriculum and passed subjects
 $curriculumStatus = getPassedSubjects($documents, $programCode);
 $curriculumSubjects = $curriculumStatus['curriculum'];
 $passedSubjects = $curriculumStatus['passed'];
 
-       $auto_recommendation = generateEnhancedRecommendation(
+// Generate recommendation WITH actual bridging subjects
+$auto_recommendation = generateEnhancedRecommendation(
     $final_score, 
     $programCode, 
     $final_status, 
     $criteriaMissing,
-    $passedSubjects,        // Add this
-    $curriculumSubjects,     // Add this.
-     $program_id 
+    $passedSubjects,
+    $curriculumSubjects,
+    $program_id,
+    $actual_bridging_subjects  // <-- ADD THIS PARAMETER
 );
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments

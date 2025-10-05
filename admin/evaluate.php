@@ -1037,6 +1037,71 @@ $passedSubjects = $curriculumStatus['passed'];
              WHERE id = ?
         ");
         $stmt->execute([$final_status, $final_score, $full_recommendation, $user_id, $app_id]);
+        
+ if ($final_score >= 60) {
+            $requiredUnits = calculateBridgingUnits($final_score);
+            
+            // Get program_id
+            $stmt = $pdo->prepare("SELECT program_id FROM applications WHERE id = ?");
+            $stmt->execute([$app_id]);
+            $programRow = $stmt->fetch();
+            $program_id = $programRow['program_id'];
+            
+            // Clear existing bridging requirements
+            $stmt = $pdo->prepare("DELETE FROM bridging_requirements WHERE application_id = ?");
+            $stmt->execute([$app_id]);
+            
+            // Get recommended subjects from database
+            $stmt = $pdo->prepare("
+                SELECT subject_name, subject_code, units
+                FROM subjects 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY year_level DESC, semester DESC, subject_name
+            ");
+            $stmt->execute([$program_id]);
+            $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Select subjects to fill required units
+            $totalUnits = 0;
+            $selectedSubjects = [];
+            
+            foreach ($availableSubjects as $subject) {
+                $units = (int)$subject['units'];
+                if ($totalUnits + $units <= $requiredUnits) {
+                    $selectedSubjects[] = [
+                        'name' => $subject['subject_name'],
+                        'code' => $subject['subject_code'],
+                        'units' => $units,
+                        'priority' => 1
+                    ];
+                    $totalUnits += $units;
+                }
+                if ($totalUnits >= $requiredUnits) break;
+            }
+            
+            // Handle remaining units if needed
+            $remaining = $requiredUnits - $totalUnits;
+            if ($remaining > 0 && !empty($selectedSubjects)) {
+                // Add remaining units to last subject
+                $selectedSubjects[count($selectedSubjects) - 1]['units'] += $remaining;
+            }
+            
+            // Insert bridging requirements into database
+            foreach ($selectedSubjects as $subject) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO bridging_requirements (application_id, subject_name, subject_code, units, priority, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $app_id,
+                    $subject['name'],
+                    $subject['code'],
+                    $subject['units'],
+                    $subject['priority'],
+                    $user_id
+                ]);
+            }
+        }
 
         $pdo->commit();
 

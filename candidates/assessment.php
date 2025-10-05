@@ -92,7 +92,7 @@ if ($application) {
     } catch (PDOException $e) {
         $criteria_evaluations = [];
         $documents = [];
-    }
+    
 
   $stmt = $pdo->prepare("
             SELECT * FROM bridging_requirements
@@ -184,7 +184,7 @@ if ($application) {
         $required_subjects_full = [];
     
 
-
+    }
 
 }
 

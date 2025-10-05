@@ -448,18 +448,25 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     }
     
 
+ // REPLACE THIS SECTION (near the end of generateEnhancedRecommendation function):
+if (!empty($curriculumSubjects)) {
+    $totalSubjects = count($curriculumSubjects);
     
-    if (!empty($curriculumSubjects)) {
-        $totalSubjects = count($curriculumSubjects);
-        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
-        $requiredSubjects = count($bridgingSubjectNames);
-        
-        $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
-        $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
-        $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
-        $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
+    // Calculate credited subjects the SAME way as the display section
+    $creditedCount = 0;
+    foreach ($curriculumSubjects as $subject) {
+        if (!in_array($subject['name'], $bridgingSubjectNames)) {
+            $creditedCount++;
+        }
     }
     
+    $requiredSubjects = count($bridgingSubjectNames);
+    
+    $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
+    $recommendations[] = "• Credited (Passed): {$creditedCount} subjects";  // Changed from $creditedSubjects
+    $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
+    $recommendations[] = "• Completion Rate: " . round(($creditedCount / $totalSubjects) * 100, 1) . "%";  // Changed from $creditedSubjects
+}
     $recommendations[] = "";
     $recommendations[] = "For questions or appointments:";
   

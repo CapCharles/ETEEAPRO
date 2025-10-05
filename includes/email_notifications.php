@@ -13,10 +13,18 @@ if (!defined('MAIL_USERNAME'))   { define('MAIL_USERNAME',   'cspbank911@gmail.c
 if (!defined('MAIL_PASSWORD'))   { define('MAIL_PASSWORD',   'uzhtbqmdqigquyqq'); } // Gmail App Password
 
 function phpmailer_available(): bool {
-    $base = __DIR__ . 'PHPMailer\PHPMailer\src'; 
-    return file_exists($base . 'PHPMailer.php')
+    // XAMPP local path - PHPMailer is in project root
+    $base = __DIR__ . '/../PHPMailer/PHPMailer/src/';
+    
+    $exists = file_exists($base . 'PHPMailer.php')
         && file_exists($base . 'SMTP.php')
         && file_exists($base . 'Exception.php');
+    
+    if (!$exists) {
+        error_log('[MAIL] PHPMailer not found. Checked: ' . realpath(__DIR__ . '/..') . '/PHPMailer/PHPMailer/src/');
+    }
+    
+    return $exists;
 }
 
 function _base_url_safe(): string {
@@ -27,13 +35,17 @@ function _base_url_safe(): string {
 // $mode = 'smtps' (465) or 'starttls' (587)
 function buildMailer(string $mode = 'smtps') {
     if (!phpmailer_available()) {
-        error_log('[MAIL] PHPMailer files not found in ' . __DIR__ . '/PHPMailer/src/');
+        error_log('[MAIL] PHPMailer files not found');
         return null;
     }
-  $base = __DIR__ . 'PHPMailer\PHPMailer\src'; 
+    
+    // Use same base path
+    $base = __DIR__ . '/../PHPMailer/PHPMailer/src/';
     require_once $base . 'Exception.php';
     require_once $base . 'PHPMailer.php';
     require_once $base . 'SMTP.php';
+    
+    // ... rest of function stays the same
 
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 

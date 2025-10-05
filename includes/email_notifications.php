@@ -13,7 +13,7 @@ if (!defined('MAIL_USERNAME'))   { define('MAIL_USERNAME',   'cspbank911@gmail.c
 if (!defined('MAIL_PASSWORD'))   { define('MAIL_PASSWORD',   'uzhtbqmdqigquyqq'); } // Gmail App Password
 
 function phpmailer_available(): bool {
-    $base = __DIR__ . '/PHPMailer/src/';
+    $base = __DIR__ . 'PHPMailer\PHPMailer\src'; 
     return file_exists($base . 'PHPMailer.php')
         && file_exists($base . 'SMTP.php')
         && file_exists($base . 'Exception.php');
@@ -30,7 +30,7 @@ function buildMailer(string $mode = 'smtps') {
         error_log('[MAIL] PHPMailer files not found in ' . __DIR__ . '/PHPMailer/src/');
         return null;
     }
-    $base = __DIR__ . '/PHPMailer/src/';
+  $base = __DIR__ . 'PHPMailer\PHPMailer\src'; 
     require_once $base . 'Exception.php';
     require_once $base . 'PHPMailer.php';
     require_once $base . 'SMTP.php';

@@ -241,7 +241,7 @@ function getFilteredSubjects($programCode, $predefined_subjects) {
     return $predefined_subjects;
 }
 
-function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null, $creditedSubjects = []) {
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null) {
     $recommendations = [];
     $bridgingUnits = calculateBridgingUnits($score);
     $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
@@ -314,7 +314,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: " . count($creditedSubjects) . " subjects";
+                $recommendations[] = "• Credited Subjects: " . ( count($bridgingSubjectNames)) - count($passedSubjects) . " subjects"; 
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
@@ -345,26 +345,15 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "";
                 
                 $creditedCount = 0;
-$seen = []; // prevent double count
-
-foreach ($curriculumSubjects as $subject) {
-    $name = $subject['name'] ?? '';
-    if ($name === '') continue;
-
-    // must be passed
-    if (!isset($passedSubjects[$name])) continue;
-
-    $n = norm_subj($name);
-
-    // required wins
-    if (isset($bridgingSet[$n])) continue;
-
-    // dedup
-    if (isset($seen[$n])) continue;
-    $seen[$n] = true;
-
-    $creditedCount++;
-}
+                foreach ($curriculumSubjects as $subject) {
+                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                        $creditedCount++;
+                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                            ? $passedSubjects[$subject['name']] 
+                            : 'Credit via ETEEAP assessment';
+                        $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
+                    }
+                }
                 
                 $recommendations[] = "";
                 $recommendations[] = "**Credited:** {$creditedCount} subjects recognized";
@@ -1032,9 +1021,7 @@ $passedSubjects = $curriculumStatus['passed'];
     $criteriaMissing,
     $passedSubjects,        // Add this
     $curriculumSubjects,     // Add this.
-     $program_id, 
-     $credited_subjects
-
+     $program_id 
 );
         $full_recommendation = !empty($additional_comments)
             ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments

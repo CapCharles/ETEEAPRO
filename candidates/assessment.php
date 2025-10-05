@@ -67,6 +67,10 @@ try {
 // Get assessment criteria and evaluations if application exists
 $criteria_evaluations = [];
 $documents = [];
+$bridging_requirements = [];
+$credited_subjects = [];
+$required_subjects_full = [];
+
 if ($application) {
     try {
         // Get assessment criteria with evaluations
@@ -93,8 +97,11 @@ if ($application) {
         $criteria_evaluations = [];
         $documents = [];
     }
-
-  $stmt = $pdo->prepare("
+    
+    // NEW TRY-CATCH BLOCK for bridging requirements
+    try {
+        // Get bridging requirements
+        $stmt = $pdo->prepare("
             SELECT * FROM bridging_requirements
             WHERE application_id = ?
             ORDER BY priority ASC, subject_name ASC
@@ -147,12 +154,10 @@ if ($application) {
                     }
                 }
             }
-        
+        }
         
         // Separate passed and required subjects
         $required_subject_names = array_column($bridging_requirements, 'subject_name');
-        $credited_subjects = [];
-        $required_subjects_full = [];
         
         foreach ($curriculum_subjects as $subject) {
             if (in_array($subject['name'], $required_subject_names)) {
@@ -169,25 +174,24 @@ if ($application) {
                 ];
             } else {
                 // This is a credited/passed subject
-                $evidence = $passed_subjects[$subject['name']] ?? 'Credit via ETEEAP assessment';
-                $credited_subjects[] = [
-                    'name' => $subject['name'],
-                    'code' => $subject['code'] ?? '',
-                    'evidence' => $evidence
-                ];
+                if (isset($passed_subjects[$subject['name']])) {
+                    $evidence = $passed_subjects[$subject['name']];
+                    $credited_subjects[] = [
+                        'name' => $subject['name'],
+                        'code' => $subject['code'] ?? '',
+                        'evidence' => $evidence
+                    ];
+                }
             }
         }
         
     } catch (PDOException $e) {
+        // If tables don't exist or query fails, just set empty arrays
         $bridging_requirements = [];
         $credited_subjects = [];
         $required_subjects_full = [];
     }
-
 }
-
-
-
 
 ?>
 

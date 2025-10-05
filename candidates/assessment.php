@@ -64,6 +64,39 @@ try {
     $all_applications = [];
 }
 
+// Get assessment criteria and evaluations if application exists
+$criteria_evaluations = [];
+$documents = [];
+if ($application) {
+    try {
+        // Get assessment criteria with evaluations
+        $stmt = $pdo->prepare("
+            SELECT ac.*, e.score, e.max_score, e.comments, e.evaluation_date
+            FROM assessment_criteria ac
+            LEFT JOIN evaluations e ON ac.id = e.criteria_id AND e.application_id = ?
+            WHERE ac.program_id = ? AND ac.status = 'active'
+            ORDER BY ac.criteria_type, ac.criteria_name
+        ");
+        $stmt->execute([$application['id'], $application['program_id']]);
+        $criteria_evaluations = $stmt->fetchAll();
+        
+        // Get uploaded documents
+        $stmt = $pdo->prepare("
+            SELECT * FROM documents 
+            WHERE application_id = ? 
+            ORDER BY document_type, upload_date
+        ");
+        $stmt->execute([$application['id']]);
+        $documents = $stmt->fetchAll();
+        
+    } catch (PDOException $e) {
+        $criteria_evaluations = [];
+        $documents = [];
+    }
+}
+
+
+
 
 ?>
 

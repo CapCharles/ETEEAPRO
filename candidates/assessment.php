@@ -122,6 +122,7 @@ if ($application) {
         
         // Get passed subjects using the same logic as evaluate.php
      // Get passed subjects - EXACT SAME LOGIC AS EVALUATE.PHP
+// Get passed subjects using the same logic as evaluate.php
 $passed_subjects = [];
 if (!empty($documents) && !empty($curriculum_subjects)) {
     foreach ($curriculum_subjects as $subject) {
@@ -181,10 +182,8 @@ if (!empty($documents) && !empty($curriculum_subjects)) {
     }
 }
 
-// Separate into credited and required
-$required_subject_names = array_column($bridging_requirements, 'subject_name');
-
-// ALL PASSED SUBJECTS (with evidence)
+// Build credited subjects list (what they passed)
+$credited_subjects = [];
 foreach ($curriculum_subjects as $subject) {
     if (isset($passed_subjects[$subject['name']])) {
         $credited_subjects[] = [
@@ -195,7 +194,22 @@ foreach ($curriculum_subjects as $subject) {
     }
 }
 
-if (empty($bridging_requirements)) {
+// CRITICAL FIX: Use exact bridging requirements from database
+$required_subjects_full = [];
+
+if (!empty($bridging_requirements)) {
+    // If evaluator manually set bridging requirements, use those EXACTLY
+    foreach ($bridging_requirements as $req) {
+        $required_subjects_full[] = [
+            'name'     => $req['subject_name'],
+            'code'     => $req['subject_code'],
+            'units'    => $req['units'],
+            'priority' => $req['priority']
+        ];
+    }
+} else {
+    // Fallback: Only if no manual requirements were set by evaluator
+    // Auto-generate based on curriculum subjects not passed
     foreach ($curriculum_subjects as $subject) {
         $name = $subject['name'];
         if (!isset($passed_subjects[$name])) {
@@ -203,11 +217,11 @@ if (empty($bridging_requirements)) {
                 'name'     => $name,
                 'code'     => $subject['code'] ?? '',
                 'units'    => $subject['units'] ?? 3,
-                'priority' => 2
+                'priority' => 2 // Default medium priority
             ];
         }
     }
-}    
+}   
     } catch (PDOException $e) {
         // If tables don't exist or query fails, just set empty arrays
         $bridging_requirements = [];

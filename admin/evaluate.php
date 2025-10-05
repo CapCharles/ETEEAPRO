@@ -314,7 +314,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-                $recommendations[] = "• Credited Subjects: " .  ($remaining). " subjects"; 
+              $recommendations[] = "• Credited Subjects: {$creditedCount} subjects";
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
@@ -344,16 +344,23 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "**═══════════════════════════════════════════**";
                 $recommendations[] = "";
                 
-                $creditedCount = 0;
-                foreach ($curriculumSubjects as $subject) {
-                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
-                        $creditedCount++;
-                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
-                            ? $passedSubjects[$subject['name']] 
-                            : 'Credit via ETEEAP assessment';
-                        $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
-                    }
-                }
+                // $creditedCount = 0;
+                // foreach ($curriculumSubjects as $subject) {
+                //     if (!in_array($subject['name'], $bridgingSubjectNames)) {
+                //         $creditedCount++;
+                //         $evidenceNote = isset($passedSubjects[$subject['name']]) 
+                //             ? $passedSubjects[$subject['name']] 
+                //             : 'Credit via ETEEAP assessment';
+                //         $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
+                //     }
+                // }
+                // Calculate credited subjects count (used in multiple places)
+$creditedCount = 0;
+foreach ($curriculumSubjects as $subject) {
+    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+        $creditedCount++;
+    }
+}
                 
                 $recommendations[] = "";
                 $recommendations[] = "**Credited:** {$creditedCount} subjects recognized";

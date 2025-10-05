@@ -70,6 +70,7 @@ $documents = [];
 $bridging_requirements = [];
 $credited_subjects = [];
 $required_subjects_full = [];
+$passed_map = [];
 $passed_subjects = $passed_subjects ?? [];
 
 if ($application) {
@@ -184,54 +185,65 @@ if (!empty($documents) && !empty($curriculum_subjects)) {
 // Separate into credited and required
 $required_subject_names = array_column($bridging_requirements, 'subject_name');
 
-// ALL PASSED SUBJECTS (with evidence)
+if (!function_exists('norm_subj')) {
+    function norm_subj($s) {
+        $s = strtolower(trim($s));
+        $s = preg_replace('/\s+/', ' ', $s);      // collapse spaces
+        $s = preg_replace('/[^a-z0-9\s\-]/', '', $s); // strip punct
+        return $s;
+    }
+}
+
 foreach ($curriculum_subjects as $subject) {
     if (isset($passed_subjects[$subject['name']])) {
         $credited_subjects[] = [
-            'name' => $subject['name'],
-            'code' => $subject['code'] ?? '',
+            'name'     => $subject['name'],
+            'code'     => $subject['code'] ?? '',
             'evidence' => $passed_subjects[$subject['name']]
         ];
+        $passed_map[norm_subj($subject['name'])] = true;
     }
 }
 
-if (empty($bridging_requirements)) {
-    foreach ($curriculum_subjects as $subject) {
-        $name = $subject['name'];
-        if (!isset($passed_subjects[$name])) {
+// ===============================
+// REQUIRED (Bridging) list
+// ===============================
+$required_subjects_full = [];
+$total_bridging_units = 0;
+
+if (!empty($bridging_requirements)) {
+    // Use DB bridging as source of truth, pero HUWAG isama ang mga na-pass na
+    foreach ($bridging_requirements as $req) {
+        $rname   = trim($req['subject_name']);
+        $rcode   = $req['subject_code'] ?? '';
+        $runits  = (int)($req['units'] ?? 3);
+        $rprio   = (int)($req['priority'] ?? 2);
+
+        if (!isset($passed_map[norm_subj($rname)])) {
             $required_subjects_full[] = [
-                'name'     => $name,
+                'name'     => $rname,
+                'code'     => $rcode,
+                'units'    => $runits,
+                'priority' => $rprio
+            ];
+            $total_bridging_units += $runits;
+        }
+    }
+} else {
+    // Fallback: curriculum - passed
+    foreach ($curriculum_subjects as $subject) {
+        if (!isset($passed_map[norm_subj($subject['name'])])) {
+            $units = (int)($subject['units'] ?? 3);
+            $required_subjects_full[] = [
+                'name'     => $subject['name'],
                 'code'     => $subject['code'] ?? '',
-                'units'    => $subject['units'] ?? 3,
+                'units'    => $units,
                 'priority' => 2
             ];
+            $total_bridging_units += $units;
         }
     }
-}else {
-    // Else: use DB bridging as source of truth but exclude already passed subjects
-    foreach ($bridging_requirements as $req) {
-        $req_name = trim($req['subject_name']);
-
-        // Skip if already credited/passed
-        $already_passed = false;
-        foreach ($credited_subjects as $passed) {
-            if (strcasecmp($passed['name'], $req_name) === 0) {
-                $already_passed = true;
-                break;
-            }
-        }
-
-        if (!$already_passed) {
-            $required_subjects_full[] = [
-                'name'     => $req['subject_name'],
-                'code'     => $req['subject_code'] ?? '',
-                'units'    => $req['units'] ?? 3,
-                'priority' => $req['priority'] ?? 2
-            ];
-        }
-    }
-}
-    
+}  
     } catch (PDOException $e) {
         // If tables don't exist or query fails, just set empty arrays
         $bridging_requirements = [];

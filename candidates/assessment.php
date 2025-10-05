@@ -66,6 +66,7 @@ try {
 
 // Get assessment criteria and evaluations if application exists
 $criteria_evaluations = [];
+$hasEvaluation         = false;
 $documents = [];
 if ($application) {
     try {
@@ -509,7 +510,7 @@ if ($application) {
                 <?php endif; ?>
                 <!-- Curriculum Status Breakdown -->
 <!-- Curriculum Status Breakdown -->
-<?php if (!empty($credited_subjects) || !empty($required_subjects_full)): ?>
+ <?php if ($hasEvaluation): ?>
 <div class="assessment-card p-4 mb-4">
     <h5 class="mb-4">
         <i class="fas fa-list-check me-2"></i>

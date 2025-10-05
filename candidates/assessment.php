@@ -182,23 +182,26 @@ if (!empty($documents) && !empty($curriculum_subjects)) {
     }
 }
 
-// Build credited subjects list (what they passed)
+// CRITICAL FIX: Separate logic for credited vs required
 $credited_subjects = [];
-foreach ($curriculum_subjects as $subject) {
-    if (isset($passed_subjects[$subject['name']])) {
-        $credited_subjects[] = [
-            'name' => $subject['name'],
-            'code' => $subject['code'] ?? '',
-            'evidence' => $passed_subjects[$subject['name']]
-        ];
-    }
-}
-
-// CRITICAL FIX: Use exact bridging requirements from database
 $required_subjects_full = [];
 
 if (!empty($bridging_requirements)) {
-    // If evaluator manually set bridging requirements, use those EXACTLY
+    // Get list of subjects that evaluator marked as REQUIRED
+    $bridging_subject_names = array_column($bridging_requirements, 'subject_name');
+    
+    // CREDITED = Passed subjects that are NOT in bridging requirements
+    foreach ($curriculum_subjects as $subject) {
+        if (isset($passed_subjects[$subject['name']]) && !in_array($subject['name'], $bridging_subject_names)) {
+            $credited_subjects[] = [
+                'name' => $subject['name'],
+                'code' => $subject['code'] ?? '',
+                'evidence' => $passed_subjects[$subject['name']]
+            ];
+        }
+    }
+    
+    // REQUIRED = EXACTLY what evaluator entered (no changes, no filtering)
     foreach ($bridging_requirements as $req) {
         $required_subjects_full[] = [
             'name'     => $req['subject_name'],
@@ -207,17 +210,28 @@ if (!empty($bridging_requirements)) {
             'priority' => $req['priority']
         ];
     }
+    
 } else {
-    // Fallback: Only if no manual requirements were set by evaluator
-    // Auto-generate based on curriculum subjects not passed
+    // Fallback: If no manual bridging requirements set
+    // All passed subjects go to credited
     foreach ($curriculum_subjects as $subject) {
-        $name = $subject['name'];
-        if (!isset($passed_subjects[$name])) {
+        if (isset($passed_subjects[$subject['name']])) {
+            $credited_subjects[] = [
+                'name' => $subject['name'],
+                'code' => $subject['code'] ?? '',
+                'evidence' => $passed_subjects[$subject['name']]
+            ];
+        }
+    }
+    
+    // All non-passed subjects go to required
+    foreach ($curriculum_subjects as $subject) {
+        if (!isset($passed_subjects[$subject['name']])) {
             $required_subjects_full[] = [
-                'name'     => $name,
+                'name'     => $subject['name'],
                 'code'     => $subject['code'] ?? '',
                 'units'    => $subject['units'] ?? 3,
-                'priority' => 2 // Default medium priority
+                'priority' => 2
             ];
         }
     }

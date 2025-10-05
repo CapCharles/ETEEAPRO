@@ -145,7 +145,7 @@ if ($application) {
                         }
                     }
                 }
-            }
+            
         
         
         // Separate passed and required subjects
@@ -183,7 +183,7 @@ if ($application) {
         $required_subjects_full = [];
     }
 
-
+        }
 
     
 }

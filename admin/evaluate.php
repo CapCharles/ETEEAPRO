@@ -248,6 +248,17 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     
     // Get bridging subject names
     $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
+
+     // REPLACE THIS SECTION (near the end of generateEnhancedRecommendation function):
+if (!empty($curriculumSubjects)) {
+    $totalSubjects = count($curriculumSubjects);
+    
+    // Calculate credited subjects the SAME way as the display section
+    $creditedCount = 0;
+    foreach ($curriculumSubjects as $subject) {
+        if (!in_array($subject['name'], $bridgingSubjectNames)) {
+            $creditedCount++;
+        }
     
     // Header with assessment outcome
     $recommendations[] = "**ETEEAP ASSESSMENT RESULTS**";
@@ -448,16 +459,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     }
     
 
- // REPLACE THIS SECTION (near the end of generateEnhancedRecommendation function):
-if (!empty($curriculumSubjects)) {
-    $totalSubjects = count($curriculumSubjects);
-    
-    // Calculate credited subjects the SAME way as the display section
-    $creditedCount = 0;
-    foreach ($curriculumSubjects as $subject) {
-        if (!in_array($subject['name'], $bridgingSubjectNames)) {
-            $creditedCount++;
-        }
+
     }
     
     $requiredSubjects = count($bridgingSubjectNames);

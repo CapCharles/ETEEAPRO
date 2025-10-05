@@ -314,14 +314,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 
                 $recommendations[] = "";
                 $recommendations[] = "**PROGRAM COMPLETION TIMELINE**";
-              $creditedCount = 0;
-foreach ($curriculumSubjects as $subject) {
-    if (!in_array($subject['name'], $bridgingSubjectNames)) {
-        $creditedCount++;
-    }
-}
-$recommendations[] = "• Credited Subjects: " . $creditedCount . " subjects";
-                
+                $recommendations[] = "• Credited Subjects: " . ( count($bridgingSubjectNames)) - count($passedSubjects) . " subjects"; 
                 $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
                 $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
             } else {
@@ -455,20 +448,18 @@ $recommendations[] = "• Credited Subjects: " . $creditedCount . " subjects";
     }
     
 
- // REPLACE THIS SECTION (near the end of generateEnhancedRecommendation function):
-if (!empty($curriculumSubjects)) {
-    $totalSubjects = count($curriculumSubjects);
     
-    // Calculate credited subjects the SAME way as the display section
- 
+    if (!empty($curriculumSubjects)) {
+        $totalSubjects = count($curriculumSubjects);
+        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
+        $requiredSubjects = count($bridgingSubjectNames);
+        
+        $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
+        $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
+        $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
+        $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
+    }
     
-    $requiredSubjects = count($bridgingSubjectNames);
-    
-    $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
-    $recommendations[] = "• Credited (Passed): {$creditedCount} subjects";  // Changed from $creditedSubjects
-    $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
-    $recommendations[] = "• Completion Rate: " . round(($creditedCount / $totalSubjects) * 100, 1) . "%";  // Changed from $creditedSubjects
-}
     $recommendations[] = "";
     $recommendations[] = "For questions or appointments:";
   

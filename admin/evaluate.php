@@ -271,7 +271,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
                 $recommendations[] = "The following subjects have been CREDITED based on your demonstrated competencies and uploaded evidence:";
                 $recommendations[] = "";
                 
-                $creditedCount = 1;
+                $creditedCount = 0;
                 foreach ($curriculumSubjects as $subject) {
                     // Only show subjects NOT in bridging requirements (i.e., passed/credited)
                     if (!in_array($subject['name'], $bridgingSubjectNames)) {

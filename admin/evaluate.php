@@ -697,186 +697,368 @@ function score_one_doc(array $criteria, array $hier): array {
     $why   = [];
 
     // --- Sec 1: Education ---------------------------------------------------
-    if ($section === 1) {
-        $eduPts = [
-            'high_school'=>2,'vocational'=>3,'technical'=>4,'undergraduate'=>5,'non_education'=>6
-        ];
-        if (!empty($hier['education_level']) && isset($eduPts[$hier['education_level']])) {
-            $add = $eduPts[$hier['education_level']];
-            $score += $add;  $why[] = "Education: {$hier['education_level']} (+{$add})";
-        }
-        if (!empty($hier['scholarship_type']) && $hier['scholarship_type'] !== 'none') {
-            $bonus = $hier['scholarship_type']==='full' ? 2 : 1;
-            $score += $bonus; $why[] = "Scholarship: {$hier['scholarship_type']} (+{$bonus})";
-        }
-    }
-
-    // --- Sec 2: Work Experience (simple baseline) ---------------------------
-    if ($section === 2) {
-        $rolePts = [
-            'administrator'=>5,'supervisor'=>3,'trainer'=>2,'sunday_school'=>1,'daycare'=>1
-        ];
-        $yrs  = (int)($hier['years_experience'] ?? 0);
-        $role = $hier['experience_role'] ?? null;
-        if ($yrs >= 5 && $role && isset($rolePts[$role])) {
-            $add = $rolePts[$role];
-            $score += $add; $why[] = "Experience: {$yrs} yrs, role {$role} (+{$add})";
-        }
-    }
-
-    // --- Sec 3: Publications / Inventions ----------------------------------
-    // Invention / Innovation
-    if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
-        $isInvention = (isset($hier['invention_type']) && $hier['invention_type']==='invention')
-                       || stripos($name,'Invention')!==false;
-        if (!empty($hier['patent_status'])) {
-            $base = ($hier['patent_status']==='patented') ? ($isInvention?6:1) : ($isInvention?5:2);
-            $score += $base; $why[] = "Patent: {$hier['patent_status']} (+{$base})";
-        }
-        // acceptability_levels: local/national/international (array)
-        $sum = 0;
-        foreach ((array)($hier['acceptability_levels'] ?? []) as $lvl) {
-            $sum += $isInvention ? (['local'=>7,'national'=>8,'international'=>9][$lvl] ?? 0)
-                                 : (['local'=>4,'national'=>5,'international'=>6][$lvl] ?? 0);
-        }
-        if ($sum>0) { $score += $sum; $why[] = "Market: ".implode(', ', (array)$hier['acceptability_levels'])." (+{$sum})"; }
-    }
-
-    // Publications / Modules / Books / Literacy outreach
-    if (stripos($name,'Journal')!==false || stripos($name,'Training Module')!==false ||
-        stripos($name,'Book')!==false   || stripos($name,'Teaching Modules')!==false ||
-        stripos($name,'Workbooks')!==false || stripos($name,'Reading Kits')!==false ||
-        stripos($name,'Early Literacy')!==false) {
-
-        $ptype = $hier['publication_type'] ?? 'journal';
-        $tbl = [
-            'journal'          => ['local'=>2,'national'=>3,'international'=>4],
-            'training_module'  => ['local'=>3,'national'=>4,'international'=>5],
-            'book'             => ['local'=>5,'national'=>6,'international'=>7],
-            'teaching_module'  => ['local'=>3,'national'=>4,'international'=>5],
-            'workbook'         => ['local'=>2,'national'=>3,'international'=>4],
-            'reading_kit'      => ['local'=>2,'national'=>3,'international'=>4],
-            'literacy_outreach'=> ['local'=>4,'national'=>5,'international'=>6],
-        ];
-        $lvl = $hier['circulation_level'] ?? null;
-        $levelsArr = $hier['circulation_levels'] ?? [];
-
-        if ($lvl && isset($tbl[$ptype][$lvl])) {
-            $add = $tbl[$ptype][$lvl];
-            $score += $add; $why[] = ucfirst(str_replace('_',' ',$ptype)).": {$lvl} (+{$add})";
-        } elseif (is_array($levelsArr) && $levelsArr) {
-            $sum=0; $hit=[];
-            foreach ($levelsArr as $lv) { if (isset($tbl[$ptype][$lv])) { $sum+=$tbl[$ptype][$lv]; $hit[]=$lv; } }
-            if ($sum>0) { $score += $sum; $why[] = ucfirst(str_replace('_',' ',$ptype)).": ".implode(', ',$hit)." (+{$sum})"; }
-        }
-    }
-
-    // --- Sec 4: Professional Development (quick map) ------------------------
-    if ($section === 4) {
-        if (!empty($hier['coordination_level'])) {
-            $add = ['local'=>6,'national'=>8,'international'=>10][$hier['coordination_level']] ?? 0;
-            $score += $add; $why[] = "Coordination: {$hier['coordination_level']} (+{$add})";
-        }
-        if (!empty($hier['participation_level'])) {
-            $add = ['local'=>3,'national'=>4,'international'=>5][$hier['participation_level']] ?? 0;
-            $score += $add; $why[] = "Participation: {$hier['participation_level']} (+{$add})";
-        }
-        if (!empty($hier['membership_level'])) {
-            $add = ['local'=>3,'national'=>4,'international'=>5][$hier['membership_level']] ?? 0;
-            $score += $add; $why[] = "Membership: {$hier['membership_level']} (+{$add})";
-        }
-        if (!empty($hier['scholarship_level'])) {
-        $lvl = $hier['scholarship_level'];
-        if (is_numeric($lvl)) {
-            $add = (float)$lvl;  // e.g., "5" -> 5 pts
-        } else {
-            $map = ['local'=>3,'national'=>4,'international'=>5];
-            $add = $map[strtolower($lvl)] ?? 0;
-        }
-        if ($add > 0) { $score += $add; $why[] = "Scholarship level: {$lvl} (+{$add})"; }
-    }
-    // optional bonus for competitive/non-competitive type
-    if (!empty($hier['scholarship_type'])) {
-        $bonusMap = ['full'=>1.0, 'partial'=>0.5];
-        $stype = strtolower($hier['scholarship_type']);
-        if (isset($bonusMap[$stype])) {
-            $score += $bonusMap[$stype];
-            $why[] = "Scholarship type: {$stype} (+{$bonusMap[$stype]})";
-        }
-    }
-    }
-
-    if (stripos($name, 'program coordination') !== false && !empty($hier['coordination_level'])) {
-    $lvl = strtolower($hier['coordination_level']);
-    // scale to max_score: local 60%, national 80%, international 100%
-    $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];
-    if (isset($scale[$lvl])) {
-        $add = round($max * $scale[$lvl], 2);
+    // --- Sec 1: Education (20pts max) ---
+if ($section === 1) {
+    $eduPts = [
+        'high_school' => 10,
+        'vocational' => 12,      // Could be 11-14 based on additional criteria
+        'technical' => 16,       // Could be 15-17 based on additional criteria
+        'undergraduate' => 19,   // Could be 18-20 based on completion %
+        'non_education' => 20
+    ];
+    
+    if (!empty($hier['education_level']) && isset($eduPts[$hier['education_level']])) {
+        $add = $eduPts[$hier['education_level']];
         $score += $add;
-        $why[] = "Coordination: {$lvl} (+{$add})";
+        $why[] = "Education: {$hier['education_level']} (+{$add})";
     }
+    
+    // REMOVE scholarship from here - it belongs in Section 4!
 }
 
-// Resource Speaker / Trainer (Local/National/International)
-if ((stripos($name, 'resource speaker') !== false || stripos($name, 'trainer') !== false)
-    && (!empty($hier['service_levels']) || !empty($hier['service_level']))) {
+// --- Sec 2: Work Experience (30pts max) ---
+if ($section === 2) {
+    $rolePts = [
+        'administrator' => 5,
+        'supervisor'    => 3,
+        'trainer'       => 2,
+        'sunday_school' => 1,
+        'daycare'       => 1
+    ];
 
-    $levels = [];
-    if (!empty($hier['service_levels']) && is_array($hier['service_levels'])) {
-        $levels = $hier['service_levels'];
-    } elseif (!empty($hier['service_level'])) {
-        $levels = [$hier['service_level']];
+    $yrs = (int)($hier['years_experience'] ?? 0);
+    
+    // --- Entry points (15 base + 1 per year beyond 5) ---
+    $entry = 0;
+    if ($yrs >= 5) {
+        $entry = 15 + ($yrs - 5);
     }
-    // pick the highest level present
-    $rank = ['local'=>1, 'national'=>2, 'international'=>3];
-    $best = 'local';
-    foreach ($levels as $lv) {
-        $lv = strtolower($lv);
-        if (isset($rank[$lv]) && $rank[$lv] > $rank[$best]) $best = $lv;
+
+    // --- Role points (allow MULTIPLE roles) ---
+    $roleTotal = 0;
+    $rolesList = [];
+    
+    // If roles is an array (checkbox/multi-select)
+    if (!empty($hier['experience_roles']) && is_array($hier['experience_roles'])) {
+        foreach ($hier['experience_roles'] as $role) {
+            if (isset($rolePts[$role])) {
+                $roleTotal += $rolePts[$role];
+                $rolesList[] = "{$role}({$rolePts[$role]})";
+            }
+        }
     }
-    $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];
-    $add   = round($max * ($scale[$best] ?? 0), 2);
-    if ($add > 0) {
-        $score += $add;
-        $why[] = "Service: {$best} (+{$add})";
+    // Fallback for single role (if using old format)
+    elseif (!empty($hier['experience_role']) && isset($rolePts[$hier['experience_role']])) {
+        $roleTotal = $rolePts[$hier['experience_role']];
+        $rolesList[] = "{$hier['experience_role']}({$roleTotal})";
     }
+
+    // --- Combine and cap at 30 ---
+    $totalAdd = min(30, $entry + $roleTotal);
+    
+    $score += $totalAdd;
+    $rolesStr = implode(', ', $rolesList);
+    $why[] = "Experience: {$yrs} yrs, roles [{$rolesStr}] (entry={$entry}, roles={$roleTotal}) → +{$totalAdd} pts";
 }
 
-
-    $lvls = [];
-    if (!empty($hier['service_levels']) && is_array($hier['service_levels'])) $lvls = $hier['service_levels'];
-    if (!empty($hier['service_level'])) $lvls[] = $hier['service_level'];
-
-    if ($lvls) {
-        // Default map for community/lecturer/speaker
-        $mapDefault  = ['local'=>3,'national'=>4,'international'=>5];
-        // Heavier map for consultancy (mas mataas ang max sa criteria na ito)
-        $mapConsult  = ['local'=>5,'national'=>10,'international'=>15];
-
-        $use = (stripos($name,'consultancy') !== false) ? $mapConsult : $mapDefault;
-
-        // piliin ang pinakamataas na level na present
-        $got = array_intersect_key($use, array_flip($lvls));
-        $add = $got ? max($got) : 0;
-
-        if ($add > 0) {
+// --- INVENTION / INNOVATION ---
+if (stripos($name, 'Invention') !== false || stripos($name, 'Innovation') !== false) {
+    $isInvention = (isset($hier['invention_type']) && $hier['invention_type'] === 'invention')
+                   || stripos($name, 'Invention') !== false;
+    
+    // Patent Status (base points)
+    if (!empty($hier['patent_status'])) {
+        $base = ($hier['patent_status'] === 'patented') 
+                ? ($isInvention ? 6 : 1)   // Invention: patented=6 | Innovation: patented=1
+                : ($isInvention ? 5 : 2);  // Invention: no_patent=5 | Innovation: no_patent=2
+        $score += $base;
+        $why[] = "Patent: {$hier['patent_status']} (+{$base})";
+    }
+    
+    // Acceptability Level (ONE level only, not cumulative)
+    $acceptLevel = $hier['acceptability_level'] ?? null; // Single value, not array
+    if ($acceptLevel) {
+        $acceptPts = $isInvention 
+            ? ['local' => 7, 'national' => 8, 'international' => 9]
+            : ['local' => 4, 'national' => 5, 'international' => 6];
+        
+        if (isset($acceptPts[$acceptLevel])) {
+            $add = $acceptPts[$acceptLevel];
             $score += $add;
-            $why[] = "Service scope: ".implode(', ', $lvls)." (+{$add})";
+            $why[] = "Market: {$acceptLevel} (+{$add})";
         }
     }
+}
 
-
-    // --- Sec 5: Recognition / Eligibility -----------------------------------
-    if ($section === 5) {
-        if (!empty($hier['recognition_level'])) {
-            $add = ['local'=>6,'national'=>8][$hier['recognition_level']] ?? 0;
-            $score += $add; $why[] = "Recognition: {$hier['recognition_level']} (+{$add})";
+// --- PUBLICATIONS / MODULES / BOOKS ---
+if (stripos($name, 'Journal') !== false || stripos($name, 'Training Module') !== false ||
+    stripos($name, 'Book') !== false || stripos($name, 'Workbook') !== false ||
+    stripos($name, 'Laboratory Manual') !== false) {
+    
+    $ptype = $hier['publication_type'] ?? 'journal';
+    $lvl = $hier['circulation_level'] ?? null; // local/national/international
+    $hasISBN = $hier['has_isbn'] ?? false;
+    $hasCopyright = $hier['has_copyright'] ?? false;
+    $numAuthors = max(1, (int)($hier['num_authors'] ?? 1)); // Divide points among authors
+    
+    // Point values based on PDF
+    $tbl = [
+        'journal' => [
+            'local' => 2,
+            'national' => 3,  // Requires ISBN
+            'international' => 1  // Requires copyright (FIXED from 4!)
+        ],
+        'training_module' => [
+            'local' => 3,
+            'national' => 4,  // Requires ISBN
+            'international' => 5  // Requires copyright
+        ],
+        'book' => [  // Includes workbooks, laboratory manuals
+            'local' => 5,
+            'national' => 6,  // Requires ISBN
+            'international' => 7  // Requires copyright
+        ]
+    ];
+    
+    // Normalize book types
+    if (in_array($ptype, ['workbook', 'laboratory_manual'])) {
+        $ptype = 'book';
+    }
+    
+    if ($lvl && isset($tbl[$ptype][$lvl])) {
+        // Check ISBN/Copyright requirements
+        $valid = true;
+        if ($lvl === 'national' && !$hasISBN) {
+            $why[] = "⚠️ National publication requires ISBN";
+            $valid = false;
         }
-        if (!empty($hier['eligibility_type'])) {
-            $add = ['cs_sub_professional'=>3,'cs_professional'=>4,'prc'=>5][$hier['eligibility_type']] ?? 0;
-            $score += $add; $why[] = "Eligibility: {$hier['eligibility_type']} (+{$add})";
+        if ($lvl === 'international' && !$hasCopyright) {
+            $why[] = "⚠️ International publication requires copyright";
+            $valid = false;
+        }
+        
+        if ($valid) {
+            $rawPoints = $tbl[$ptype][$lvl];
+            $add = round($rawPoints / $numAuthors, 2); // Divide among authors
+            $score += $add;
+            
+            $authorNote = $numAuthors > 1 ? " (÷{$numAuthors} authors)" : "";
+            $why[] = ucfirst(str_replace('_', ' ', $ptype)) . ": {$lvl}{$authorNote} (+{$add})";
         }
     }
+}
+  
+// --- Section 4: Professional Development (25 pts max) ---
+if ($section === 4) {
+    
+    // 4.1 Coordination of Training Program (10 pts max)
+    if (!empty($hier['coordination_level'])) {
+        $coordPts = ['local' => 6, 'national' => 8, 'international' => 10];
+        $lvl = strtolower($hier['coordination_level']);
+        if (isset($coordPts[$lvl])) {
+            $add = $coordPts[$lvl];
+            $score += $add;
+            $why[] = "Coordination: {$lvl} (+{$add})";
+        }
+    }
+    
+    // 4.2 Participation in Seminar/Workshop (5 pts max)
+    if (!empty($hier['participation_level'])) {
+        $participPts = ['local' => 3, 'national' => 4, 'international' => 5];
+        $lvl = strtolower($hier['participation_level']);
+        if (isset($participPts[$lvl])) {
+            $add = $participPts[$lvl];
+            $score += $add;
+            $why[] = "Participation: {$lvl} (+{$add})";
+        }
+    }
+    
+    // 4.3 Membership in Professional Organization (5 pts max)
+    if (!empty($hier['membership_level'])) {
+        $memberPts = ['local' => 3, 'national' => 4, 'international' => 5];
+        $lvl = strtolower($hier['membership_level']);
+        if (isset($memberPts[$lvl])) {
+            $add = $memberPts[$lvl];
+            $score += $add;
+            $why[] = "Membership: {$lvl} (+{$add})";
+        }
+    }
+    
+    // 4.4 Scholarships (5 pts max) - CRITICAL FIX!
+    // Need BOTH level AND competitive status
+    if (!empty($hier['scholarship_level']) && !empty($hier['scholarship_competitive'])) {
+        $lvl = strtolower($hier['scholarship_level']);          // local/national/international
+        $comp = strtolower($hier['scholarship_competitive']);   // competitive/non_competitive
+        
+        // Combined scoring matrix from PDF
+        $scholarPts = [
+            'local' => [
+                'non_competitive' => 2.5,
+                'competitive' => 3
+            ],
+            'national' => [
+                'non_competitive' => 3.5,
+                'competitive' => 4
+            ],
+            'international' => [
+                'non_competitive' => 4.5,
+                'competitive' => 5
+            ]
+        ];
+        
+        if (isset($scholarPts[$lvl][$comp])) {
+            $add = $scholarPts[$lvl][$comp];
+            $score += $add;
+            $why[] = "Scholarship: {$lvl}, {$comp} (+{$add})";
+        }
+    }
+}
+
+// --- Section 3.2: Extension Services (belongs in Section 3, not 4!) ---
+// This should be in a separate if ($section === 3) block
+
+if ($section === 3) {
+    
+    // 3.2.1 Consultancies (15 pts max)
+    if (stripos($name, 'consultancy') !== false || stripos($name, 'consultant') !== false) {
+        if (!empty($hier['consultancy_level'])) {
+            $consultPts = ['local' => 5, 'national' => 10, 'international' => 15];
+            $lvl = strtolower($hier['consultancy_level']);
+            if (isset($consultPts[$lvl])) {
+                $add = $consultPts[$lvl];
+                $score += $add;
+                $why[] = "Consultancy: {$lvl} (+{$add})";
+            }
+        }
+    }
+    
+    // 3.2.2 Lecturer/Speaker/Resource Person (10 pts max)
+    if (stripos($name, 'lecturer') !== false || 
+        stripos($name, 'speaker') !== false || 
+        stripos($name, 'resource person') !== false) {
+        
+        if (!empty($hier['speaker_level'])) {
+            $speakerPts = ['local' => 6, 'national' => 8, 'international' => 10];
+            $lvl = strtolower($hier['speaker_level']);
+            if (isset($speakerPts[$lvl])) {
+                $add = $speakerPts[$lvl];
+                $score += $add;
+                $why[] = "Speaker/Lecturer: {$lvl} (+{$add})";
+            }
+        }
+    }
+    
+    // 3.2.3 Community Services (5 pts max)
+    if (stripos($name, 'community') !== false || stripos($name, 'barangay') !== false) {
+        if (!empty($hier['community_role'])) {
+            $communityPts = [
+                'trainer' => 3,
+                'coordinator' => 3,
+                'organizer' => 3,
+                'barangay_official' => 4,
+                'municipal_official' => 4,
+                'project_director' => 5,
+                'project_manager' => 5
+            ];
+            $role = strtolower($hier['community_role']);
+            if (isset($communityPts[$role])) {
+                $add = $communityPts[$role];
+                $score += $add;
+                $why[] = "Community service: {$role} (+{$add})";
+            }
+        }
+    }
+}
+
+
+  // --- Section 5: Others (15 pts max: 10 recognition + 5 eligibility) ---
+if ($section === 5) {
+    
+    // 5.1 Recognition/Awards (10 pts max)
+    if (!empty($hier['recognition_levels'])) {
+        $recogPts = ['local' => 6, 'national' => 8];
+        
+        $levels = is_array($hier['recognition_levels']) 
+                  ? $hier['recognition_levels'] 
+                  : [$hier['recognition_levels']];
+        
+        // Take the HIGHEST level if multiple awards
+        $maxRecog = 0;
+        $bestLevel = '';
+        foreach ($levels as $lvl) {
+            $lvl = strtolower($lvl);
+            if (isset($recogPts[$lvl]) && $recogPts[$lvl] > $maxRecog) {
+                $maxRecog = $recogPts[$lvl];
+                $bestLevel = $lvl;
+            }
+        }
+        
+        if ($maxRecog > 0) {
+            $score += $maxRecog;
+            $levelsList = implode(', ', $levels);
+            $why[] = "Recognition: {$levelsList} (best: {$bestLevel}, +{$maxRecog})";
+        }
+    }
+    
+    // Fallback for single recognition_level field
+    elseif (!empty($hier['recognition_level'])) {
+        $recogPts = ['local' => 6, 'national' => 8];
+        $lvl = strtolower($hier['recognition_level']);
+        if (isset($recogPts[$lvl])) {
+            $add = $recogPts[$lvl];
+            $score += $add;
+            $why[] = "Recognition: {$lvl} (+{$add})";
+        }
+    }
+    
+    // 5.2 Eligibilities (5 pts max)
+    // These are MUTUALLY EXCLUSIVE - take the highest
+    if (!empty($hier['eligibility_types'])) {
+        $eligPts = [
+            'cs_sub_professional' => 3,
+            'cs_professional' => 4,
+            'prc_licensure' => 5,
+            'prc' => 5  // Alias
+        ];
+        
+        $types = is_array($hier['eligibility_types']) 
+                 ? $hier['eligibility_types'] 
+                 : [$hier['eligibility_types']];
+        
+        // Take the HIGHEST eligibility
+        $maxElig = 0;
+        $bestType = '';
+        foreach ($types as $type) {
+            $type = strtolower($type);
+            if (isset($eligPts[$type]) && $eligPts[$type] > $maxElig) {
+                $maxElig = $eligPts[$type];
+                $bestType = $type;
+            }
+        }
+        
+        if ($maxElig > 0) {
+            $score += $maxElig;
+            $typesList = implode(', ', $types);
+            $why[] = "Eligibility: {$typesList} (highest: {$bestType}, +{$maxElig})";
+        }
+    }
+    
+    // Fallback for single eligibility_type field
+    elseif (!empty($hier['eligibility_type'])) {
+        $eligPts = [
+            'cs_sub_professional' => 3,
+            'cs_professional' => 4,
+            'prc_licensure' => 5,
+            'prc' => 5
+        ];
+        $type = strtolower($hier['eligibility_type']);
+        if (isset($eligPts[$type])) {
+            $add = $eligPts[$type];
+            $score += $add;
+            $why[] = "Eligibility: {$type} (+{$add})";
+        }
+    }
+}
 
     // Cap sa max ng criteria
     $final = round(min($score, $max), 2);

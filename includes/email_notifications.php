@@ -1,4 +1,3 @@
-email notif 
 
 <?php
 // includes/email_notifications.php

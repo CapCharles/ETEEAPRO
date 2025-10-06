@@ -595,7 +595,7 @@ $fieldLabel = [
     'scholarship_level' => 'Scholarship',
     'recognition_level' => 'Recognition',
     'eligibility_type' => 'Eligibility',
-];
+
 
 // >>> HIERARCHY JSON FIELD REFERENCE (Guide only) <<<
 // Common fields for all criteria
@@ -631,6 +631,7 @@ $fieldLabel = [
  'recognition_level' => 'local' | 'national'
  'eligibility_type' => 'cs_sub_professional' | 'cs_professional' | 'prc_licensure'
 
+ ];
     // special phrasing para sa literacy outreach
     $litPhrases = ['local'=>'Local Community','national'=>'National Program','international'=>'International Initiative'];
     $isLiteracy = (isset($hier['publication_type']) && $hier['publication_type']==='literacy_outreach');

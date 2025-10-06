@@ -543,7 +543,7 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
           <!-- Footer -->
           <tr>
             <td align="center" class="footer" style="background:#0f172a;padding:16px;border-radius:0 0 12px 12px;">
-              <p style="font:12px Arial,Helvetica,sans-serif;color:#cbd5e1;margin:0;">
+              <p style="font:12px Arial,Helvetica,sans-serif;color:#ffffffff;margin:0;">
                 &copy; ' . date('Y') . ' ETEEAP System. All rights reserved.<br>
                 <a href="' . $baseUrl . '" style="color:#93c5fd;">Visit Website</a> ·
                 <a href="' . $baseUrl . 'privacy" style="color:#93c5fd;">Privacy Policy</a> ·

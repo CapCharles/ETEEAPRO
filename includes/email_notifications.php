@@ -546,7 +546,7 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                       <tr>
                         <td align="center" bgcolor="#3b82f6" style="border-radius:8px;">
                           <a href="' . $baseUrl . 'auth/login.php" class="btn"
-                             style="display:inline-block;padding:12px 18px;font:600 14px Arial,Helvetica,sans-serif;color:#ffffff;background:#3b82f6;border-radius:8px;">
+                             style="display:inline-block;padding:12px 18px;font:600 14px Arial,Helvetica,sans-serif;color:#ffffff;background:#3b82f6;border-radius:8px; align="middle">
                             Log in to your account
                           </a>
                         </td>

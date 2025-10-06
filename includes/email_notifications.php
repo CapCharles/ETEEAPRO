@@ -435,7 +435,7 @@ function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['c
 
 /** Approval + Program (PRO Email Template) */
 function sendApprovalWithProgram($user_email, $user_name, $program_code, $program_name, $reroute_reason = '') {
- $baseUrl   = 'https://eteeapro.site/';
+    $baseUrl   = 'https://eteeapro.site/';
     $fullName  = trim($user_name);
     $preheader = "Your ETEEAP application is approved. Program: {$program_code} – {$program_name}. Continue inside.";
 
@@ -448,146 +448,117 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
     }
 
     $html = '<!DOCTYPE html>
-<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="x-ua-compatible" content="ie=edge">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <meta name="supported-color-schemes" content="light dark">
-<title>ETEEAP Approval</title>
+<title>ETEEAP Application Approved</title>
 <style>
-  html,body{margin:0!important;padding:0!important;height:100%!important;width:100%!important}
+  html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important}
   *{-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%}
-  a{text-decoration:none}
-  img{border:0;line-height:100%;outline:none;text-decoration:none}
   table{border-collapse:collapse!important}
+  a{text-decoration:none}
   @media screen and (max-width:600px){
     .container{width:100%!important}
-    .px{padding-left:16px!important;padding-right:16px!important}
-    .py{padding-top:16px!important;padding-bottom:16px!important}
-    .h1{font-size:20px!important}
-    .h2{font-size:14px!important}
   }
   :root{color-scheme:light dark;supported-color-schemes:light dark}
   @media (prefers-color-scheme:dark){
-    .bg{background-color:#0f1115!important}
-    .card{background-color:#161a22!important}
-    .text{color:#e6e6e6!important}
-    .muted{color:#b5b5b5!important}
+    body{background-color:#0f1115!important}
+    .card{background-color:#161a22!important;color:#e6e6e6!important}
     .footer{background-color:#0f1115!important;color:#b5b5b5!important}
-    .btn{background-color:#6d9eff!important}
-    .chip{background-color:#0f172a!important;color:#cbd5e1!important;border-color:#24304a!important}
+    a.btn{background-color:#6d9eff!important}
   }
 </style>
 </head>
-<body class="bg" style="background:#f3f5f9;margin:0;padding:0;">
-  <!-- Preheader (hidden in most clients) -->
-  <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0;">
-    ' . htmlspecialchars($preheader) . '
-  </div>
+<body style="background:#f3f5f9;margin:0;padding:0;">
+  <!-- Preheader -->
+  <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0;">' . htmlspecialchars($preheader) . '</div>
 
-  <table role="presentation" width="100%" bgcolor="#f3f5f9" style="background:#f3f5f9;">
- 
-
-          <!-- Card -->
+  <table role="presentation" width="100%" bgcolor="#f3f5f9">
+    <tr>
+      <td align="center" style="padding:24px;">
+        <!-- Compact centered card -->
+        <table role="presentation" width="100%" class="container" style="max-width:480px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+          <!-- Header -->
           <tr>
-            <td class="px" style="padding:0 24px 24px 24px;">
-              <table role="presentation" width="100%" class="card" style="background:#ffffff;border-radius:12px;overflow:hidden;">
-                <!-- Hero -->
+            <td align="center" style="background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%);padding:20px 16px;">
+              <div style="font:700 20px Arial,Helvetica,sans-serif;color:#ffffff;">Your Application is Approved ✅</div>
+              <div style="font:14px Arial,Helvetica,sans-serif;color:#eafff2;">You can now continue to the next steps.</div>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:24px;font:14px Arial,Helvetica,sans-serif;color:#344054;line-height:1.7;">
+              <p>Hi <strong>' . htmlspecialchars($fullName) . '</strong>,</p>
+              <p>Your ETEEAP application has been <strong>approved</strong>.</p>
+
+              <div style="margin:16px 0;padding:12px 14px;border:1px solid #e6e8ee;border-radius:8px;background:#fbfcff;">
+                <div style="font-weight:600;margin-bottom:4px;">Assigned Program</div>
+                <div>' . htmlspecialchars($program_code) . ' — ' . htmlspecialchars($program_name) . '</div>
+                ' . $reasonHtml . '
+              </div>
+
+              <div style="margin:16px 0;padding:12px 14px;border:1px solid #e6e8ee;border-radius:8px;background:#fbfcff;">
+                <div style="font-weight:600;margin-bottom:4px;">Next Steps</div>
+                <ul style="margin:0 0 0 18px;padding:0;">
+                  <li>Log in to your ETEEAP account</li>
+                  <li>Complete your candidate profile</li>
+                  <li>Upload supporting documents for evaluation</li>
+                  <li>Track your assessment progress</li>
+                </ul>
+              </div>
+
+              <!-- Centered login button -->
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:20px auto;">
                 <tr>
-                  <td align="center" style="background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%);padding:24px;">
-                    <div class="h1" style="font:700 22px Arial,Helvetica,sans-serif;color:#ffffff;">Your Application is Approved ✅</div>
-                    <div class="h2" style="font:14px Arial,Helvetica,sans-serif;color:#eafff2;margin-top:4px;">You can now continue to the next steps.</div>
-                  </td>
-                </tr>
-
-                <!-- Body -->
-                <tr>
-                  <td class="py px text" style="padding:24px;font:14px Arial,Helvetica,sans-serif;color:#344054;line-height:1.7;">
-                    <p style="margin:0 0 12px 0;">Hi <strong>' . htmlspecialchars($fullName) . '</strong>,</p>
-                    <p style="margin:0 0 12px 0;">Your ETEEAP application has been <strong>approved</strong>.</p>
-
-                    <!-- Assigned Program -->
-                    <div class="chip" style="margin:12px 0 14px 0;padding:14px;border:1px solid #e6e8ee;border-radius:10px;background:#fbfcff;">
-                      <div style="font-weight:600;margin-bottom:6px;">Assigned Program</div>
-                      <div style="font:14px Arial,Helvetica,sans-serif;">
-                        ' . htmlspecialchars($program_code) . ' — ' . htmlspecialchars($program_name) . '
-                      </div>
-                      ' . $reasonHtml . '
-                    </div>
-
-                    <!-- Next steps -->
-                    <div style="margin:14px 0 16px 0;padding:12px 14px;border:1px solid #e6e8ee;border-radius:10px;background:#ffffff;">
-                      <div style="font-weight:600;margin-bottom:6px;">Next Steps</div>
-                      <ul style="margin:0 0 0 18px;padding:0;">
-                        <li>Log in to your ETEEAP account</li>
-                        <li>Complete your candidate profile</li>
-                        <li>Upload supporting documents for evaluation</li>
-                        <li>Track your assessment progress</li>
-                      </ul>
-                    </div>
-
-          <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:20px auto;">
-  <tr>
-    <td align="center">
-      <a href="' . $baseUrl . 'auth/login.php"
-         style="display:inline-block;
-                padding:10px 22px;
-                font:600 14px Arial,Helvetica,sans-serif;
-                color:#ffffff;
-                background-color:#3b82f6;
-                border-radius:6px;
-                text-decoration:none;
-                text-align:center;
-                width:auto;">
-        Log in to your account
-      </a>
-    </td>
-  </tr>
-</table>
-                    <p class="muted" style="margin:16px 0 0 0;color:#667085;font:12px Arial,Helvetica,sans-serif; align="middle">
-                      If the button doesn’t work, copy and paste this URL into your browser:<br>
-                      <span style="word-break:break-all;color:#475467; align="middle">' . $baseUrl . 'auth/login.php</span>
-                    </p>
-                  </td>
-                </tr>
-
-                <!-- Divider -->
-                <tr><td style="padding:0 24px;"><hr style="border:none;border-top:1px solid #e6e8ee;margin:0;"></td></tr>
-
-                <!-- Help -->
-                <tr>
-                  <td class="px" style="padding:16px 24px 24px 24px;font:12px Arial,Helvetica,sans-serif;color:#667085;">
-                    Need help? Reply to this email or contact support.
+                  <td align="center">
+                    <a href="' . $baseUrl . 'auth/login.php"
+                       class="btn"
+                       style="display:inline-block;
+                              padding:10px 22px;
+                              font:600 14px Arial,Helvetica,sans-serif;
+                              color:#ffffff;
+                              background-color:#3b82f6;
+                              border-radius:6px;
+                              text-decoration:none;">
+                      Log in to your account
+                    </a>
                   </td>
                 </tr>
               </table>
+
+              <p style="font-size:12px;color:#667085;margin-top:20px;text-align:center;">
+                If the button doesn’t work, copy and paste this URL into your browser:<br>
+                <a href="' . $baseUrl . 'auth/login.php" style="color:#3b82f6;">' . $baseUrl . 'auth/login.php</a>
+              </p>
+
+              <hr style="border:none;border-top:1px solid #e6e8ee;margin:24px 0;">
+              <p style="font-size:12px;color:#888;text-align:center;">Need help? Reply to this email or contact support.</p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td class="px" style="padding:0 24px 32px 24px;">
-              <table role="presentation" width="100%" class="footer" style="background:#0f172a;border-radius:12px;">
-                <tr>
-                  <td align="center" style="padding:18px 16px;font:12px Arial,Helvetica,sans-serif;color:#cbd5e1;">
-                    &copy; ' . date('Y') . ' ETEEAP System. All rights reserved.
-                    &nbsp;&middot;&nbsp; <a href="' . $baseUrl . '" style="color:#93c5fd;">Visit website</a>
-                    &nbsp;&middot;&nbsp; <a href="#" style="color:#93c5fd;">Privacy Policy</a>
-                    &nbsp;&middot;&nbsp; <a href="#" style="color:#93c5fd;">Contact Support</a>
-                  </td>
-                </tr>
-              </table>
+            <td align="center" class="footer" style="background:#0f172a;padding:16px;border-radius:0 0 12px 12px;">
+              <p style="font:12px Arial,Helvetica,sans-serif;color:#cbd5e1;margin:0;">
+                &copy; ' . date('Y') . ' ETEEAP System. All rights reserved.<br>
+                <a href="' . $baseUrl . '" style="color:#93c5fd;">Visit Website</a> ·
+                <a href="' . $baseUrl . 'privacy" style="color:#93c5fd;">Privacy Policy</a> ·
+                <a href="' . $baseUrl . 'contact" style="color:#93c5fd;">Contact Support</a>
+              </p>
             </td>
           </tr>
-
         </table>
       </td>
     </tr>
   </table>
 </body>
 </html>';
+
+
 
     $ok = send_with_fallback(function($mail) use ($user_email, $fullName, $html, $alt) {
         $mail->addAddress($user_email, $fullName);
@@ -600,5 +571,6 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
     error_log("sendApprovalWithProgram to {$user_email}: " . ($ok ? 'Success' : 'Failed'));
     return $ok;
 }
+
 
 ?>

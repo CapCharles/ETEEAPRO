@@ -3,6 +3,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 require_once '../includes/functions.php';
+include_once '../includes/email_notifications.php';
 
 // Check if user is logged in and is admin
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
@@ -312,6 +313,42 @@ if ($_POST) {
             ]);
 
             $pdo->commit();
+             try {
+        // Fetch applicant details for email
+        $stmt = $pdo->prepare("
+            SELECT u.email, u.first_name, u.last_name
+            FROM users u
+            WHERE u.id = ?
+        ");
+        $stmt->execute([$applicant_user_id]);
+        $applicant = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($applicant) {
+            $applicant_email = $applicant['email'];
+            $applicant_name = trim($applicant['first_name'] . ' ' . $applicant['last_name']);
+            
+            // Send approval email with program details
+            $email_sent = sendApprovalWithProgram(
+                $applicant_email,
+                $applicant_name,
+                $assignedProgram['program_code'],
+                $assignedProgram['program_name'],
+                $reroute_reason // Will be empty string if same as preferred
+            );
+            
+            // Log email status
+            if ($email_sent) {
+                error_log("[APPROVAL] Email sent successfully to {$applicant_email}");
+            } else {
+                error_log("[APPROVAL] Email failed for {$applicant_email}");
+                // Don't fail the approval just because email failed
+            }
+        }
+    } catch (Exception $e) {
+        // Log error but don't break the approval process
+        error_log("[APPROVAL] Email notification error: " . $e->getMessage());
+    }
+
             redirectWithMessage('application-reviews.php','Applicant approved. User is active and can start uploading.','success');
             
         } catch (Exception $e) {
@@ -392,6 +429,34 @@ elseif (isset($_POST['reject_applicant'])) {
             $pdo->commit();
             error_log("Transaction committed successfully!");
             error_log("========== REJECTION COMPLETE ==========");
+
+                try {
+        // Fetch applicant details
+        $stmt = $pdo->prepare("
+            SELECT email, first_name, last_name
+            FROM users
+            WHERE id = ?
+        ");
+        $stmt->execute([$applicant_user_id]);
+        $applicant = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($applicant) {
+            $email_sent = sendRejectionNotification(
+                $applicant['email'],
+                trim($applicant['first_name'] . ' ' . $applicant['last_name']),
+                $rejection_reason
+            );
+            
+            if ($email_sent) {
+                error_log("[REJECTION] Email sent to {$applicant['email']}");
+            } else {
+                error_log("[REJECTION] Email failed for {$applicant['email']}");
+            }
+        }
+    } catch (Exception $e) {
+        error_log("[REJECTION] Email error: " . $e->getMessage());
+    }
+    
             
             // Redirect to the rejected tab
             $_SESSION['flash_message'] = 'Applicant rejected successfully.';

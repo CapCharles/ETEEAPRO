@@ -553,9 +553,9 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                       </tr>
                     </table>
 
-                    <p class="muted" style="margin:16px 0 0 0;color:#667085;font:12px Arial,Helvetica,sans-serif;">
+                    <p class="muted" style="margin:16px 0 0 0;color:#667085;font:12px Arial,Helvetica,sans-serif; align="middle">
                       If the button doesn’t work, copy and paste this URL into your browser:<br>
-                      <span style="word-break:break-all;color:#475467;">' . $baseUrl . 'auth/login.php</span>
+                      <span style="word-break:break-all;color:#475467; align="middle">' . $baseUrl . 'auth/login.php</span>
                     </p>
                   </td>
                 </tr>

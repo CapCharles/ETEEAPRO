@@ -153,11 +153,11 @@ function sendRegistrationNotification($user_email, $user_name) {
                                     <td width="60" valign="middle">
                                         <!-- Logo placeholder - replace with actual logo URL -->
                                         <div style="width: 50px; height: 50px; background-color: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                                            <span style="color: #ffffff; font-size: 24px; font-weight: bold;">E</span>
+                                            <span style="color: #ffffff; font-size: 24px; font-weight: bold;">🎓</span>
                                         </div>
                                     </td>
                                     <td valign="middle" align="right">
-                                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;"> 🎓 ETEEAP Registration</h1>
+                                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; ">ETEEAP Registration</h1>
                                     </td>
                                 </tr>
                             </table>

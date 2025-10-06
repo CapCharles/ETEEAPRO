@@ -435,7 +435,7 @@ function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['c
 
 /** Approval + Program (PRO Email Template) */
 function sendApprovalWithProgram($user_email, $user_name, $program_code, $program_name, $reroute_reason = '') {
-    $baseUrl   = _base_url_safe();
+ $baseUrl   = 'https://eteeapro.site/';
     $fullName  = trim($user_name);
     $preheader = "Your ETEEAP application is approved. Program: {$program_code} – {$program_name}. Continue inside.";
 
@@ -567,7 +567,7 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                 <tr>
                   <td class="px" style="padding:16px 24px 24px 24px;font:12px Arial,Helvetica,sans-serif;color:#667085;">
                     Need help? Reply to this email or contact support.
-                  </td>
+                  </td>sa
                 </tr>
               </table>
             </td>

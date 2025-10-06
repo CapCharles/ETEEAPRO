@@ -581,57 +581,16 @@ function render_hier_badges(array $hier) {
     ];
     // Field → label
     $fieldLabel = [
-        'publication_type'=>'Type',
-        'patent_status'=>'Patent',
-        'invention_type'=>'Invention',
-        'circulation_level'=>'Circulation',
-        'circulation_levels'=>'Circulation',
-        'acceptability_levels'=>'Market',
-        'service_levels'=>'Service',
-        'education_level'=>'Education',
-        'scholarship_type'=>'Scholarship',
-        'years_experience'=>'Years',
-        'experience_role'=>'Role',
-        'coordination_level'=>'Coordination',
-        'participation_level'=>'Participation',
-        'membership_level'=>'Membership','
-        scholarship_level'=>'Scholarship',
-        'recognition_level'=>'Recognition','
-        eligibility_type'=>'Eligibility',
+        'publication_type'=>'Type','patent_status'=>'Patent','invention_type'=>'Invention',
+        'circulation_level'=>'Circulation','circulation_levels'=>'Circulation',
+        'acceptability_levels'=>'Market','service_levels'=>'Service',
+        'education_level'=>'Education','scholarship_type'=>'Scholarship',
+        'years_experience'=>'Years','experience_role'=>'Role',
+        'coordination_level'=>'Coordination','participation_level'=>'Participation',
+        'membership_level'=>'Membership','scholarship_level'=>'Scholarship',
+        'recognition_level'=>'Recognition','eligibility_type'=>'Eligibility',
 
-        // Common fields for all criteria
-'circulation_level' => 'local' | 'national' | 'international'
-'has_isbn' => true | false
-'has_copyright' => true | false
-'num_authors' => 1, 2, 3, etc.
-
-// Inventions/Innovations
-'invention_type' => 'invention' | 'innovation'
-'patent_status' => 'patented' | 'no_patent'
-'acceptability_level' => 'local' | 'national' | 'international'
-
-// Extension Services
-'consultancy_level' => 'local' | 'national' | 'international'
-'speaker_level' => 'local' | 'national' | 'international'
-'community_role' => 'trainer' | 'coordinator' | 'organizer' | 
-                    'barangay_official' | 'municipal_official' | 
-                    'project_director' | 'project_manager'
-
-// BEED-specific
-'outreach_level' => 'local' | 'national' | 'international'
-'program_level' => 'local' | 'national' | 'international'
-
-// Professional Development
-'coordination_level' => 'local' | 'national' | 'international'
-'participation_level' => 'local' | 'national' | 'international'
-'membership_level' => 'local' | 'national' | 'international'
-'scholarship_level' => 'local' | 'national' | 'international'
-'scholarship_competitive' => 'competitive' | 'non_competitive'
-
-// Others
-'recognition_level' => 'local' | 'national'
-'eligibility_type' => 'cs_sub_professional' | 'cs_professional' | 'prc_licensure'
-
+        
     ];
     // special phrasing para sa literacy outreach
     $litPhrases = ['local'=>'Local Community','national'=>'National Program','international'=>'International Initiative'];

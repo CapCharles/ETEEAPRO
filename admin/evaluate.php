@@ -696,33 +696,70 @@ function score_one_doc(array $criteria, array $hier): array {
     $score = 0.0;
     $why   = [];
 
-    // --- Sec 1: Education ---------------------------------------------------
-    if ($section === 1) {
-        $eduPts = [
-            'high_school'=>2,'vocational'=>3,'technical'=>4,'undergraduate'=>5,'non_education'=>6
-        ];
-        if (!empty($hier['education_level']) && isset($eduPts[$hier['education_level']])) {
-            $add = $eduPts[$hier['education_level']];
-            $score += $add;  $why[] = "Education: {$hier['education_level']} (+{$add})";
-        }
-        if (!empty($hier['scholarship_type']) && $hier['scholarship_type'] !== 'none') {
-            $bonus = $hier['scholarship_type']==='full' ? 2 : 1;
-            $score += $bonus; $why[] = "Scholarship: {$hier['scholarship_type']} (+{$bonus})";
-        }
+if ($section === 1) {
+    $eduPts = [
+        'high_school' => 10,
+        'vocational' => 12,      // Could be 11-14 based on additional criteria
+        'technical' => 16,       // Could be 15-17 based on additional criteria
+        'undergraduate' => 19,   // Could be 18-20 based on completion %
+        'non_education' => 20
+    ];
+    
+    if (!empty($hier['education_level']) && isset($eduPts[$hier['education_level']])) {
+        $add = $eduPts[$hier['education_level']];
+        $score += $add;
+        $why[] = "Education: {$hier['education_level']} (+{$add})";
+    }
+    
+    
+}
+
+// --- Sec 2: Work Experience (30pts max) ---
+if ($section === 2) {
+    $rolePts = [
+        'administrator' => 5,
+        'supervisor'    => 3,
+        'trainer'       => 2,
+        'sunday_school' => 1,
+        'daycare'       => 1
+    ];
+
+    $yrs = (int)($hier['years_experience'] ?? 0);
+    
+    // --- Entry points (15 base + 1 per year beyond 5) ---
+    $entry = 0;
+    if ($yrs >= 5) {
+        $entry = 15 + ($yrs - 5);
     }
 
-    // --- Sec 2: Work Experience (simple baseline) ---------------------------
-    if ($section === 2) {
-        $rolePts = [
-            'administrator'=>5,'supervisor'=>3,'trainer'=>2,'sunday_school'=>1,'daycare'=>1
-        ];
-        $yrs  = (int)($hier['years_experience'] ?? 0);
-        $role = $hier['experience_role'] ?? null;
-        if ($yrs >= 5 && $role && isset($rolePts[$role])) {
-            $add = $rolePts[$role];
-            $score += $add; $why[] = "Experience: {$yrs} yrs, role {$role} (+{$add})";
+    // --- Role points (allow MULTIPLE roles) ---
+    $roleTotal = 0;
+    $rolesList = [];
+    
+    // If roles is an array (checkbox/multi-select)
+    if (!empty($hier['experience_roles']) && is_array($hier['experience_roles'])) {
+        foreach ($hier['experience_roles'] as $role) {
+            if (isset($rolePts[$role])) {
+                $roleTotal += $rolePts[$role];
+                $rolesList[] = "{$role}({$rolePts[$role]})";
+            }
         }
     }
+    // Fallback for single role (if using old format)
+    elseif (!empty($hier['experience_role']) && isset($rolePts[$hier['experience_role']])) {
+        $roleTotal = $rolePts[$hier['experience_role']];
+        $rolesList[] = "{$hier['experience_role']}({$roleTotal})";
+    }
+
+    // --- Combine and cap at 30 ---
+    $totalAdd = min(30, $entry + $roleTotal);
+    
+    $score += $totalAdd;
+    $rolesStr = implode(', ', $rolesList);
+    $why[] = "Experience: {$yrs} yrs, roles [{$rolesStr}] (entry={$entry}, roles={$roleTotal}) → +{$totalAdd} pts";
+}
+
+
 
     // --- Sec 3: Publications / Inventions ----------------------------------
     // Invention / Innovation

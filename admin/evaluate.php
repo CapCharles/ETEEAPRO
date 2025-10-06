@@ -641,50 +641,56 @@ function render_hier_badges(array $hier) {
 
 
 if (!function_exists('doc_matches_criteria')) {
-    function doc_matches_criteria(array $doc, array $criteria): bool {
-        // 1) direct link
-        if ((int)$doc['criteria_id'] === (int)$criteria['id']) return true;
+   function doc_matches_criteria(array $doc, array $criteria): bool {
+    // 1) Direct criteria_id link
+    if ((int)($doc['criteria_id'] ?? 0) === (int)$criteria['id']) return true;
 
-        // 2) via hierarchical_data badges
-        $h     = parse_hier($doc);
-        $cname = strtolower($criteria['criteria_name'] ?? '');
-        $ctype = strtolower($criteria['criteria_type'] ?? '');
+    // 2) Parse hierarchical data
+    $hier = parse_hier($doc);
+    if (empty($hier)) return false;
+    
+    $cname = strtolower($criteria['criteria_name'] ?? '');
+    $ctype = strtolower($criteria['criteria_type'] ?? '');
 
-        // publications / modules / books
-        if (strpos($cname,'journal') !== false) {
-            return ($h['publication_type'] ?? '') === 'journal';
-        }
-        if (strpos($cname,'training module') !== false || strpos($cname,'training modules') !== false) {
-            return in_array($h['publication_type'] ?? '', ['training_module','teaching_module'], true);
-        }
-        if (strpos($cname,'book') !== false || strpos($cname,'workbook') !== false || strpos($cname,'lab manual') !== false) {
-            return in_array($h['publication_type'] ?? '', ['book','workbook'], true);
-        }
-
-        // resource speaker / lecturer
-        if (strpos($cname,'resource speaker') !== false || strpos($cname,'lecturer') !== false || strpos($cname,'speaker') !== false) {
-            return !empty($h['service_levels']) || !empty($h['service_level']);
-        }
-
-        // program coordination / participation
-        if (strpos($cname,'program coordination') !== false) {
-            return !empty($h['coordination_level']);
-        }
-        if (strpos($cname,'participation') !== false) {
-            return !empty($h['participation_level']);
-        }
-
-        // scholarships/grants
-        if (strpos($cname,'scholarship') !== false || strpos($cname,'grant') !== false) {
-            return !empty($h['scholarship_level']) || !empty($h['scholarship_type']);
-        }
-
-        // 3) fallback sa dating filename heuristic
-        if (empty($doc['criteria_id']) && stripos($doc['original_filename'] ?? '', $ctype) !== false) {
-            return true;
-        }
-        return false;
+    // PUBLICATIONS
+    if (strpos($cname, 'journal') !== false) {
+        return ($hier['publication_type'] ?? '') === 'journal';
     }
+    if (strpos($cname, 'module') !== false || strpos($cname, 'teaching') !== false) {
+        return in_array($hier['publication_type'] ?? '', ['training_module', 'teaching_module']);
+    }
+    if (strpos($cname, 'book') !== false || strpos($cname, 'workbook') !== false || strpos($cname, 'reading kit') !== false) {
+        return in_array($hier['publication_type'] ?? '', ['book', 'workbook', 'reading_kit']);
+    }
+
+    // EXTENSION SERVICES
+    if (strpos($cname, 'literacy') !== false || strpos($cname, 'numeracy') !== false) {
+        return !empty($hier['outreach_level']) || !empty($hier['circulation_level']);
+    }
+    if (strpos($cname, 'program coordination') !== false || strpos($cname, 'camp') !== false) {
+        return !empty($hier['program_level']) || !empty($hier['coordination_level']);
+    }
+    if (strpos($cname, 'speaker') !== false || strpos($cname, 'trainer') !== false) {
+        return !empty($hier['speaker_level']) || !empty($hier['service_level']) || !empty($hier['service_levels']);
+    }
+
+    // SCHOLARSHIPS
+    if (strpos($cname, 'scholarship') !== false || strpos($cname, 'grant') !== false) {
+        return !empty($hier['scholarship_level']) || !empty($hier['scholarship_type']);
+    }
+
+    // INVENTIONS/INNOVATIONS
+    if (strpos($cname, 'invention') !== false || strpos($cname, 'innovation') !== false) {
+        return !empty($hier['invention_type']) || !empty($hier['patent_status']);
+    }
+
+    // 3) Fallback filename check
+    if (stripos($doc['original_filename'] ?? '', $ctype) !== false) {
+        return true;
+    }
+
+    return false;
+}
 }
 
 // === Auto-suggest scoring helpers ==========================================
@@ -891,10 +897,10 @@ if ($section === 4) {
         }
     }
     
-    // 4.4 SCHOLARSHIPS (5 pts max) - COMPLETE FIX!
-    if (!empty($hier['scholarship_level']) && !empty($hier['scholarship_competitive'])) {
+      // 4.4 SCHOLARSHIPS - FIXED LOCATION & DETECTION
+    if (!empty($hier['scholarship_level'])) {
         $lvl = strtolower($hier['scholarship_level']);
-        $comp = strtolower($hier['scholarship_competitive']);
+        $comp = strtolower($hier['scholarship_competitive'] ?? 'non_competitive');
         
         $scholarPts = [
             'local' => ['non_competitive' => 2.5, 'competitive' => 3],
@@ -908,6 +914,24 @@ if ($section === 4) {
             $why[] = "Scholarship: {$lvl}, {$comp} (+{$add})";
         }
     }
+
+     // Alternative field names check
+    if (empty($score) && !empty($hier['scholarship_type'])) {
+        $type = strtolower($hier['scholarship_type']);
+        // Map scholarship types to scores
+        $scholarshipMap = [
+            'elementary' => 3,  // Local competitive equivalent
+            'secondary' => 3.5, // National non-competitive
+            'tertiary' => 4,    // National competitive
+            'international' => 5 // International competitive
+        ];
+        
+        if (isset($scholarshipMap[$type])) {
+            $add = $scholarshipMap[$type];
+            $score += $add;
+            $why[] = "Scholarship ({$type}) (+{$add})";
+        }
+    }
 }
 
 // --- Section 3.2: Extension Services (belongs in Section 3, not 4!) ---
@@ -916,7 +940,7 @@ if ($section === 4) {
 if ($section === 3) {
      $nameNorm = normalizeCriteriaName($name);
 
-      // --- 3.1.1 INVENTIONS & INNOVATIONS (15 pts) ---
+      // === 3.1.1 INVENTIONS & INNOVATIONS ===
     if (strpos($nameNorm, 'invention') !== false || strpos($nameNorm, 'innovation') !== false) {
         
         $isInvention = (strpos($nameNorm, 'invention') !== false) || 
@@ -925,16 +949,14 @@ if ($section === 3) {
         // Patent Status Base Points
         if (!empty($hier['patent_status'])) {
             $patentStatus = strtolower($hier['patent_status']);
-            if ($patentStatus === 'patented') {
-                $base = $isInvention ? 6 : 1;  // Invention: 6 | Innovation: 1
-            } else {
-                $base = $isInvention ? 5 : 2;  // Invention: 5 | Innovation: 2
-            }
+            $base = ($patentStatus === 'patented') 
+                ? ($isInvention ? 6 : 1)
+                : ($isInvention ? 5 : 2);
             $score += $base;
             $why[] = "Patent: {$patentStatus} (+{$base})";
         }
         
-        // Market Acceptability (SINGLE level only)
+        // Market Acceptability
         if (!empty($hier['acceptability_level'])) {
             $mktLevel = strtolower($hier['acceptability_level']);
             $mktPoints = $isInvention 
@@ -949,9 +971,9 @@ if ($section === 3) {
         }
     }
     
-    // --- 3.1.2 PUBLICATIONS (15 pts) ---
+    // === 3.1.2 PUBLICATIONS ===
     
-    // 3.1.2.1 JOURNALS
+    // 3.1.2.1 JOURNALS - FIXED DETECTION
     if (strpos($nameNorm, 'journal') !== false) {
         $lvl = strtolower($hier['circulation_level'] ?? '');
         $hasISBN = !empty($hier['has_isbn']);
@@ -961,7 +983,6 @@ if ($section === 3) {
         $journalPts = ['local' => 2, 'national' => 3, 'international' => 1];
         
         if (isset($journalPts[$lvl])) {
-            // Validate requirements
             if ($lvl === 'national' && !$hasISBN) {
                 $why[] = "⚠️ National journal requires ISBN";
             } elseif ($lvl === 'international' && !$hasCopyright) {
@@ -976,9 +997,10 @@ if ($section === 3) {
         }
     }
     
-    // 3.1.2.2 TRAINING MODULES
-    if (strpos($nameNorm, 'training module') !== false || 
-        strpos($nameNorm, 'teaching module') !== false) {
+    // 3.1.2.2 TRAINING/TEACHING MODULES - BROADENED DETECTION
+    if (strpos($nameNorm, 'module') !== false || 
+        strpos($nameNorm, 'teaching') !== false ||
+        strpos($nameNorm, 'learning material') !== false) {
         
         $lvl = strtolower($hier['circulation_level'] ?? '');
         $hasISBN = !empty($hier['has_isbn']);
@@ -997,15 +1019,15 @@ if ($section === 3) {
                 $add = round($rawPts / $numAuthors, 2);
                 $score += $add;
                 $authorNote = $numAuthors > 1 ? " (÷{$numAuthors} authors)" : "";
-                $why[] = "Training Module: {$lvl}{$authorNote} (+{$add})";
+                $why[] = "Module: {$lvl}{$authorNote} (+{$add})";
             }
         }
     }
     
-    // 3.1.2.3 BOOKS / WORKBOOKS / LAB MANUALS
+    // 3.1.2.3 BOOKS/WORKBOOKS/LAB MANUALS/READING KITS - EXPANDED
     if (strpos($nameNorm, 'book') !== false || 
         strpos($nameNorm, 'workbook') !== false || 
-        strpos($nameNorm, 'laboratory manual') !== false ||
+        strpos($nameNorm, 'laboratory') !== false ||
         strpos($nameNorm, 'lab manual') !== false ||
         strpos($nameNorm, 'reading kit') !== false) {
         
@@ -1049,13 +1071,23 @@ if ($section === 3) {
         }
     }
     
-    // 3.2.2 LECTURER / SPEAKER / RESOURCE PERSON (10 pts max)
-    if (strpos($nameNorm, 'lecturer') !== false || 
-        strpos($nameNorm, 'speaker') !== false || 
-        strpos($nameNorm, 'resource person') !== false ||
-        strpos($nameNorm, 'trainer') !== false) {
+     // 3.2.2 RESOURCE SPEAKER/TRAINER - FIXED FIELD NAME
+    if (strpos($nameNorm, 'speaker') !== false || 
+        strpos($nameNorm, 'trainer') !== false || 
+        strpos($nameNorm, 'resource person') !== false) {
         
-        $lvl = strtolower($hier['speaker_level'] ?? '');
+        // Check multiple possible field names
+        $lvl = strtolower($hier['speaker_level'] ?? $hier['service_level'] ?? '');
+        
+        // Handle array of service_levels
+        if (empty($lvl) && !empty($hier['service_levels']) && is_array($hier['service_levels'])) {
+            // Take the highest level
+            $levels = array_map('strtolower', $hier['service_levels']);
+            if (in_array('international', $levels)) $lvl = 'international';
+            elseif (in_array('national', $levels)) $lvl = 'national';
+            elseif (in_array('local', $levels)) $lvl = 'local';
+        }
+        
         $speakerPts = ['local' => 6, 'national' => 8, 'international' => 10];
         
         if (isset($speakerPts[$lvl])) {
@@ -1088,12 +1120,13 @@ if ($section === 3) {
         }
     }
     
-    // SPECIAL: EARLY LITERACY / NUMERACY OUTREACH (for BEED)
+   // 3.2.2 LITERACY/NUMERACY OUTREACH - FIXED FIELD NAME
     if (strpos($nameNorm, 'literacy') !== false || 
         strpos($nameNorm, 'numeracy') !== false ||
-        strpos($nameNorm, 'early literacy') !== false) {
+        strpos($nameNorm, 'outreach') !== false) {
         
-        $lvl = strtolower($hier['outreach_level'] ?? '');
+        // Check BOTH possible field names
+        $lvl = strtolower($hier['outreach_level'] ?? $hier['circulation_level'] ?? '');
         $outreachPts = ['local' => 4, 'national' => 5, 'international' => 6];
         
         if (isset($outreachPts[$lvl])) {
@@ -1103,12 +1136,13 @@ if ($section === 3) {
         }
     }
     
-    // SPECIAL: PROGRAM COORDINATION (Reading/Math Camps)
+      // 3.2.2 PROGRAM COORDINATION - FIXED FIELD NAME
     if (strpos($nameNorm, 'program coordination') !== false ||
         strpos($nameNorm, 'reading camp') !== false ||
         strpos($nameNorm, 'math camp') !== false) {
         
-        $lvl = strtolower($hier['program_level'] ?? '');
+        // Check multiple possible field names
+        $lvl = strtolower($hier['program_level'] ?? $hier['coordination_level'] ?? '');
         $programPts = ['local' => 4, 'national' => 5, 'international' => 6];
         
         if (isset($programPts[$lvl])) {
@@ -1117,8 +1151,7 @@ if ($section === 3) {
             $why[] = "Program Coordination: {$lvl} (+{$add})";
         }
     }
-}
-
+    
 
 
   // --- Section 5: Others (15 pts max: 10 recognition + 5 eligibility) ---
@@ -1215,6 +1248,30 @@ if ($section === 5) {
     return [$final, $why ? implode('; ', $why) : 'No detailed selections found'];
 }
 
+// Add after line 420 (after parse_hier function)
+function debug_hier($doc, $criteria) {
+    error_log("=== DEBUG HIER ===");
+    error_log("Doc ID: " . $doc['id']);
+    error_log("Criteria: " . $criteria['criteria_name']);
+    $hier = parse_hier($doc);
+    error_log("Parsed hier: " . json_encode($hier));
+    error_log("================");
+    return $hier;
+}
+
+// TEMPORARY DEBUG - Remove after testing
+if ($hasCriteriaDocs) {
+    error_log("=== AUTO-SCORE DEBUG ===");
+    error_log("Criteria: " . $criteria['criteria_name']);
+    error_log("Suggested: $suggestedScore");
+    error_log("Why: $suggestedWhy");
+    error_log("Docs count: " . count($criteriaDocs));
+    foreach ($criteriaDocs as $d) {
+        error_log("  - Doc: " . $d['original_filename']);
+        error_log("    Hier: " . json_encode(parse_hier($d)));
+    }
+    error_log("=======================");
+}
 /**
  * Piliin ang BEST document para iwas double-counting.
  * (Pwede mo itong palitan sa pagsum ng lahat: palitan mo lang ang logic dito.)

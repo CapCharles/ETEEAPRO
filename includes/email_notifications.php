@@ -529,8 +529,8 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                     </div>
 
                     <!-- Button -->
-               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:20px 0;text-align:center;">
-  <tr>
+                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:12px 0 4px 0;">
+                   <tr>
     <td align="center">
       <a href="' . $baseUrl . 'auth/login.php"
          style="display:inline-block;
@@ -544,7 +544,8 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
       </a>
     </td>
   </tr>
-</table>
+                    </table>
+
                     <p class="muted" style="margin:16px 0 0 0;color:#667085;font:12px Arial,Helvetica,sans-serif; align="middle">
                       If the button doesn’t work, copy and paste this URL into your browser:<br>
                       <span style="word-break:break-all;color:#475467; align="middle">' . $baseUrl . 'auth/login.php</span>
@@ -559,7 +560,7 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                 <tr>
                   <td class="px" style="padding:16px 24px 24px 24px;font:12px Arial,Helvetica,sans-serif;color:#667085;">
                     Need help? Reply to this email or contact support.
-                  </td>sa
+                  </td>
                 </tr>
               </table>
             </td>

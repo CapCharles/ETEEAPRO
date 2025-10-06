@@ -488,20 +488,7 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
   </div>
 
   <table role="presentation" width="100%" bgcolor="#f3f5f9" style="background:#f3f5f9;">
-    <tr>
-      <td align="center" style="padding:24px;">
-        <table role="presentation" width="600" class="container" style="width:600px;max-width:600px;">
-          <!-- Brand row -->
-          <tr>
-            <td class="px" style="padding:0 24px 16px 24px;">
-              <table role="presentation" width="100%">
-                <tr>
-                  <td style="font:600 16px Arial,Helvetica,sans-serif;color:#344054;">ETEEAP System</td>
-                  <td align="right" style="font:12px Arial,Helvetica,sans-serif;color:#98A2B3;">' . date('F j, Y') . '</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+ 
 
           <!-- Card -->
           <tr>
@@ -542,17 +529,22 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
                     </div>
 
                     <!-- Button -->
-                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:12px 0 4px 0;">
-                      <tr>
-                        <td align="center" bgcolor="#3b82f6" style="border-radius:8px;">
-                          <a href="' . $baseUrl . 'auth/login.php" class="btn"
-                             style="display:inline-block;padding:12px 18px;font:600 14px Arial,Helvetica,sans-serif;color:#ffffff;background:#3b82f6;border-radius:8px; align="middle">
-                            Log in to your account
-                          </a>
-                        </td>
-                      </tr>
-                    </table>
-
+               <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin:20px 0;text-align:center;">
+  <tr>
+    <td align="center">
+      <a href="' . $baseUrl . 'auth/login.php"
+         style="display:inline-block;
+                padding:12px 20px;
+                font:600 14px Arial,Helvetica,sans-serif;
+                color:#ffffff;
+                background:#3b82f6;
+                border-radius:8px;
+                text-decoration:none;">
+        Log in to your account
+      </a>
+    </td>
+  </tr>
+</table>
                     <p class="muted" style="margin:16px 0 0 0;color:#667085;font:12px Arial,Helvetica,sans-serif; align="middle">
                       If the button doesn’t work, copy and paste this URL into your browser:<br>
                       <span style="word-break:break-all;color:#475467; align="middle">' . $baseUrl . 'auth/login.php</span>

@@ -130,50 +130,165 @@ function sendRegistrationEmail(string $toEmail, string $toName): bool {
 
 /** Registration confirmation (FULL HTML) */
 function sendRegistrationNotification($user_email, $user_name) {
-    $html = "
-    <html>
-    <head>
-        <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9f9f9; }
-            .footer { background: #333; color: white; padding: 10px; text-align: center; }
-            .status-badge { background: #ffc107; color: #000; padding: 5px 10px; border-radius: 15px; display: inline-block; }
-            ul { padding-left: 18px; }
-        </style>
-    </head>
-    <body>
-        <div class='container'>
-            <div class='header'>
-                <h2>🎓 ETEEAP Registration</h2>
-            </div>
-            <div class='content'>
-                <h3>Dear ".htmlspecialchars($user_name).",</h3>
-                <p>Thank you for registering with the ETEEAP (Expanded Tertiary Education Equivalency and Accreditation Program)!</p>
-                <p><strong>Registration Status:</strong> <span class='status-badge'>Under Review</span></p>
-                <h4>What's Next?</h4>
-                <ul>
-                    <li>✅ Your registration form has been received</li>
-                    <li>✅ All required documents have been uploaded</li>
-                    <li>⏳ Our admin team is reviewing your application</li>
-                    <li>📧 You will receive an email notification once approved</li>
-                </ul>
-                <p><strong>Important Notes:</strong></p>
-                <ul>
-                    <li>Review process typically takes 2-3 business days</li>
-                    <li>You cannot log in until your application is approved</li>
-                    <li>If additional information is needed, we will contact you</li>
-                </ul>
-                <p>If you have any questions, please contact our support team.</p>
-                <p>Best regards,<br><strong>ETEEAP Admin Team</strong></p>
-            </div>
-            <div class='footer'>
-                <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
-            </div>
-        </div>
-    </body>
-    </html>";
+    $html = '
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif; background-color: #f4f4f4; -webkit-font-smoothing: antialiased;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <!-- Main Container -->
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 40px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td width="60" valign="middle">
+                                        <!-- Logo placeholder - replace with actual logo URL -->
+                                        <div style="width: 50px; height: 50px; background-color: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                            <span style="color: #ffffff; font-size: 24px; font-weight: bold;">E</span>
+                                        </div>
+                                    </td>
+                                    <td valign="middle" align="right">
+                                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;">ETEEAP Registration</h1>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px 40px;">
+                            <h2 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 20px; font-weight: 600; line-height: 1.4;">Dear '.htmlspecialchars($user_name).',</h2>
+                            
+                            <p style="margin: 0 0 20px 0; color: #444444; font-size: 15px; line-height: 1.6;">Thank you for registering with the ETEEAP (Expanded Tertiary Education Equivalency and Accreditation Program)!</p>
+                            
+                            <!-- Status Badge -->
+                            <div style="margin: 0 0 30px 0;">
+                                <span style="display: inline-block; padding: 8px 16px; background-color: #fff3cd; color: #856404; font-size: 14px; font-weight: 600; border-radius: 6px; border: 1px solid #ffeaa7;">
+                                    <span style="display: inline-block; width: 8px; height: 8px; background-color: #ffc107; border-radius: 50%; margin-right: 8px; vertical-align: middle;"></span>
+                                    Under Review
+                                </span>
+                            </div>
+                            
+                            <!-- What\'s Next Section -->
+                            <h3 style="margin: 30px 0 16px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">What\'s Next?</h3>
+                            
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 0 0 12px 0;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td width="24" valign="top" style="padding-top: 2px;">
+                                                    <span style="color: #28a745; font-size: 16px;">✓</span>
+                                                </td>
+                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">Your registration form has been received</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0 0 12px 0;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td width="24" valign="top" style="padding-top: 2px;">
+                                                    <span style="color: #28a745; font-size: 16px;">✓</span>
+                                                </td>
+                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">All required documents have been uploaded</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0 0 12px 0;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td width="24" valign="top" style="padding-top: 2px;">
+                                                    <span style="color: #ffc107; font-size: 16px;">⏳</span>
+                                                </td>
+                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">Our admin team is reviewing your application</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0 0 12px 0;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                            <tr>
+                                                <td width="24" valign="top" style="padding-top: 2px;">
+                                                    <span style="color: #17a2b8; font-size: 16px;">✉</span>
+                                                </td>
+                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">You will receive an email notification once approved</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <!-- Important Notes Section -->
+                            <div style="background-color: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px; padding: 20px; margin-bottom: 30px;">
+                                <h3 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">Important Notes</h3>
+                                
+                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                    <tr>
+                                        <td style="padding: 0 0 8px 0;">
+                                            <span style="color: #666666; font-size: 14px; line-height: 1.6;">• Review process typically takes 2-3 business days</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0 0 8px 0;">
+                                            <span style="color: #666666; font-size: 14px; line-height: 1.6;">• You cannot log in until your application is approved</span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 0 0 0 0;">
+                                            <span style="color: #666666; font-size: 14px; line-height: 1.6;">• If additional information is needed, we will contact you</span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <p style="margin: 0 0 10px 0; color: #444444; font-size: 15px; line-height: 1.6;">If you have any questions, please contact our support team.</p>
+                            
+                            <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.6;">Best regards,<br><strong style="color: #1a1a1a;">ETEEAP Admin Team</strong></p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f5f5f5; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding-bottom: 12px;">
+                                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;">Privacy Policy</a>
+                                        <span style="color: #cccccc;">|</span>
+                                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;">Contact Support</a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="color: #999999; font-size: 12px; line-height: 1.5;">
+                                        &copy; '.date('Y').' ETEEAP System. All rights reserved.
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>';
+
     $alt = "Dear {$user_name}, Your ETEEAP registration has been received and is currently under review. You will be notified once your application is approved.";
 
     $ok = send_with_fallback(function($mail) use ($user_email, $user_name, $html, $alt) {

@@ -151,7 +151,7 @@ function sendRegistrationNotification($user_email, $user_name) {
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                 <tr>
                                
-                         <td valign="middle" >
+                                    <td valign="middle" align="middle">
                                         <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;"> 🎓 ETEEAP Registration</h1>
                                     </td>
                                 </tr>

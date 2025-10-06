@@ -128,16 +128,18 @@ function sendRegistrationEmail(string $toEmail, string $toName): bool {
     });
 }
 
-/** Registration confirmation (FULL HTML) */
 function sendRegistrationNotification($user_email, $user_name) {
-    $html = "
-    <html>
-    <head>
-        <style>
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
-            .footer { background: #333; color: white; padding: 10px; text-align: center; }
-        </style>
-    </head>
+    $html = '
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+</head>
+<style>
+ .footer { background: #333; color: white; padding: 10px; text-align: center; }
+</style>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif; background-color: #f4f4f4; -webkit-font-smoothing: antialiased;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 20px 0;">
         <tr>
@@ -149,17 +151,9 @@ function sendRegistrationNotification($user_email, $user_name) {
                     <tr>
                         <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 40px;">
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                <tr>
-                                    <td width="60" valign="middle">
-                                        <!-- Logo placeholder - replace with actual logo URL -->
-                                        <div style="width: 50px; height: 50px; background-color: rgba(255,255,255,0.2); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-                                            <span style="color: #ffffff; font-size: 24px; font-weight: bold;">E</span>
-                                        </div>
-                                    </td>
+                                <tr>                             
                                     <td valign="middle" align="right">
-                                         <div class='header'>
-                <h2>🎓 ETEEAP Registration</h2>
-            </div>
+                                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;">🎓 ETEEAP Registration</h1>
                                     </td>
                                 </tr>
                             </table>
@@ -263,10 +257,13 @@ function sendRegistrationNotification($user_email, $user_name) {
                             <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.6;">Best regards,<br><strong style="color: #1a1a1a;">ETEEAP Admin Team</strong></p>
                         </td>
                     </tr>
-               
-            <div class='footer'>
+                    
+                    <!-- Footer -->
+                    <tr>
+                 <div class='footer'>
                 <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
             </div>
+                    </tr>
                     
                 </table>
             </td>

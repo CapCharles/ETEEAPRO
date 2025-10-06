@@ -259,7 +259,7 @@ function sendRegistrationNotification($user_email, $user_name) {
                     
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #161515ff; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
+                        <td style="background-color: #303030ff; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                 <tr>
                                     <td align="center" style="padding-bottom: 12px;">

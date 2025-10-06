@@ -130,14 +130,14 @@ function sendRegistrationEmail(string $toEmail, string $toName): bool {
 
 /** Registration confirmation (FULL HTML) */
 function sendRegistrationNotification($user_email, $user_name) {
-    $html = '
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-</head>
+    $html = "
+    <html>
+    <head>
+        <style>
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+            .footer { background: #333; color: white; padding: 10px; text-align: center; }
+        </style>
+    </head>
 <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif; background-color: #f4f4f4; -webkit-font-smoothing: antialiased;">
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 20px 0;">
         <tr>
@@ -157,7 +157,9 @@ function sendRegistrationNotification($user_email, $user_name) {
                                         </div>
                                     </td>
                                     <td valign="middle" align="right">
-                                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;">ETEEAP Registration</h1>
+                                         <div class='header'>
+                <h2>🎓 ETEEAP Registration</h2>
+            </div>
                                     </td>
                                 </tr>
                             </table>
@@ -261,26 +263,10 @@ function sendRegistrationNotification($user_email, $user_name) {
                             <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.6;">Best regards,<br><strong style="color: #1a1a1a;">ETEEAP Admin Team</strong></p>
                         </td>
                     </tr>
-                    
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #f5f5f5; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                <tr>
-                                    <td align="center" style="padding-bottom: 12px;">
-                                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;">Privacy Policy</a>
-                                        <span style="color: #cccccc;">|</span>
-                                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;">Contact Support</a>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td align="center" style="color: #999999; font-size: 12px; line-height: 1.5;">
-                                        &copy; '.date('Y').' ETEEAP System. All rights reserved.
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
+               
+            <div class='footer'>
+                <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
+            </div>
                     
                 </table>
             </td>
@@ -300,7 +286,6 @@ function sendRegistrationNotification($user_email, $user_name) {
     error_log('Registration email to ' . $user_email . ' => ' . ($ok ? 'Success' : 'Failed'));
     return $ok;
 }
-
 /** Approval (FULL HTML) */
 function sendApprovalNotification($user_email, $user_name) {
     $baseUrl = _base_url_safe();

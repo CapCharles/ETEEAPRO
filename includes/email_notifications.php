@@ -573,4 +573,226 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
 }
 
 
+/** Evaluation Result Notification (FULL HTML) */
+function sendEvaluationNotification($user_email, $user_name, $status, $score, $recommendation, $program_info) {
+    $baseUrl = _base_url_safe();
+    
+    // Determine email styling based on status
+    $statusConfig = [
+        'qualified' => [
+            'color' => '#28a745',
+            'gradient' => 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+            'icon' => '🎉',
+            'title' => 'Congratulations! You are Qualified',
+            'badge_bg' => '#28a745',
+            'message' => 'Your ETEEAP assessment has been completed and you have met the qualification requirements.'
+        ],
+        'partially_qualified' => [
+            'color' => '#ffc107',
+            'gradient' => 'linear-gradient(135deg, #ffc107 0%, #fd7e14 100%)',
+            'icon' => '⚠️',
+            'title' => 'Assessment Complete - Partially Qualified',
+            'badge_bg' => '#ffc107',
+            'message' => 'Your ETEEAP assessment has been completed. You are partially qualified and may need additional requirements.'
+        ],
+        'not_qualified' => [
+            'color' => '#dc3545',
+            'gradient' => 'linear-gradient(135deg, #dc3545 0%, #bd2130 100%)',
+            'icon' => '📋',
+            'title' => 'Assessment Complete',
+            'badge_bg' => '#dc3545',
+            'message' => 'Your ETEEAP assessment has been completed. Unfortunately, you do not meet the qualification requirements at this time.'
+        ],
+        'under_review' => [
+            'color' => '#17a2b8',
+            'gradient' => 'linear-gradient(135deg, #17a2b8 0%, #138496 100%)',
+            'icon' => '🔍',
+            'title' => 'Assessment Update - Under Further Review',
+            'badge_bg' => '#17a2b8',
+            'message' => 'Your ETEEAP assessment requires additional review by our evaluation team.'
+        ]
+    ];
+    
+    $config = $statusConfig[$status] ?? $statusConfig['under_review'];
+    
+    // Build score grade display
+    $scoreGrade = '';
+    if ($score >= 90) {
+        $scoreGrade = '<span style="color: #28a745;">Excellent</span>';
+    } elseif ($score >= 75) {
+        $scoreGrade = '<span style="color: #0066cc;">Good</span>';
+    } elseif ($score >= 60) {
+        $scoreGrade = '<span style="color: #ffc107;">Satisfactory</span>';
+    } else {
+        $scoreGrade = '<span style="color: #dc3545;">Needs Improvement</span>';
+    }
+    
+    $html = "
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
+</head>
+<body style='margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif; background-color: #f4f4f4;'>
+    <table role='presentation' cellspacing='0' cellpadding='0' border='0' width='100%' style='background-color: #f4f4f4; padding: 20px 0;'>
+        <tr>
+            <td align='center'>
+                <table role='presentation' cellspacing='0' cellpadding='0' border='0' width='600' style='max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td style='background: {$config['gradient']}; padding: 30px 40px; text-align: center;'>
+                            <h1 style='margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;'>
+                                {$config['icon']} ETEEAP Assessment Result
+                            </h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body Content -->
+                    <tr>
+                        <td style='padding: 40px 40px 20px 40px;'>
+                            <h2 style='margin: 0 0 20px 0; color: #1a1a1a; font-size: 20px; font-weight: 600;'>Dear ".htmlspecialchars($user_name).",</h2>
+                            
+                            <p style='margin: 0 0 20px 0; color: #444444; font-size: 15px; line-height: 1.6;'>{$config['message']}</p>
+                            
+                            <!-- Status Badge -->
+                            <div style='margin: 0 0 30px 0; text-align: center; padding: 20px; background-color: #f8f9fa; border-radius: 8px;'>
+                                <div style='display: inline-block; padding: 10px 20px; background-color: {$config['badge_bg']}; color: #ffffff; font-size: 16px; font-weight: 600; border-radius: 6px; margin-bottom: 15px;'>
+                                    {$config['title']}
+                                </div>
+                                
+                                <!-- Score Display -->
+                                <table role='presentation' cellspacing='0' cellpadding='0' border='0' width='100%' style='margin-top: 20px;'>
+                                    <tr>
+                                        <td width='50%' style='padding: 15px; text-align: center; border-right: 2px solid #e0e0e0;'>
+                                            <div style='font-size: 36px; font-weight: 700; color: {$config['color']};'>{$score}%</div>
+                                            <div style='font-size: 14px; color: #666666; margin-top: 5px;'>Overall Score</div>
+                                        </td>
+                                        <td width='50%' style='padding: 15px; text-align: center;'>
+                                            <div style='font-size: 18px; font-weight: 600;'>{$scoreGrade}</div>
+                                            <div style='font-size: 14px; color: #666666; margin-top: 5px;'>Performance Grade</div>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                            
+                            <!-- Program Information -->
+                            <div style='background-color: #e3f2fd; border-left: 4px solid #0066cc; border-radius: 4px; padding: 20px; margin-bottom: 30px;'>
+                                <h3 style='margin: 0 0 10px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;'>Program Information</h3>
+                                <p style='margin: 0; color: #444444; font-size: 15px;'>{$program_info}</p>
+                            </div>
+                            
+                            <!-- Evaluator Recommendation -->
+                            <div style='background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin-bottom: 30px;'>
+                                <h3 style='margin: 0 0 12px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;'>
+                                    <i style='color: #667eea;'>💡</i> Evaluator's Recommendation
+                                </h3>
+                                <p style='margin: 0; color: #444444; font-size: 14px; line-height: 1.6;'>".nl2br(htmlspecialchars($recommendation))."</p>
+                            </div>
+                            
+                            <!-- Next Steps -->
+                            <div style='border-top: 2px solid #e0e0e0; padding-top: 20px; margin-bottom: 20px;'>
+                                <h3 style='margin: 0 0 15px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;'>Next Steps</h3>";
+    
+    if ($status === 'qualified') {
+        $html .= "
+                                <ul style='margin: 0; padding-left: 20px; color: #444444; font-size: 15px; line-height: 1.8;'>
+                                    <li>Log in to your account to view detailed results</li>
+                                    <li>Proceed with program enrollment</li>
+                                    <li>Contact the registrar's office for further guidance</li>
+                                    <li>Prepare for your academic journey</li>
+                                </ul>";
+    } elseif ($status === 'partially_qualified') {
+        $html .= "
+                                <ul style='margin: 0; padding-left: 20px; color: #444444; font-size: 15px; line-height: 1.8;'>
+                                    <li>Review the detailed assessment feedback</li>
+                                    <li>Complete additional requirements if needed</li>
+                                    <li>Contact the ETEEAP coordinator for guidance</li>
+                                    <li>Schedule a consultation to discuss your options</li>
+                                </ul>";
+    } elseif ($status === 'not_qualified') {
+        $html .= "
+                                <ul style='margin: 0; padding-left: 20px; color: #444444; font-size: 15px; line-height: 1.8;'>
+                                    <li>Review the evaluation feedback carefully</li>
+                                    <li>Consider additional training or experience</li>
+                                    <li>You may reapply after meeting the requirements</li>
+                                    <li>Contact us for guidance on improving your qualifications</li>
+                                </ul>";
+    } else {
+        $html .= "
+                                <ul style='margin: 0; padding-left: 20px; color: #444444; font-size: 15px; line-height: 1.8;'>
+                                    <li>Our evaluation team will contact you soon</li>
+                                    <li>Additional documentation may be required</li>
+                                    <li>Please check your email regularly for updates</li>
+                                </ul>";
+    }
+    
+    $html .= "
+                            </div>
+                            
+                            <div style='text-align: center; margin: 30px 0;'>
+                                <a href='".$baseUrl."candidates/assessment.php' style='display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; padding: 14px 32px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 15px;'>
+                                    View Detailed Results
+                                </a>
+                            </div>
+                            
+                            <p style='margin: 0; color: #444444; font-size: 15px; line-height: 1.6;'>
+                                If you have any questions about your assessment results, please don't hesitate to contact our support team.
+                            </p>
+                            
+                            <p style='margin: 20px 0 0 0; color: #444444; font-size: 15px;'>
+                                Best regards,<br>
+                                <strong style='color: #1a1a1a;'>ETEEAP Evaluation Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style='background-color: #f5f5f5; padding: 30px 40px; border-top: 1px solid #e0e0e0;'>
+                            <table role='presentation' cellspacing='0' cellpadding='0' border='0' width='100%'>
+                                <tr>
+                                    <td align='center' style='padding-bottom: 12px;'>
+                                        <a href='#' style='color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;'>Privacy Policy</a>
+                                        <span style='color: #cccccc;'>|</span>
+                                        <a href='#' style='color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;'>Contact Support</a>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align='center' style='color: #999999; font-size: 12px; line-height: 1.5;'>
+                                        &copy; ".date('Y')." ETEEAP System. All rights reserved.
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>";
+
+    $alt = "Dear {$user_name},\n\nYour ETEEAP assessment has been completed.\n\n"
+         . "Status: " . ucfirst(str_replace('_', ' ', $status)) . "\n"
+         . "Score: {$score}%\n"
+         . "Program: {$program_info}\n\n"
+         . "Evaluator's Recommendation:\n{$recommendation}\n\n"
+         . "View detailed results: ".$baseUrl."candidates/assessment.php\n\n"
+         . "Best regards,\nETEEAP Evaluation Team";
+
+    $ok = send_with_fallback(function($mail) use ($user_email, $user_name, $html, $alt, $status) {
+        $mail->addAddress($user_email, $user_name);
+        $mail->Subject = 'ETEEAP Assessment Results - ' . ucfirst(str_replace('_', ' ', $status));
+        $mail->Body    = $html;
+        $mail->AltBody = $alt;
+    });
+    
+    error_log("sendEvaluationNotification to {$user_email} (Status: {$status}): " . ($ok ? 'Success' : 'Failed'));
+    return $ok;
+}
+
 ?>

@@ -1326,6 +1326,43 @@ $auto_recommendation = generateEnhancedRecommendation(
 
         $pdo->commit();
 
+         try {
+        // Fetch candidate details for email
+        $stmt = $pdo->prepare("
+            SELECT u.email, u.first_name, u.last_name, p.program_code, p.program_name
+            FROM applications a
+            JOIN users u ON a.user_id = u.id
+            JOIN programs p ON a.program_id = p.id
+            WHERE a.id = ?
+        ");
+        $stmt->execute([$app_id]);
+        $candidate = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($candidate) {
+            $candidate_email = $candidate['email'];
+            $candidate_name = trim($candidate['first_name'] . ' ' . $candidate['last_name']);
+            $program_info = $candidate['program_code'] . ' - ' . $candidate['program_name'];
+            
+            // Send email based on evaluation status
+            $email_sent = sendEvaluationNotification(
+                $candidate_email,
+                $candidate_name,
+                $final_status,
+                $final_score,
+                $recommendation,
+                $program_info
+            );
+            
+            if ($email_sent) {
+                error_log("[EVALUATION] Email sent to {$candidate_email} (Status: {$final_status}, Score: {$final_score}%)");
+            } else {
+                error_log("[EVALUATION] Email failed for {$candidate_email}");
+            }
+        }
+    } catch (Exception $e) {
+        error_log("[EVALUATION] Email notification error: " . $e->getMessage());
+    }
+
         $bridgingUnits = calculateBridgingUnits($final_score);
         $success_message = "Evaluation completed! Final Score: {$final_score}% | Status: " . ucfirst($final_status);
         if ($final_score >= $passing_threshold && $bridgingUnits > 0) {

@@ -1061,7 +1061,7 @@ $is_hierarchical = (
         </div>
     </div>
 </div>
-
+<!-- 
 <div class="mb-3">
     <label class="form-label fw-bold">Scholarship Type (Optional):</label>
     <div class="row">
@@ -1090,7 +1090,7 @@ $is_hierarchical = (
             </div>
         </div>
     </div>
-</div>
+</div> -->
 
 <?php elseif ($criteria['section_number'] == 2): ?>
 <!-- Section 2 - Work Experience Options -->

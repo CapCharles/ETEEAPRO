@@ -687,6 +687,11 @@ if (!function_exists('doc_matches_criteria')) {
 
 // === Auto-suggest scoring helpers ==========================================
 
+
+function normalizeCriteriaName($name) {
+    return strtolower(trim($name));
+}
+
 // Gumamit ng existing parse_hier($doc)
 function score_one_doc(array $criteria, array $hier): array {
     $max     = (float)$criteria['max_score'];
@@ -848,7 +853,7 @@ if (stripos($name, 'Journal') !== false || stripos($name, 'Training Module') !==
     }
 }
   
-// --- Section 4: Professional Development (25 pts max) ---
+// --- SECTION 4: PROFESSIONAL DEVELOPMENT (25 pts) ---
 if ($section === 4) {
     
     // 4.1 Coordination of Training Program (10 pts max)
@@ -884,26 +889,15 @@ if ($section === 4) {
         }
     }
     
-    // 4.4 Scholarships (5 pts max) - CRITICAL FIX!
-    // Need BOTH level AND competitive status
+    // 4.4 SCHOLARSHIPS (5 pts max) - COMPLETE FIX!
     if (!empty($hier['scholarship_level']) && !empty($hier['scholarship_competitive'])) {
-        $lvl = strtolower($hier['scholarship_level']);          // local/national/international
-        $comp = strtolower($hier['scholarship_competitive']);   // competitive/non_competitive
+        $lvl = strtolower($hier['scholarship_level']);
+        $comp = strtolower($hier['scholarship_competitive']);
         
-        // Combined scoring matrix from PDF
         $scholarPts = [
-            'local' => [
-                'non_competitive' => 2.5,
-                'competitive' => 3
-            ],
-            'national' => [
-                'non_competitive' => 3.5,
-                'competitive' => 4
-            ],
-            'international' => [
-                'non_competitive' => 4.5,
-                'competitive' => 5
-            ]
+            'local' => ['non_competitive' => 2.5, 'competitive' => 3],
+            'national' => ['non_competitive' => 3.5, 'competitive' => 4],
+            'international' => ['non_competitive' => 4.5, 'competitive' => 5]
         ];
         
         if (isset($scholarPts[$lvl][$comp])) {
@@ -918,57 +912,211 @@ if ($section === 4) {
 // This should be in a separate if ($section === 3) block
 
 if ($section === 3) {
-    
-    // 3.2.1 Consultancies (15 pts max)
-    if (stripos($name, 'consultancy') !== false || stripos($name, 'consultant') !== false) {
-        if (!empty($hier['consultancy_level'])) {
-            $consultPts = ['local' => 5, 'national' => 10, 'international' => 15];
-            $lvl = strtolower($hier['consultancy_level']);
-            if (isset($consultPts[$lvl])) {
-                $add = $consultPts[$lvl];
-                $score += $add;
-                $why[] = "Consultancy: {$lvl} (+{$add})";
-            }
-        }
-    }
-    
-    // 3.2.2 Lecturer/Speaker/Resource Person (10 pts max)
-    if (stripos($name, 'lecturer') !== false || 
-        stripos($name, 'speaker') !== false || 
-        stripos($name, 'resource person') !== false) {
+     $nameNorm = normalizeCriteriaName($name);
+
+      // --- 3.1.1 INVENTIONS & INNOVATIONS (15 pts) ---
+    if (strpos($nameNorm, 'invention') !== false || strpos($nameNorm, 'innovation') !== false) {
         
-        if (!empty($hier['speaker_level'])) {
-            $speakerPts = ['local' => 6, 'national' => 8, 'international' => 10];
-            $lvl = strtolower($hier['speaker_level']);
-            if (isset($speakerPts[$lvl])) {
-                $add = $speakerPts[$lvl];
+        $isInvention = (strpos($nameNorm, 'invention') !== false) || 
+                       ($hier['invention_type'] ?? null) === 'invention';
+        
+        // Patent Status Base Points
+        if (!empty($hier['patent_status'])) {
+            $patentStatus = strtolower($hier['patent_status']);
+            if ($patentStatus === 'patented') {
+                $base = $isInvention ? 6 : 1;  // Invention: 6 | Innovation: 1
+            } else {
+                $base = $isInvention ? 5 : 2;  // Invention: 5 | Innovation: 2
+            }
+            $score += $base;
+            $why[] = "Patent: {$patentStatus} (+{$base})";
+        }
+        
+        // Market Acceptability (SINGLE level only)
+        if (!empty($hier['acceptability_level'])) {
+            $mktLevel = strtolower($hier['acceptability_level']);
+            $mktPoints = $isInvention 
+                ? ['local' => 7, 'national' => 8, 'international' => 9]
+                : ['local' => 4, 'national' => 5, 'international' => 6];
+            
+            if (isset($mktPoints[$mktLevel])) {
+                $add = $mktPoints[$mktLevel];
                 $score += $add;
-                $why[] = "Speaker/Lecturer: {$lvl} (+{$add})";
+                $why[] = "Market: {$mktLevel} (+{$add})";
             }
         }
     }
     
-    // 3.2.3 Community Services (5 pts max)
-    if (stripos($name, 'community') !== false || stripos($name, 'barangay') !== false) {
-        if (!empty($hier['community_role'])) {
-            $communityPts = [
-                'trainer' => 3,
-                'coordinator' => 3,
-                'organizer' => 3,
-                'barangay_official' => 4,
-                'municipal_official' => 4,
-                'project_director' => 5,
-                'project_manager' => 5
-            ];
-            $role = strtolower($hier['community_role']);
-            if (isset($communityPts[$role])) {
-                $add = $communityPts[$role];
+    // --- 3.1.2 PUBLICATIONS (15 pts) ---
+    
+    // 3.1.2.1 JOURNALS
+    if (strpos($nameNorm, 'journal') !== false) {
+        $lvl = strtolower($hier['circulation_level'] ?? '');
+        $hasISBN = !empty($hier['has_isbn']);
+        $hasCopyright = !empty($hier['has_copyright']);
+        $numAuthors = max(1, (int)($hier['num_authors'] ?? 1));
+        
+        $journalPts = ['local' => 2, 'national' => 3, 'international' => 1];
+        
+        if (isset($journalPts[$lvl])) {
+            // Validate requirements
+            if ($lvl === 'national' && !$hasISBN) {
+                $why[] = "⚠️ National journal requires ISBN";
+            } elseif ($lvl === 'international' && !$hasCopyright) {
+                $why[] = "⚠️ International journal requires copyright";
+            } else {
+                $rawPts = $journalPts[$lvl];
+                $add = round($rawPts / $numAuthors, 2);
                 $score += $add;
-                $why[] = "Community service: {$role} (+{$add})";
+                $authorNote = $numAuthors > 1 ? " (÷{$numAuthors} authors)" : "";
+                $why[] = "Journal: {$lvl}{$authorNote} (+{$add})";
             }
+        }
+    }
+    
+    // 3.1.2.2 TRAINING MODULES
+    if (strpos($nameNorm, 'training module') !== false || 
+        strpos($nameNorm, 'teaching module') !== false) {
+        
+        $lvl = strtolower($hier['circulation_level'] ?? '');
+        $hasISBN = !empty($hier['has_isbn']);
+        $hasCopyright = !empty($hier['has_copyright']);
+        $numAuthors = max(1, (int)($hier['num_authors'] ?? 1));
+        
+        $modulePts = ['local' => 3, 'national' => 4, 'international' => 5];
+        
+        if (isset($modulePts[$lvl])) {
+            if ($lvl === 'national' && !$hasISBN) {
+                $why[] = "⚠️ National module requires ISBN";
+            } elseif ($lvl === 'international' && !$hasCopyright) {
+                $why[] = "⚠️ International module requires copyright";
+            } else {
+                $rawPts = $modulePts[$lvl];
+                $add = round($rawPts / $numAuthors, 2);
+                $score += $add;
+                $authorNote = $numAuthors > 1 ? " (÷{$numAuthors} authors)" : "";
+                $why[] = "Training Module: {$lvl}{$authorNote} (+{$add})";
+            }
+        }
+    }
+    
+    // 3.1.2.3 BOOKS / WORKBOOKS / LAB MANUALS
+    if (strpos($nameNorm, 'book') !== false || 
+        strpos($nameNorm, 'workbook') !== false || 
+        strpos($nameNorm, 'laboratory manual') !== false ||
+        strpos($nameNorm, 'lab manual') !== false ||
+        strpos($nameNorm, 'reading kit') !== false) {
+        
+        $lvl = strtolower($hier['circulation_level'] ?? '');
+        $hasISBN = !empty($hier['has_isbn']);
+        $hasCopyright = !empty($hier['has_copyright']);
+        $numAuthors = max(1, (int)($hier['num_authors'] ?? 1));
+        
+        $bookPts = ['local' => 5, 'national' => 6, 'international' => 7];
+        
+        if (isset($bookPts[$lvl])) {
+            if ($lvl === 'national' && !$hasISBN) {
+                $why[] = "⚠️ National publication requires ISBN";
+            } elseif ($lvl === 'international' && !$hasCopyright) {
+                $why[] = "⚠️ International publication requires copyright";
+            } else {
+                $rawPts = $bookPts[$lvl];
+                $add = round($rawPts / $numAuthors, 2);
+                $score += $add;
+                $authorNote = $numAuthors > 1 ? " (÷{$numAuthors} authors)" : "";
+                $why[] = "Book/Workbook: {$lvl}{$authorNote} (+{$add})";
+            }
+        }
+    }
+    
+    // =================================================================
+    // 3.2 EXTENSION SERVICES (20 pts)
+    // =================================================================
+    
+    // 3.2.1 CONSULTANCIES (15 pts max)
+    if (strpos($nameNorm, 'consultanc') !== false || 
+        strpos($nameNorm, 'consultant') !== false) {
+        
+        $lvl = strtolower($hier['consultancy_level'] ?? '');
+        $consultPts = ['local' => 5, 'national' => 10, 'international' => 15];
+        
+        if (isset($consultPts[$lvl])) {
+            $add = $consultPts[$lvl];
+            $score += $add;
+            $why[] = "Consultancy: {$lvl} (+{$add})";
+        }
+    }
+    
+    // 3.2.2 LECTURER / SPEAKER / RESOURCE PERSON (10 pts max)
+    if (strpos($nameNorm, 'lecturer') !== false || 
+        strpos($nameNorm, 'speaker') !== false || 
+        strpos($nameNorm, 'resource person') !== false ||
+        strpos($nameNorm, 'trainer') !== false) {
+        
+        $lvl = strtolower($hier['speaker_level'] ?? '');
+        $speakerPts = ['local' => 6, 'national' => 8, 'international' => 10];
+        
+        if (isset($speakerPts[$lvl])) {
+            $add = $speakerPts[$lvl];
+            $score += $add;
+            $why[] = "Speaker/Trainer: {$lvl} (+{$add})";
+        }
+    }
+    
+    // 3.2.3 COMMUNITY SERVICES (5 pts max)
+    if (strpos($nameNorm, 'community') !== false || 
+        strpos($nameNorm, 'barangay') !== false ||
+        strpos($nameNorm, 'outreach') !== false) {
+        
+        $role = strtolower($hier['community_role'] ?? '');
+        $communityPts = [
+            'trainer' => 3,
+            'coordinator' => 3,
+            'organizer' => 3,
+            'barangay_official' => 4,
+            'municipal_official' => 4,
+            'project_director' => 5,
+            'project_manager' => 5
+        ];
+        
+        if (isset($communityPts[$role])) {
+            $add = $communityPts[$role];
+            $score += $add;
+            $why[] = "Community Service: {$role} (+{$add})";
+        }
+    }
+    
+    // SPECIAL: EARLY LITERACY / NUMERACY OUTREACH (for BEED)
+    if (strpos($nameNorm, 'literacy') !== false || 
+        strpos($nameNorm, 'numeracy') !== false ||
+        strpos($nameNorm, 'early literacy') !== false) {
+        
+        $lvl = strtolower($hier['outreach_level'] ?? '');
+        $outreachPts = ['local' => 4, 'national' => 5, 'international' => 6];
+        
+        if (isset($outreachPts[$lvl])) {
+            $add = $outreachPts[$lvl];
+            $score += $add;
+            $why[] = "Literacy Outreach: {$lvl} (+{$add})";
+        }
+    }
+    
+    // SPECIAL: PROGRAM COORDINATION (Reading/Math Camps)
+    if (strpos($nameNorm, 'program coordination') !== false ||
+        strpos($nameNorm, 'reading camp') !== false ||
+        strpos($nameNorm, 'math camp') !== false) {
+        
+        $lvl = strtolower($hier['program_level'] ?? '');
+        $programPts = ['local' => 4, 'national' => 5, 'international' => 6];
+        
+        if (isset($programPts[$lvl])) {
+            $add = $programPts[$lvl];
+            $score += $add;
+            $why[] = "Program Coordination: {$lvl} (+{$add})";
         }
     }
 }
+
 
 
   // --- Section 5: Others (15 pts max: 10 recognition + 5 eligibility) ---

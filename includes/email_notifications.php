@@ -259,7 +259,7 @@ function sendRegistrationNotification($user_email, $user_name) {
                     
                     <!-- Footer -->
                     <tr>
-                        <td style="background-color: #f5f5f5; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
+                        <td style="background-color: #161515ff; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
                             <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                 <tr>
                                     <td align="center" style="padding-bottom: 12px;">
@@ -269,7 +269,7 @@ function sendRegistrationNotification($user_email, $user_name) {
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td align="center" style="color: #999999; font-size: 12px; line-height: 1.5;">
+                                    <td align="center" style="color: #ffffffff; font-size: 12px; line-height: 1.5;">
                                         &copy; '.date('Y').' ETEEAP System. All rights reserved.
                                     </td>
                                 </tr>

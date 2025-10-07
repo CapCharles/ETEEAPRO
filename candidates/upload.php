@@ -2362,7 +2362,7 @@ if (form.querySelector('input[name="circulation_level"]') && !circulationLevel) 
             return false;
         }
     }
-);
+});
 <script>
 </body>
 </html>

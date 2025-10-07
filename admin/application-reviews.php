@@ -838,13 +838,7 @@ if ($flash) {
         <i class="fas fa-cog me-2"></i> Settings
     </a>
 </nav>
-
-
-    <a class="nav-link" href="settings.php">
-        <i class="fas fa-cog me-2"></i> Settings
-    </a>
-</nav>
-                </div>
+      </div>
                 
                 <div class="mt-auto p-3">
                     <div class="dropdown">

@@ -1605,8 +1605,9 @@ if ($flash) {
                                     <i class="fas fa-eye me-1"></i>View
                                 </button>
                             </div>
-                          <div class="d-flex justify-content-end">
-  <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;">
+                            <div class="col-md-2 text-end">
+                                ${!allProcessed && (status === 'pending_review' || status === 'needs_revision') ? `
+                              <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;">
     <button type="button" class="btn btn-success"
             onclick="setDocumentAction('approve_document', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
       <i class="fas fa-check me-1"></i>Approve
@@ -1615,9 +1616,8 @@ if ($flash) {
             onclick="setDocumentAction('request_revision', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
       <i class="fas fa-edit me-1"></i>Revise
     </button>
-  </div>
-</div>
-
+                              
+                                </div>
                                 ` : `
                                 <div class="text-center">
                                     ${status === 'approved' ? 

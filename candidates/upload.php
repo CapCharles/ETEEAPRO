@@ -1825,11 +1825,11 @@ if ($hier && is_array($hier)) {
             });
             
             // Show the selected hierarchical section
-            const section = document.getElementById('hierarchical-' + criteriaId);
-            if (section) {
-                section.classList.add('show');
-                // section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
+            // const section = document.getElementById('hierarchical-' + criteriaId);
+            // if (section) {
+            //     section.classList.add('show');
+            //     section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            // }
         }
 
         function hideHierarchicalUpload(criteriaId) {

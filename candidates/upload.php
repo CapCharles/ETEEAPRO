@@ -1765,7 +1765,7 @@ if ($hier && is_array($hier)) {
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-<script>
+  <script>
     let uploadModal;
     let viewerModal;
 
@@ -2039,53 +2039,120 @@ if ($hier && is_array($hier)) {
             }
         });
     }
-
-    function updatePointCalculation(form) {
-        const criteriaId = form.querySelector('input[name="criteria_id"]').value;
-        const display = document.getElementById('points-display-' + criteriaId);
-        
-        if (!display) return;
-
-        let calculationHtml = '';
-        let totalPoints = 0;
-
-        // Section 1 - Education
-        const educationLevel = form.querySelector('input[name="education_level"]:checked');
-        const scholarshipType = form.querySelector('input[name="scholarship_type"]:checked');
-        
-        if (educationLevel) {
-            const eduPoints = {
-                'high_school': 2,
-                'vocational': 3,
-                'technical': 4,
-                'undergraduate': 5,
-                'non_education': 6
-            };
-            totalPoints += eduPoints[educationLevel.value] || 0;
-            calculationHtml += `<p class="mb-1"><strong>Education:</strong> ${educationLevel.value.replace('_', ' ')} = ${eduPoints[educationLevel.value]} points</p>`;
+        function updatePointCalculation(form) {
+            const criteriaId = form.querySelector('input[name="criteria_id"]').value;
+            const display = document.getElementById('points-display-' + criteriaId);
             
-            if (scholarshipType && scholarshipType.value !== 'none') {
-                const schPoints = scholarshipType.value === 'full' ? 2 : 1;
-                totalPoints += schPoints;
-                calculationHtml += `<p class="mb-1"><strong>Scholarship:</strong> ${scholarshipType.value} = +${schPoints} points</p>`;
+            if (!display) return;
+
+            // Check what type of criteria this is and calculate accordingly
+            const patentStatus = form.querySelector('input[name="patent_status"]:checked');
+            const acceptabilityLevels = form.querySelectorAll('input[name="acceptability_levels[]"]:checked');
+            const circulationLevels = form.querySelectorAll('input[name="circulation_levels[]"]:checked');
+            const serviceLevels = form.querySelectorAll('input[name="service_levels[]"]:checked');
+
+            let calculationHtml = '';
+            let totalPoints = 0;
+
+            if (patentStatus && acceptabilityLevels.length > 0) {
+                // Invention/Innovation calculation
+                const inventionType = form.querySelector('input[name="invention_type"]').value;
+                const isInvention = inventionType === 'invention';
+                
+                const basePoints = patentStatus.value === 'patented' ? (isInvention ? 6 : 1) : (isInvention ? 5 : 2);
+                totalPoints += basePoints;
+                
+                let marketPoints = 0;
+                let marketList = [];
+                
+                acceptabilityLevels.forEach(checkbox => {
+                    const level = checkbox.value;
+                    if (level === 'local') {
+                        const pts = isInvention ? 7 : 4;
+                        marketPoints += pts;
+                        marketList.push('Local (+' + pts + ')');
+                    } else if (level === 'national') {
+                        const pts = isInvention ? 8 : 5;
+                        marketPoints += pts;
+                        marketList.push('National (+' + pts + ')');
+                    } else if (level === 'international') {
+                        const pts = isInvention ? 9 : 6;
+                        marketPoints += pts;
+                        marketList.push('International (+' + pts + ')');
+                    }
+                });
+                
+                totalPoints += marketPoints;
+                
+                calculationHtml = `
+                    <p class="mb-1"><strong>Patent:</strong> ${patentStatus.value === 'patented' ? 'Patented' : 'No Patent'} = ${basePoints} points</p>
+                    <p class="mb-1"><strong>Markets:</strong> ${marketList.join(', ')} = ${marketPoints} points</p>
+                `;
+                
+            } else if (circulationLevels.length > 0) {
+                // Publication calculation
+                const publicationType = form.querySelector('input[name="publication_type"]').value;
+                const points = {
+                    'journal': { local: 2, national: 3, international: 4 },
+                    'training_module': { local: 3, national: 4, international: 5 },
+                    'book': { local: 5, national: 6, international: 7 }
+                };
+                
+                const currentPoints = points[publicationType] || points['journal'];
+                let levelsList = [];
+                
+                circulationLevels.forEach(checkbox => {
+                    const level = checkbox.value;
+                    const pts = currentPoints[level];
+                    totalPoints += pts;
+                    levelsList.push(`${level.charAt(0).toUpperCase() + level.slice(1)} (+${pts})`);
+                });
+                
+                calculationHtml = `
+                    <p class="mb-1"><strong>Type:</strong> ${publicationType.replace('_', ' ')}</p>
+                    <p class="mb-1"><strong>Levels:</strong> ${levelsList.join(', ')}</p>
+                `;
+                
+            } else if (serviceLevels.length > 0) {
+                // Extension service calculation
+                const extensionType = form.querySelector('input[name="extension_type"]').value;
+                
+                const servicePoints = {
+                    'consultancy': { local: 5, national: 10, international: 15 },
+                    'lecturer': { local: 6, national: 8, international: 10 },
+                    'community': { trainer: 3, official: 4, manager: 5 }
+                };
+                
+                const currentPoints = servicePoints[extensionType];
+                let levelsList = [];
+                
+                serviceLevels.forEach(checkbox => {
+                    const level = checkbox.value;
+                    const pts = currentPoints[level];
+                    if (pts) {
+                        totalPoints += pts;
+                        levelsList.push(`${level.charAt(0).toUpperCase() + level.slice(1)} (+${pts})`);
+                    }
+                });
+                
+                calculationHtml = `
+                    <p class="mb-1"><strong>Service:</strong> ${extensionType}</p>
+                    <p class="mb-1"><strong>Levels:</strong> ${levelsList.join(', ')}</p>
+                `;
+            }
+
+            if (calculationHtml) {
+                display.innerHTML = `
+                    ${calculationHtml}
+                    <hr class="my-2">
+                    <p class="mb-0 fw-bold text-success">Total Expected Points: ${totalPoints}</p>
+                `;
+            } else {
+                display.innerHTML = '<p class="mb-0 text-muted">Select options above to see potential points</p>';
             }
         }
 
-        // Add other calculation logic here (keep your existing calculation code)
-        // ... [rest of your calculation logic]
-
-        if (calculationHtml) {
-            display.innerHTML = `
-                ${calculationHtml}
-                <hr class="my-2">
-                <p class="mb-0 fw-bold text-success">Total Expected Points: ${totalPoints}</p>
-            `;
-        } else {
-            display.innerHTML = '<p class="mb-0 text-muted">Select options above to see potential points</p>';
-        }
-    }
-
-    function viewDocument(docId, filename) {
+      function viewDocument(docId, filename) {
         document.getElementById('docModalTitle').textContent = filename;
         
         const viewer = document.getElementById('docViewer');
@@ -2141,6 +2208,125 @@ if ($hier && is_array($hier)) {
         }
     `;
     document.head.appendChild(style);
+
+        // Auto-hide modals on successful upload
+        <?php if ($success_message && strpos($success_message, 'uploaded') !== false): ?>
+        setTimeout(() => {
+            if (uploadModal && uploadModal._isShown) {
+                uploadModal.hide();
+            }
+            // Hide any open hierarchical sections
+            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+                section.classList.remove('show');
+            });
+        }, 1000);
+        <?php endif; ?>
+
+        // Enhanced form validation
+     document.addEventListener('submit', function(e) {
+  const form = e.target;
+
+  if (form.querySelector('button[name="upload_hierarchical_document"]')) {
+    let hasRequiredSelections = true;
+    let errorMessage = '';
+
+    // Invention/Innovation
+    const hasPatentField = form.querySelector('input[name="patent_status"]');
+    const patentStatus = form.querySelector('input[name="patent_status"]:checked');
+    const acceptabilityLevels = form.querySelectorAll('input[name="acceptability_levels[]"]:checked');
+    if (hasPatentField && !patentStatus) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select patent status.';
+    } else if (form.querySelector('input[name="acceptability_levels[]"]') && acceptabilityLevels.length === 0) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select at least one market acceptability level.';
+    }
+
+    // Publications (RADIO)
+    const hasCircRadio = form.querySelector('input[name="circulation_level"]');
+    const circulationLevel = form.querySelector('input[name="circulation_level"]:checked');
+    if (hasCircRadio && !circulationLevel) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select circulation level.';
+    }
+
+    // Extension services (multi)
+    const serviceLevels = form.querySelectorAll('input[name="service_levels[]"]:checked');
+    if (form.querySelector('input[name="service_levels[]"]') && serviceLevels.length === 0) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select at least one service level.';
+    }
+
+    // Section 1
+    if (form.querySelector('input[name="education_level"]') && !form.querySelector('input[name="education_level"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select education level.';
+    }
+
+    // Section 2
+    const yearsExp = form.querySelector('input[name="years_experience"]');
+    if (yearsExp && (!yearsExp.value || Number(yearsExp.value) < 5)) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please enter at least 5 years of experience.';
+    }
+    if (form.querySelector('input[name="experience_role"]') && !form.querySelector('input[name="experience_role"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select experience role.';
+    }
+
+    // Section 4
+    if (form.querySelector('input[name="coordination_level"]') && !form.querySelector('input[name="coordination_level"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select coordination level.';
+    }
+    if (form.querySelector('input[name="participation_level"]') && !form.querySelector('input[name="participation_level"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select participation level.';
+    }
+    if (form.querySelector('input[name="membership_level"]') && !form.querySelector('input[name="membership_level"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select membership level.';
+    }
+    if (form.querySelector('input[name="scholarship_level"]') && !form.querySelector('input[name="scholarship_level"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select scholarship level.';
+    }
+
+    // Section 5
+    if (form.querySelector('input[name="recognition_level"]') && !form.querySelector('input[name="recognition_level"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select recognition level.';
+    }
+    if (form.querySelector('input[name="eligibility_type"]') && !form.querySelector('input[name="eligibility_type"]:checked')) {
+      hasRequiredSelections = false;
+      errorMessage = 'Please select eligibility type.';
+    }
+
+    if (!hasRequiredSelections) {
+      e.preventDefault();
+      alert(errorMessage);
+      return false;
+    }
+  }
+});
+        // Smooth scrolling for better UX
+        function smoothScrollToElement(element) {
+            element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+
+        // Auto-expand relevant sections based on URL hash
+        if (window.location.hash) {
+            const targetElement = document.querySelector(window.location.hash);
+            if (targetElement) {
+                setTimeout(() => {
+                    smoothScrollToElement(targetElement);
+                }, 500);
+            }
+        }
+    </script>
     <script>
 function updatePointCalculation(form) {
     const criteriaId = form.querySelector('input[name="criteria_id"]').value;
@@ -2437,7 +2623,7 @@ if (form.querySelector('input[name="circulation_level"]') && !circulationLevel) 
             return false;
         }
     }
-});
+);
 <script>
 </body>
 </html>

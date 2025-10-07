@@ -1400,7 +1400,7 @@ try {
 }
 
 .sidebar .nav-link:hover .badge {
-    background-color: #ffc107 !important;
+    background-color: #ff0707ff !important;
 }
 
 .sidebar .nav-link.active .badge {

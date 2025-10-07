@@ -615,7 +615,16 @@ if ($application && in_array($application['application_status'], ['qualified', '
 
                 <!-- Uploaded Documents -->
                 <div class="assessment-card p-4">
-                
+                    <h5 class="mb-3">
+                        <i class="fas fa-file-alt me-2"></i>
+                        Submitted Documents (<?php echo count($documents); ?>)
+                    </h5>
+                    
+                    <?php if (empty($documents)): ?>
+                    <div class="text-center py-3">
+                        <i class="fas fa-folder-open fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No documents submitted</p>
+                    </div>
                     <?php else: ?>
                     <div class="row g-2">
                         <?php foreach ($documents as $doc): ?>

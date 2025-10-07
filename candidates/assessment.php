@@ -374,129 +374,68 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                 </div>
 
-               <!-- Assessment Criteria with Associated Documents -->
-<div class="assessment-card p-4 mb-4">
-    <h5 class="mb-4">
-        <i class="fas fa-clipboard-check me-2"></i>
-        Assessment Breakdown
-    </h5>
-    
-    <?php if (empty($criteria_evaluations)): ?>
-    <div class="text-center py-4">
-        <i class="fas fa-hourglass-half fa-2x text-muted mb-3"></i>
-        <p class="text-muted">Assessment criteria not yet available</p>
-    </div>
-    <?php else: ?>
-    <?php foreach ($criteria_evaluations as $criteria): ?>
-    <div class="criteria-item <?php echo $criteria['score'] !== null ? 'criteria-evaluated' : 'criteria-pending'; ?>">
-        <div class="row align-items-start">
-            <div class="col-md-8">
-                <h6 class="mb-1"><?php echo htmlspecialchars($criteria['criteria_name']); ?></h6>
-                <p class="text-muted mb-2 small"><?php echo htmlspecialchars($criteria['description']); ?></p>
-                
-                <?php if ($criteria['score'] !== null): ?>
-                <div class="mb-2">
-                    <div class="progress progress-bar-custom">
-                        <div class="progress-bar bg-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>" 
-                             style="width: <?php echo ($criteria['score'] / $criteria['max_score']) * 100; ?>%"></div>
+                <!-- Assessment Criteria -->
+                <div class="assessment-card p-4 mb-4">
+                    <h5 class="mb-4">
+                        <i class="fas fa-clipboard-check me-2"></i>
+                        Assessment Breakdown
+                    </h5>
+                    
+                    <?php if (empty($criteria_evaluations)): ?>
+                    <div class="text-center py-4">
+                        <i class="fas fa-hourglass-half fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">Assessment criteria not yet available</p>
                     </div>
-                    <small class="text-muted">
-                        Score: <?php echo $criteria['score']; ?> / <?php echo $criteria['max_score']; ?>
-                        (<?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 1); ?>%)
-                    </small>
-                </div>
-                
-                <?php if ($criteria['comments']): ?>
-                <div class="alert alert-info small mb-2">
-                    <strong>Evaluator Comments:</strong><br>
-                    <?php echo nl2br(htmlspecialchars($criteria['comments'])); ?>
-                </div>
-                <?php endif; ?>
-                <?php else: ?>
-                <div class="text-muted small mb-2">
-                    <i class="fas fa-clock me-1"></i>
-                    Awaiting evaluation
-                </div>
-                <?php endif; ?>
-                
-                <!-- Display Documents for this Criteria -->
-                <?php
-                // Map document types to criteria types
-                $criteria_type_lower = strtolower($criteria['criteria_type']);
-                $related_docs = array_filter($documents, function($doc) use ($criteria_type_lower) {
-                    $doc_type_lower = strtolower($doc['document_type']);
-                    
-                    // Map relationships between document types and criteria types
-                    $mappings = [
-                        'work_experience' => ['employment_record', 'certificate'],
-                        'training' => ['certificate', 'diploma'],
-                        'certification' => ['certificate', 'diploma'],
-                        'skills' => ['certificate', 'portfolio'],
-                        'portfolio' => ['portfolio', 'other']
-                    ];
-                    
-                    if (isset($mappings[$criteria_type_lower])) {
-                        return in_array($doc_type_lower, $mappings[$criteria_type_lower]);
-                    }
-                    
-                    return false;
-                });
-                ?>
-                
-                <?php if (!empty($related_docs)): ?>
-                <div class="mt-3">
-                    <small class="text-muted fw-bold d-block mb-2">
-                        <i class="fas fa-paperclip me-1"></i>Supporting Documents:
-                    </small>
-                    <?php foreach ($related_docs as $doc): ?>
-                    <div class="document-preview mb-2 p-2">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-file-pdf text-danger me-2"></i>
-                            <div class="flex-grow-1">
-                                <div class="small fw-semibold"><?php echo htmlspecialchars($doc['original_filename']); ?></div>
-                                <div class="d-flex gap-2 align-items-center">
-                                    <span class="badge bg-primary" style="font-size: 0.65rem;">
-                                        <?php echo ucfirst(str_replace('_', ' ', $doc['document_type'])); ?>
-                                    </span>
-                                    <small class="text-muted" style="font-size: 0.7rem;">
-                                        <?php echo number_format($doc['file_size'] / 1024, 1); ?> KB
+                    <?php else: ?>
+                    <?php foreach ($criteria_evaluations as $criteria): ?>
+                    <div class="criteria-item <?php echo $criteria['score'] !== null ? 'criteria-evaluated' : 'criteria-pending'; ?>">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h6 class="mb-1"><?php echo htmlspecialchars($criteria['criteria_name']); ?></h6>
+                                <p class="text-muted mb-2 small"><?php echo htmlspecialchars($criteria['description']); ?></p>
+                                
+                                <?php if ($criteria['score'] !== null): ?>
+                                <div class="mb-2">
+                                    <div class="progress progress-bar-custom">
+                                        <div class="progress-bar bg-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>" 
+                                             style="width: <?php echo ($criteria['score'] / $criteria['max_score']) * 100; ?>%"></div>
+                                    </div>
+                                    <small class="text-muted">
+                                        Score: <?php echo $criteria['score']; ?> / <?php echo $criteria['max_score']; ?>
+                                        (<?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 1); ?>%)
                                     </small>
                                 </div>
-                                <?php if ($doc['description']): ?>
-                                <small class="text-muted d-block" style="font-size: 0.7rem;">
-                                    <?php echo htmlspecialchars($doc['description']); ?>
-                                </small>
+                                
+                                <?php if ($criteria['comments']): ?>
+                                <div class="alert alert-info small mb-0">
+                                    <strong>Evaluator Comments:</strong><br>
+                                    <?php echo nl2br(htmlspecialchars($criteria['comments'])); ?>
+                                </div>
+                                <?php endif; ?>
+                                <?php else: ?>
+                                <div class="text-muted small">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Awaiting evaluation
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <div class="badge bg-secondary">
+                                    <?php echo ucfirst(str_replace('_', ' ', $criteria['criteria_type'])); ?>
+                                </div>
+                                <?php if ($criteria['score'] !== null): ?>
+                                <div class="mt-2">
+                                    <span class="h5 text-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>">
+                                        <?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 0); ?>%
+                                    </span>
+                                </div>
                                 <?php endif; ?>
                             </div>
                         </div>
                     </div>
                     <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-                <?php else: ?>
-                <div class="mt-2">
-                    <small class="text-muted">
-                        <i class="fas fa-info-circle me-1"></i>No documents submitted for this criteria
-                    </small>
-                </div>
-                <?php endif; ?>
-            </div>
-            <div class="col-md-4 text-md-end">
-                <div class="badge bg-secondary">
-                    <?php echo ucfirst(str_replace('_', ' ', $criteria['criteria_type'])); ?>
-                </div>
-                <?php if ($criteria['score'] !== null): ?>
-                <div class="mt-2">
-                    <span class="h5 text-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>">
-                        <?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 0); ?>%
-                    </span>
-                </div>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-    <?php endforeach; ?>
-    <?php endif; ?>
-</div>
 
                 
                                     
@@ -674,7 +613,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
 
 
 
-                <!-- Uploaded Documents
+                <!-- Uploaded Documents -->
                 <div class="assessment-card p-4">
                     <h5 class="mb-3">
                         <i class="fas fa-file-alt me-2"></i>
@@ -716,7 +655,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                     <?php endif; ?>
                 </div>
-            </div> -->
+            </div>
 
             
 

@@ -673,50 +673,51 @@ if ($application && in_array($application['application_status'], ['qualified', '
                 
 
 
-<?php
-// Get uncategorized documents
-$categorized_types = ['employment_record', 'certificate', 'diploma', 'portfolio'];
-$uncategorized_docs = array_filter($documents, function($doc) use ($categorized_types) {
-    return !in_array(strtolower($doc['document_type']), $categorized_types);
-});
-?>
 
-<?php if (!empty($uncategorized_docs)): ?>
-<div class="assessment-card p-4">
-    <h5 class="mb-3">
-        <i class="fas fa-file-alt me-2"></i>
-        Additional Documents (<?php echo count($uncategorized_docs); ?>)
-    </h5>
-    
-    <div class="row g-2">
-        <?php foreach ($uncategorized_docs as $doc): ?>
-        <div class="col-md-6">
-            <div class="document-preview">
-                <div class="d-flex align-items-center">
-                    <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
-                    <div class="flex-grow-1">
-                        <h6 class="mb-1 small"><?php echo htmlspecialchars($doc['original_filename']); ?></h6>
-                        <div class="mb-1">
-                            <span class="badge bg-primary small">
-                                <?php echo ucfirst(str_replace('_', ' ', $doc['document_type'])); ?>
-                            </span>
-                        </div>
-                        <small class="text-muted">
-                            <?php echo number_format($doc['file_size'] / 1024, 1); ?> KB
-                        </small>
+                <!-- Uploaded Documents
+                <div class="assessment-card p-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-file-alt me-2"></i>
+                        Submitted Documents (<?php echo count($documents); ?>)
+                    </h5>
+                    
+                    <?php if (empty($documents)): ?>
+                    <div class="text-center py-3">
+                        <i class="fas fa-folder-open fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No documents submitted</p>
                     </div>
+                    <?php else: ?>
+                    <div class="row g-2">
+                        <?php foreach ($documents as $doc): ?>
+                        <div class="col-md-6">
+                            <div class="document-preview">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1 small"><?php echo htmlspecialchars($doc['original_filename']); ?></h6>
+                                        <div class="mb-1">
+                                            <span class="badge bg-primary small">
+                                                <?php echo ucfirst(str_replace('_', ' ', $doc['document_type'])); ?>
+                                            </span>
+                                        </div>
+                                        <small class="text-muted">
+                                            <?php echo number_format($doc['file_size'] / 1024, 1); ?> KB
+                                        </small>
+                                    </div>
+                                </div>
+                                <?php if ($doc['description']): ?>
+                                <div class="mt-2 small text-muted">
+                                    <?php echo htmlspecialchars($doc['description']); ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
-                <?php if ($doc['description']): ?>
-                <div class="mt-2 small text-muted">
-                    <?php echo htmlspecialchars($doc['description']); ?>
-                </div>
-                <?php endif; ?>
-            </div>
-        </div>
-        <?php endforeach; ?>
-    </div>
-</div>
-<?php endif; ?>
+            </div> -->
+
             
 
             <!-- Sidebar -->

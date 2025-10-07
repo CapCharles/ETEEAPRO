@@ -843,7 +843,7 @@ if ($flash) {
             <!-- Program Dropdown (hidden by default) -->
             <div class="col-md-8" id="programSelectWrapper" style="display:none;">
               <label class="form-label">Assign Program</label>
-        <select name="program_id[]" id="program_id" class="form-select" multiple>
+            <select name="program_id[]" id="program_id" class="form-select" multiple>
 
                 <option value="">-- Select Program --</option>
                 <?php
@@ -1013,7 +1013,7 @@ if ($flash) {
             new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
         }
 
-        function toggleProgramSelect() {
+        unction toggleProgramSelect() {
   const roleSelect = document.getElementById('add_user_type');
   const programWrapper = document.getElementById('programSelectWrapper');
   if (!roleSelect || !programWrapper) return;
@@ -1049,15 +1049,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 });
 
-function generatePassword() {
-  const length = 8;
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-}
+
 
         // Add generate password buttons
         document.addEventListener('DOMContentLoaded', function() {

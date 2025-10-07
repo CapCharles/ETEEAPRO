@@ -1061,36 +1061,7 @@ $is_hierarchical = (
         </div>
     </div>
 </div>
-<!-- 
-<div class="mb-3">
-    <label class="form-label fw-bold">Scholarship Type (Optional):</label>
-    <div class="row">
-        <div class="col-md-4">
-            <div class="form-check">
-                <input type="radio" class="form-check-input" name="scholarship_type" id="full_<?php echo $criteria['id']; ?>" value="full">
-                <label class="form-check-label" for="full_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-star me-2 text-warning"></i>Full Scholarship
-                </label>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-check">
-                <input type="radio" class="form-check-input" name="scholarship_type" id="partial_<?php echo $criteria['id']; ?>" value="partial">
-                <label class="form-check-label" for="partial_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-star-half-alt me-2 text-info"></i>Partial Scholarship
-                </label>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="form-check">
-                <input type="radio" class="form-check-input" name="scholarship_type" id="none_<?php echo $criteria['id']; ?>" value="none" checked>
-                <label class="form-check-label" for="none_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-minus me-2 text-muted"></i>No Scholarship
-                </label>
-            </div>
-        </div>
-    </div>
-</div> -->
+
 
 <?php elseif ($criteria['section_number'] == 2): ?>
 <!-- Section 2 - Work Experience Options -->
@@ -1765,280 +1736,63 @@ if ($hier && is_array($hier)) {
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-  <script>
-    let uploadModal;
-    let viewerModal;
+    <script>
+        let uploadModal;
+        let viewerModal;
 
-    document.addEventListener('DOMContentLoaded', function() {
-        uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
-        viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
-        
-        // Setup AJAX for all hierarchical upload forms
-        setupAjaxUpload();
-        setupPointCalculators();
-    });
-
-    // ============================================
-    // AJAX UPLOAD FUNCTIONALITY - MAIN FUNCTION
-    // ============================================
-    function setupAjaxUpload() {
-        document.querySelectorAll('.hierarchical-upload-section form').forEach(form => {
-            const uploadButton = form.querySelector('button[name="upload_hierarchical_document"]');
+        document.addEventListener('DOMContentLoaded', function() {
+            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
             
-            if (uploadButton) {
-                form.addEventListener('submit', function(e) {
-                    e.preventDefault(); // CRITICAL: Prevent normal form submission
-                    
-                    const criteriaId = form.querySelector('input[name="criteria_id"]').value;
-                    const formData = new FormData(form);
-                    const submitBtn = form.querySelector('button[type="submit"]');
-                    const originalBtnText = submitBtn.innerHTML;
-                    
-                    // Validate form before submitting
-                    if (!validateHierarchicalForm(form)) {
-                        return false;
-                    }
-                    
-                    // Show loading state
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
-                    
-                    // Remove any existing alerts in this section
-                    const existingAlert = form.querySelector('.upload-alert');
-                    if (existingAlert) existingAlert.remove();
-                    
-                    // Send AJAX request
-                    fetch('candidate_upload_ajax.php', {
-                        method: 'POST',
-                        body: formData
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        // Create alert message
-                        const alertDiv = document.createElement('div');
-                        alertDiv.className = `alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show upload-alert mb-3`;
-                        alertDiv.style.cssText = 'animation: slideInDown 0.3s ease-out;';
-                        alertDiv.innerHTML = `
-                            <i class="fas fa-${data.success ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
-                            <strong>${data.success ? 'Success!' : 'Error!'}</strong> ${data.message}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        `;
-                        
-                        // Insert alert at the top of the form
-                        form.insertBefore(alertDiv, form.firstChild);
-                        
-                        // Scroll to alert smoothly (stays in place, doesn't jump to top)
-                        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
-                        
-                        if (data.success) {
-                            // Reset form
-                            form.reset();
-                            
-                            // Show success feedback
-                            alertDiv.classList.add('border-success');
-                            
-                            // Hide the upload section and reload after 2 seconds
-                            setTimeout(() => {
-                                hideHierarchicalUpload(criteriaId);
-                                
-                                // Reload the page to show the new document (smooth reload)
-                                setTimeout(() => {
-                                    window.location.reload();
-                                }, 300);
-                            }, 2000);
-                        } else {
-                            // Error feedback
-                            alertDiv.classList.add('border-danger');
-                        }
-                        
-                        // Reset button
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalBtnText;
-                    })
-                    .catch(error => {
-                        console.error('Upload Error:', error);
-                        
-                        const alertDiv = document.createElement('div');
-                        alertDiv.className = 'alert alert-danger alert-dismissible fade show upload-alert mb-3';
-                        alertDiv.innerHTML = `
-                            <i class="fas fa-exclamation-triangle me-2"></i>
-                            <strong>Error!</strong> An error occurred during upload. Please try again.
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        `;
-                        form.insertBefore(alertDiv, form.firstChild);
-                        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                        
-                        // Reset button
-                        submitBtn.disabled = false;
-                        submitBtn.innerHTML = originalBtnText;
-                    });
-                });
+            // Add event listeners for point calculations
+            setupPointCalculators();
+        });
+
+        function showUploadForm(criteriaId, criteriaName) {
+            document.getElementById('upload_criteria_id').value = criteriaId;
+            document.getElementById('upload_criteria_name').textContent = criteriaName;
+            document.getElementById('upload_description').value = '';
+            document.getElementById('upload_document').value = '';
+            
+            uploadModal.show();
+        }
+
+        function showHierarchicalUpload(criteriaId, criteriaName) {
+            // Hide any other open hierarchical sections
+            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+                section.classList.remove('show');
+            });
+            
+            // Show the selected hierarchical section
+            const section = document.getElementById('hierarchical-' + criteriaId);
+            if (section) {
+                section.classList.add('show');
+                section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-        });
-    }
-
-    // ============================================
-    // FORM VALIDATION
-    // ============================================
-    function validateHierarchicalForm(form) {
-        let hasRequiredSelections = true;
-        let errorMessage = '';
-
-        // Check file upload
-        const fileInput = form.querySelector('input[type="file"]');
-        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-            showInlineError(form, 'Please select a file to upload.');
-            return false;
         }
 
-        // Invention/Innovation validation
-        const hasPatentField = form.querySelector('input[name="patent_status"]');
-        const patentStatus = form.querySelector('input[name="patent_status"]:checked');
-        const acceptabilityLevels = form.querySelectorAll('input[name="acceptability_levels[]"]:checked');
-        
-        if (hasPatentField && !patentStatus) {
-            errorMessage = 'Please select patent status.';
-            hasRequiredSelections = false;
-        } else if (form.querySelector('input[name="acceptability_levels[]"]') && acceptabilityLevels.length === 0) {
-            errorMessage = 'Please select at least one market acceptability level.';
-            hasRequiredSelections = false;
-        }
-
-        // Publications validation (RADIO)
-        const hasCircRadio = form.querySelector('input[name="circulation_level"]');
-        const circulationLevel = form.querySelector('input[name="circulation_level"]:checked');
-        if (hasCircRadio && !circulationLevel) {
-            errorMessage = 'Please select circulation level.';
-            hasRequiredSelections = false;
-        }
-
-        // Extension services validation
-        const serviceLevels = form.querySelectorAll('input[name="service_levels[]"]:checked');
-        if (form.querySelector('input[name="service_levels[]"]') && serviceLevels.length === 0) {
-            errorMessage = 'Please select at least one service level.';
-            hasRequiredSelections = false;
-        }
-
-        // Section 1 - Education
-        if (form.querySelector('input[name="education_level"]') && !form.querySelector('input[name="education_level"]:checked')) {
-            errorMessage = 'Please select education level.';
-            hasRequiredSelections = false;
-        }
-
-        // Section 2 - Work Experience
-        const yearsExp = form.querySelector('input[name="years_experience"]');
-        if (yearsExp && (!yearsExp.value || Number(yearsExp.value) < 5)) {
-            errorMessage = 'Please enter at least 5 years of experience.';
-            hasRequiredSelections = false;
-        }
-        if (form.querySelector('input[name="experience_role"]') && !form.querySelector('input[name="experience_role"]:checked')) {
-            errorMessage = 'Please select experience role.';
-            hasRequiredSelections = false;
-        }
-
-        // Section 4 - Professional Development
-        if (form.querySelector('input[name="coordination_level"]') && !form.querySelector('input[name="coordination_level"]:checked')) {
-            errorMessage = 'Please select coordination level.';
-            hasRequiredSelections = false;
-        }
-        if (form.querySelector('input[name="participation_level"]') && !form.querySelector('input[name="participation_level"]:checked')) {
-            errorMessage = 'Please select participation level.';
-            hasRequiredSelections = false;
-        }
-        if (form.querySelector('input[name="membership_level"]') && !form.querySelector('input[name="membership_level"]:checked')) {
-            errorMessage = 'Please select membership level.';
-            hasRequiredSelections = false;
-        }
-        if (form.querySelector('input[name="scholarship_level"]') && !form.querySelector('input[name="scholarship_level"]:checked')) {
-            errorMessage = 'Please select scholarship level.';
-            hasRequiredSelections = false;
-        }
-
-        // Section 5 - Recognition & Others
-        if (form.querySelector('input[name="recognition_level"]') && !form.querySelector('input[name="recognition_level"]:checked')) {
-            errorMessage = 'Please select recognition level.';
-            hasRequiredSelections = false;
-        }
-        if (form.querySelector('input[name="eligibility_type"]') && !form.querySelector('input[name="eligibility_type"]:checked')) {
-            errorMessage = 'Please select eligibility type.';
-            hasRequiredSelections = false;
-        }
-
-        if (!hasRequiredSelections) {
-            showInlineError(form, errorMessage);
-            return false;
-        }
-
-        return true;
-    }
-
-    function showInlineError(form, message) {
-        // Remove existing error
-        const existingError = form.querySelector('.upload-alert');
-        if (existingError) existingError.remove();
-
-        // Create error alert
-        const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-warning alert-dismissible fade show upload-alert mb-3';
-        alertDiv.innerHTML = `
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>Validation Error:</strong> ${message}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        form.insertBefore(alertDiv, form.firstChild);
-        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-
-    // ============================================
-    // EXISTING FUNCTIONS (keep these as they were)
-    // ============================================
-    function showUploadForm(criteriaId, criteriaName) {
-        document.getElementById('upload_criteria_id').value = criteriaId;
-        document.getElementById('upload_criteria_name').textContent = criteriaName;
-        document.getElementById('upload_description').value = '';
-        document.getElementById('upload_document').value = '';
-        
-        uploadModal.show();
-    }
-
-    function showHierarchicalUpload(criteriaId, criteriaName) {
-        document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-            section.classList.remove('show');
-        });
-        
-        const section = document.getElementById('hierarchical-' + criteriaId);
-        if (section) {
-            section.classList.add('show');
-            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-    }
-
-    function hideHierarchicalUpload(criteriaId) {
-        const section = document.getElementById('hierarchical-' + criteriaId);
-        if (section) {
-            section.classList.remove('show');
-        }
-    }
-
-    function setupPointCalculators() {
-        document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-            const form = section.querySelector('form');
-            if (form) {
-                const inputs = form.querySelectorAll('input[type="radio"], input[type="checkbox"], input[type="number"]');
-                inputs.forEach(input => {
-                    input.addEventListener('change', function() {
-                        updatePointCalculation(form);
-                    });
-                });
+        function hideHierarchicalUpload(criteriaId) {
+            const section = document.getElementById('hierarchical-' + criteriaId);
+            if (section) {
+                section.classList.remove('show');
             }
-        });
-    }
+        }
+
+        function setupPointCalculators() {
+            // Setup point calculation for each criteria
+            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+                const form = section.querySelector('form');
+                if (form) {
+                    const inputs = form.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+                    inputs.forEach(input => {
+                        input.addEventListener('change', function() {
+                            updatePointCalculation(form);
+                        });
+                    });
+                }
+            });
+        }
+
         function updatePointCalculation(form) {
             const criteriaId = form.querySelector('input[name="criteria_id"]').value;
             const display = document.getElementById('points-display-' + criteriaId);
@@ -2152,62 +1906,47 @@ if ($hier && is_array($hier)) {
             }
         }
 
-      function viewDocument(docId, filename) {
-        document.getElementById('docModalTitle').textContent = filename;
-        
-        const viewer = document.getElementById('docViewer');
-        viewer.innerHTML = `
-            <div class="d-flex justify-content-center align-items-center" style="height:70vh;">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-            </div>
-        `;
-        
-        viewerModal.show();
-        
-        setTimeout(() => {
-            const url = `candidate_view_document.php?id=${encodeURIComponent(docId)}`;
-            const ext = filename.split('.').pop().toLowerCase();
+        function viewDocument(docId, filename) {
+            document.getElementById('docModalTitle').textContent = filename;
             
-            if (ext === 'pdf') {
-                viewer.innerHTML = `<iframe src="${url}" style="width:100%;height:70vh;border:none;"></iframe>`;
-            } else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-                viewer.innerHTML = `
-                    <div class="text-center p-3">
-                        <img src="${url}" class="img-fluid" style="max-height:65vh;border-radius:8px;">
+            const viewer = document.getElementById('docViewer');
+            viewer.innerHTML = `
+                <div class="d-flex justify-content-center align-items-center" style="height:70vh;">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">Loading...</span>
                     </div>
-                `;
-            } else {
-                viewer.innerHTML = `
-                    <div class="text-center p-5">
-                        <i class="fas fa-file fa-4x text-muted mb-3"></i>
-                        <h5>Preview not available</h5>
-                        <p class="text-muted">This file type cannot be previewed.</p>
-                        <a href="${url}&dl=1" class="btn btn-primary">
-                            <i class="fas fa-download me-2"></i>Download to view
-                        </a>
-                    </div>
-                `;
-            }
-        }, 200);
-    }
-
-    // Add CSS animation for smooth alert appearance
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideInDown {
-            from {
-                transform: translateY(-20px);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
+                </div>
+            `;
+            
+            viewerModal.show();
+            
+            // Load document after modal is shown
+            setTimeout(() => {
+                const url = `candidate_view_document.php?id=${encodeURIComponent(docId)}`;
+                const ext = filename.split('.').pop().toLowerCase();
+                
+                if (ext === 'pdf') {
+                    viewer.innerHTML = `<iframe src="${url}" style="width:100%;height:70vh;border:none;"></iframe>`;
+                } else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+                    viewer.innerHTML = `
+                        <div class="text-center p-3">
+                            <img src="${url}" class="img-fluid" style="max-height:65vh;border-radius:8px;">
+                        </div>
+                    `;
+                } else {
+                    viewer.innerHTML = `
+                        <div class="text-center p-5">
+                            <i class="fas fa-file fa-4x text-muted mb-3"></i>
+                            <h5>Preview not available</h5>
+                            <p class="text-muted">This file type cannot be previewed.</p>
+                            <a href="${url}&dl=1" class="btn btn-primary">
+                                <i class="fas fa-download me-2"></i>Download to view
+                            </a>
+                        </div>
+                    `;
+                }
+            }, 200);
         }
-    `;
-    document.head.appendChild(style);
 
         // Auto-hide modals on successful upload
         <?php if ($success_message && strpos($success_message, 'uploaded') !== false): ?>

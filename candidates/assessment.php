@@ -318,7 +318,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
         <?php else: ?>
         <div class="row g-4">
             <!-- Main Assessment Content -->
-            <div class="col-12 col-lg-8">
+            <div class="col-lg-8">
                 <!-- Application Overview -->
                 <div class="assessment-card p-4 mb-4">
                     <div class="row align-items-center">
@@ -610,14 +610,8 @@ if ($application && in_array($application['application_status'], ['qualified', '
 </div>
 <?php endif; ?>
                 
-
-
-
-
-            
-
             <!-- Sidebar -->
-         <aside class="col-12 col-lg-4 position-sticky" style="top: 1rem;">
+            <div class="col-lg-4">
                 <!-- Application Timeline -->
                 <div class="assessment-card p-4 mb-4">
                     <h6 class="mb-3">
@@ -713,7 +707,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                 </div>
             </div>
-            </aside>
         </div>
         <?php endif; ?>
     </div>

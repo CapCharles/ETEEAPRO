@@ -758,44 +758,7 @@ $is_hierarchical = (
                                     </div>
                                     <input type="hidden" name="invention_type" value="<?php echo strpos($criteria['criteria_name'], 'Innovation') !== false ? 'innovation' : 'invention'; ?>">
                                     
-                                
-                                    <!-- Publication Options -->
-                                    <div class="mb-3">
-                                        <label class="form-label fw-bold">Circulation Level: <span class="text-danger">*</span></label>
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <div class="form-check">
-                                                    <input type="checkbox" class="form-check-input" name="circulation_levels[]" id="local_circ_<?php echo $criteria['id']; ?>" value="local">
-                                                    <label class="form-check-label" for="local_circ_<?php echo $criteria['id']; ?>">
-                                                        <i class="fas fa-map-marker-alt me-2 text-primary"></i>Local Circulation
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-check">
-                                                    <input type="checkbox" class="form-check-input" name="circulation_levels[]" id="national_circ_<?php echo $criteria['id']; ?>" value="national">
-                                                    <label class="form-check-label" for="national_circ_<?php echo $criteria['id']; ?>">
-                                                        <i class="fas fa-flag me-2 text-info"></i>National w/ ISBN
-                                                    </label>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="form-check">
-                                                    <input type="checkbox" class="form-check-input" name="circulation_levels[]" id="international_circ_<?php echo $criteria['id']; ?>" value="international">
-                                                    <label class="form-check-label" for="international_circ_<?php echo $criteria['id']; ?>">
-                                                        <i class="fas fa-globe me-2 text-success"></i>International w/ Copyright
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <input type="hidden" name="publication_type" value="<?php 
-                                        if (strpos($criteria['criteria_name'], 'Journal') !== false) echo 'journal';
-                                        elseif (strpos($criteria['criteria_name'], 'Training Module') !== false) echo 'training_module';
-                                        elseif (strpos($criteria['criteria_name'], 'Book') !== false) echo 'book';
-                                        else echo 'publication';
-                                    ?>">
-
+                               
                                     <?php elseif (strpos($criteria['criteria_name'], 'Teaching Modules') !== false): ?>
 <!-- Teaching Modules Options -->
 <div class="mb-3">

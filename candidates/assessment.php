@@ -318,6 +318,107 @@ if ($application && in_array($application['application_status'], ['qualified', '
         <?php else: ?>
         <div class="row g-4">
             <!-- Main Assessment Content -->
+
+                <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Application Timeline -->
+                <div class="assessment-card p-4 mb-4">
+                    <h6 class="mb-3">
+                        <i class="fas fa-history me-2"></i>
+                        Application Timeline
+                    </h6>
+                    
+                    <div class="timeline-item">
+                        <div class="fw-semibold">Application Created</div>
+                        <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['created_at'])); ?></small>
+                    </div>
+                    
+                    <?php if ($application['submission_date']): ?>
+                    <div class="timeline-item">
+                        <div class="fw-semibold">Application Submitted</div>
+                        <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['submission_date'])); ?></small>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if ($application['evaluation_date']): ?>
+                    <div class="timeline-item">
+                        <div class="fw-semibold">Assessment Completed</div>
+                        <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['evaluation_date'])); ?></small>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if ($application['application_status'] === 'draft'): ?>
+                    <div class="timeline-item">
+                        <div class="text-muted">Awaiting Submission</div>
+                        <small class="text-muted">Complete your documents and submit</small>
+                    </div>
+                    <?php elseif ($application['application_status'] === 'submitted'): ?>
+                    <div class="timeline-item">
+                        <div class="text-muted">Under Review</div>
+                        <small class="text-muted">Your application is being evaluated</small>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- My Applications -->
+                <?php if (count($all_applications) > 1): ?>
+                <div class="assessment-card p-4 mb-4">
+                    <h6 class="mb-3">
+                        <i class="fas fa-list me-2"></i>
+                        My Applications
+                    </h6>
+                    
+                    <?php foreach ($all_applications as $app): ?>
+                    <div class="d-flex align-items-center mb-3 <?php echo $app['id'] == $application['id'] ? 'bg-light rounded p-2' : ''; ?>">
+                        <div class="flex-grow-1">
+                            <a href="assessment.php?id=<?php echo $app['id']; ?>" 
+                               class="text-decoration-none <?php echo $app['id'] == $application['id'] ? 'fw-bold' : ''; ?>">
+                                <?php echo htmlspecialchars($app['program_code']); ?>
+                            </a>
+                            <div class="small text-muted">
+                                <?php echo date('M j, Y', strtotime($app['created_at'])); ?>
+                            </div>
+                        </div>
+                        <div>
+                            <span class="badge bg-<?php 
+                                echo $app['application_status'] === 'qualified' ? 'success' : 
+                                    ($app['application_status'] === 'submitted' ? 'warning' : 'secondary'); 
+                            ?> small">
+                                <?php echo ucfirst($app['application_status']); ?>
+                            </span>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endif; ?>
+
+                <!-- Quick Actions -->
+                <div class="assessment-card p-4">
+                    <h6 class="mb-3">
+                        <i class="fas fa-bolt me-2"></i>
+                        Quick Actions
+                    </h6>
+                    
+                    <div class="d-grid gap-2">
+                        <a href="upload.php" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-plus me-1"></i>New Application
+                        </a>
+                        
+                        <?php if ($application['application_status'] === 'draft'): ?>
+                        <a href="upload.php" class="btn btn-outline-success btn-sm">
+                            <i class="fas fa-upload me-1"></i>Upload Documents
+                        </a>
+                        <?php endif; ?>
+                        
+                        <a href="profile.php" class="btn btn-outline-secondary btn-sm">
+                            <i class="fas fa-user me-1"></i>View Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+    </div>
             <div class="col-lg-8">
                 <!-- Application Overview -->
                 <div class="assessment-card p-4 mb-4">
@@ -610,109 +711,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
 </div>
 <?php endif; ?>
                 
-            
-
-            <!-- Sidebar -->
-            <div class="col-lg-4">
-                <!-- Application Timeline -->
-                <div class="assessment-card p-4 mb-4">
-                    <h6 class="mb-3">
-                        <i class="fas fa-history me-2"></i>
-                        Application Timeline
-                    </h6>
-                    
-                    <div class="timeline-item">
-                        <div class="fw-semibold">Application Created</div>
-                        <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['created_at'])); ?></small>
-                    </div>
-                    
-                    <?php if ($application['submission_date']): ?>
-                    <div class="timeline-item">
-                        <div class="fw-semibold">Application Submitted</div>
-                        <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['submission_date'])); ?></small>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <?php if ($application['evaluation_date']): ?>
-                    <div class="timeline-item">
-                        <div class="fw-semibold">Assessment Completed</div>
-                        <small class="text-muted"><?php echo date('M j, Y g:i A', strtotime($application['evaluation_date'])); ?></small>
-                    </div>
-                    <?php endif; ?>
-                    
-                    <?php if ($application['application_status'] === 'draft'): ?>
-                    <div class="timeline-item">
-                        <div class="text-muted">Awaiting Submission</div>
-                        <small class="text-muted">Complete your documents and submit</small>
-                    </div>
-                    <?php elseif ($application['application_status'] === 'submitted'): ?>
-                    <div class="timeline-item">
-                        <div class="text-muted">Under Review</div>
-                        <small class="text-muted">Your application is being evaluated</small>
-                    </div>
-                    <?php endif; ?>
-                </div>
-
-                <!-- My Applications -->
-                <?php if (count($all_applications) > 1): ?>
-                <div class="assessment-card p-4 mb-4">
-                    <h6 class="mb-3">
-                        <i class="fas fa-list me-2"></i>
-                        My Applications
-                    </h6>
-                    
-                    <?php foreach ($all_applications as $app): ?>
-                    <div class="d-flex align-items-center mb-3 <?php echo $app['id'] == $application['id'] ? 'bg-light rounded p-2' : ''; ?>">
-                        <div class="flex-grow-1">
-                            <a href="assessment.php?id=<?php echo $app['id']; ?>" 
-                               class="text-decoration-none <?php echo $app['id'] == $application['id'] ? 'fw-bold' : ''; ?>">
-                                <?php echo htmlspecialchars($app['program_code']); ?>
-                            </a>
-                            <div class="small text-muted">
-                                <?php echo date('M j, Y', strtotime($app['created_at'])); ?>
-                            </div>
-                        </div>
-                        <div>
-                            <span class="badge bg-<?php 
-                                echo $app['application_status'] === 'qualified' ? 'success' : 
-                                    ($app['application_status'] === 'submitted' ? 'warning' : 'secondary'); 
-                            ?> small">
-                                <?php echo ucfirst($app['application_status']); ?>
-                            </span>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                </div>
-                <?php endif; ?>
-
-                <!-- Quick Actions -->
-                <div class="assessment-card p-4">
-                    <h6 class="mb-3">
-                        <i class="fas fa-bolt me-2"></i>
-                        Quick Actions
-                    </h6>
-                    
-                    <div class="d-grid gap-2">
-                        <a href="upload.php" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-plus me-1"></i>New Application
-                        </a>
-                        
-                        <?php if ($application['application_status'] === 'draft'): ?>
-                        <a href="upload.php" class="btn btn-outline-success btn-sm">
-                            <i class="fas fa-upload me-1"></i>Upload Documents
-                        </a>
-                        <?php endif; ?>
-                        
-                        <a href="profile.php" class="btn btn-outline-secondary btn-sm">
-                            <i class="fas fa-user me-1"></i>View Profile
-                        </a>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         // Auto-refresh page every 30 seconds if status is under review

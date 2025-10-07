@@ -1612,7 +1612,7 @@ if ($flash) {
   </button>
 </div>
 
-                           <div class="col-md-2 text-end" style="margin-left:-80px;">
+                           <div class="col-md-2 text-end" style="margin-left:-100px;">
                                 ${!allProcessed && (status === 'pending_review' || status === 'needs_revision') ? `
                               <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;" >
     <button type="button" class="btn btn-success"

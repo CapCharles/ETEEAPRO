@@ -859,7 +859,9 @@ if ($flash) {
 
     <a class="nav-link" href="application-reviews.php">
         <i class="fas fa-file-signature me-2"></i> Application Reviews
-         <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
+           <?php if ($sidebar_pending_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
+        <?php endif; ?>
     </a>
 
     <a class="nav-link" href="evaluate.php">

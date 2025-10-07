@@ -1610,7 +1610,7 @@ try {
                                 <li><a class="dropdown-item" href="evaluate.php?status=submitted">Submitted</a></li>
                                 <li><a class="dropdown-item" href="evaluate.php?status=under_review">Under Review</a></li>
                                 <li><a class="dropdown-item" href="evaluate.php?status=qualified">Qualified</a></li>
-                                <li><a class="dropdown-item" href="evaluate.php?status=partially_qualified">Partially Qualified</a></li>
+                             
                                 <li><a class="dropdown-item" href="evaluate.php?status=not_qualified">Not Qualified</a></li>
                             </ul>
                         </div>

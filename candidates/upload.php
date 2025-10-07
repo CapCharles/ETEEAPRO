@@ -284,15 +284,16 @@ if ($_POST && isset($_POST['upload_document'])) {
                     $criteria_id
                 ]);
                 
-              
-                $success_message = 'Document uploaded successfully with detailed specifications!';
-    $success_criteria_id = $criteria_id;
-            } else {
-                $errors[] = "Failed to upload file. Please try again.";
-            }
-        } catch (PDOException $e) {
-            $errors[] = "Database error occurred while saving document.";
+               
+   $success_message = 'Document uploaded successfully with detailed specifications!';
+        } else {
+            $errors[] = 'Failed to upload file. Please try again.';
         }
+    } catch (PDOException $e) {
+        $errors[] = 'Database error occurred while saving document.';
+    }
+      
+           
     }
 }
 
@@ -1345,14 +1346,14 @@ $is_hierarchical = (
                                         </div>
                                     </div> -->
                                     
-                                  <div class="mt-3">
-    <button type="button" class="btn btn-success" onclick="submitHierarchicalUpload(this)">
-        <i class="fas fa-upload me-2"></i>Upload with Specifications
-    </button>
-    <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">
-        Cancel
-    </button>
-</div>
+                                    <div class="mt-3">
+                                        <button type="submit" name="upload_hierarchical_document" class="btn btn-success">
+                                            <i class="fas fa-upload me-2"></i>Upload with Specifications
+                                        </button>
+                                        <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">
+                                            Cancel
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
 

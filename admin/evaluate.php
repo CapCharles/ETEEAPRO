@@ -26,27 +26,6 @@ $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
 $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
-// Email configuration
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
-
-
-function makeMailer(): PHPMailer {
-    $mail = new PHPMailer(true);
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = 'cspbank911@gmail.com';
-    $mail->Password = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = 'ssl';
-    $mail->Port = 465;
-    $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
-    $mail->isHTML(true);
-    return $mail;
-}
-
 
 $sidebar_submitted_count = 0;
 try {
@@ -83,6 +62,29 @@ if (!empty($current_application['program_id'])) {
         $predefined_subjects = [];
     }
 }
+// Email configuration
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
+
+
+
+function makeMailer(): PHPMailer {
+    $mail = new PHPMailer(true);
+    $mail->isSMTP();
+    $mail->Host = 'smtp.gmail.com';
+    $mail->SMTPAuth = true;
+    $mail->Username = 'cspbank911@gmail.com';
+    $mail->Password = 'uzhtbqmdqigquyqq';
+    $mail->SMTPSecure = 'ssl';
+    $mail->Port = 465;
+    $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
+    $mail->isHTML(true);
+    return $mail;
+}
+
+
+
 
 function getSubmittedApplicationsCount($pdo) {
     try {

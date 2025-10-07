@@ -1787,7 +1787,8 @@ if ($hier && is_array($hier)) {
         </div>
     </div>
 
-    <div class="upload-overlay" id="uploadOverlay">
+    <!-- Add this before closing </body> -->
+<div class="upload-overlay" id="uploadOverlay">
     <div class="upload-spinner">
         <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
         <h5>Uploading Document...</h5>
@@ -1809,12 +1810,16 @@ if ($hier && is_array($hier)) {
             errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
             
             // Show success modal if there's a success message
-              // Auto-hide success modal after 3 seconds
-    document.getElementById('successModal').addEventListener('shown.bs.modal', function() {
+            <?php if ($success_message): ?>
+                successModal.show();
+                // Auto-close any open hierarchical upload sections
+               document.getElementById('successModal').addEventListener('shown.bs.modal', function() {
         setTimeout(() => {
             successModal.hide();
         }, 3000);
     });
+
+            <?php endif; ?>
             
             // Show error modal if there are errors
             <?php if (!empty($errors)): ?>

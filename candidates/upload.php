@@ -536,25 +536,7 @@ if ($_POST && isset($_POST['submit_application']) && $current_application) {
     </nav>
 
     <div class="container mt-4">
-        <!-- Messages -->
-        <?php if (!empty($errors)): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <ul class="mb-0">
-                    <?php foreach ($errors as $error): ?>
-                        <li><?php echo htmlspecialchars($error); ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($success_message): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle me-2"></i>
-                <?php echo htmlspecialchars($success_message); ?>
-            </div>
-        <?php endif; ?>
-
+   
         <div class="row g-4">
             <!-- Main Content -->
             <div class="col-lg-9">
@@ -732,7 +714,27 @@ $is_hierarchical = (
                             </div>
 
                             <!-- Hierarchical Upload Section -->
+                             
                             <div class="hierarchical-upload-section" id="hierarchical-<?php echo $criteria['id']; ?>">
+                                     <!-- Messages -->
+        <?php if (!empty($errors)): ?>
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <ul class="mb-0">
+                    <?php foreach ($errors as $error): ?>
+                        <li><?php echo htmlspecialchars($error); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($success_message): ?>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <?php echo htmlspecialchars($success_message); ?>
+            </div>
+        <?php endif; ?>
+
                                 <h6 class="text-primary mb-3">
                                     <i class="fas fa-sitemap me-2"></i>Detailed Specification Upload
                                 </h6>

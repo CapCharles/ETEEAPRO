@@ -286,7 +286,6 @@ if ($_POST && isset($_POST['upload_document'])) {
                 
                
    $success_message = 'Document uploaded successfully with detailed specifications!';
-   $success_criteria_id = $criteria_id;
         } else {
             $errors[] = 'Failed to upload file. Please try again.';
         }
@@ -1347,15 +1346,14 @@ $is_hierarchical = (
                                         </div>
                                     </div> -->
                                     
-                                
                                     <div class="mt-3">
-    <button type="button" class="btn btn-success" onclick="submitHierarchicalUpload(this)">
-        <i class="fas fa-upload me-2"></i>Upload with Specifications
-    </button>
-    <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">
-        Cancel
-    </button>
-</div>
+                                        <button type="submit" name="upload_hierarchical_document" class="btn btn-success">
+                                            <i class="fas fa-upload me-2"></i>Upload with Specifications
+                                        </button>
+                                        <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">
+                                            Cancel
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
 
@@ -1795,7 +1793,14 @@ if ($hier && is_array($hier)) {
             setupPointCalculators();
         });
 
-      
+        document.addEventListener('DOMContentLoaded', function() {
+            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+            
+            // Add event listeners for point calculations
+            setupPointCalculators();
+        });
+
         function showUploadForm(criteriaId, criteriaName) {
             document.getElementById('upload_criteria_id').value = criteriaId;
             document.getElementById('upload_criteria_name').textContent = criteriaName;
@@ -2411,7 +2416,7 @@ if (form.querySelector('input[name="circulation_level"]') && !circulationLevel) 
             return false;
         }
     }
-);
+});
 <script>
 </body>
 </html>

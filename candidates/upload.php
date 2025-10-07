@@ -536,25 +536,6 @@ if ($_POST && isset($_POST['submit_application']) && $current_application) {
     </nav>
 
     <div class="container mt-4">
-        <!-- Messages -->
-        <?php if (!empty($errors)): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <ul class="mb-0">
-                    <?php foreach ($errors as $error): ?>
-                        <li><?php echo htmlspecialchars($error); ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($success_message): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle me-2"></i>
-                <?php echo htmlspecialchars($success_message); ?>
-            </div>
-        <?php endif; ?>
-
         <div class="row g-4">
             <!-- Main Content -->
             <div class="col-lg-9">
@@ -737,6 +718,24 @@ $is_hierarchical = (
                                     <i class="fas fa-sitemap me-2"></i>Detailed Specification Upload
                                 </h6>
                                 
+                                    <!-- Messages -->
+        <?php if (!empty($errors)): ?>
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <ul class="mb-0">
+                    <?php foreach ($errors as $error): ?>
+                        <li><?php echo htmlspecialchars($error); ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        <?php endif; ?>
+        
+        <?php if ($success_message): ?>
+            <div class="alert alert-success">
+                <i class="fas fa-check-circle me-2"></i>
+                <?php echo htmlspecialchars($success_message); ?>
+            </div>
+        <?php endif; ?>
                                 <form method="POST" action="" enctype="multipart/form-data">
                                     <input type="hidden" name="criteria_id" value="<?php echo $criteria['id']; ?>">
                                     <input type="hidden" name="document_type" value="portfolio">
@@ -1950,15 +1949,15 @@ if ($hier && is_array($hier)) {
 
         // Auto-hide modals on successful upload
         <?php if ($success_message && strpos($success_message, 'uploaded') !== false): ?>
-        setTimeout(() => {
-            if (uploadModal && uploadModal._isShown) {
-                uploadModal.hide();
-            }
-            // Hide any open hierarchical sections
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                section.classList.remove('show');
-            });
-        }, 1000);
+        // setTimeout(() => {
+        //     if (uploadModal && uploadModal._isShown) {
+        //         uploadModal.hide();
+        //     }
+        //     // Hide any open hierarchical sections
+        //     document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+        //         section.classList.remove('show');
+        //     });
+        // }, 1000);
         <?php endif; ?>
 
         // Enhanced form validation

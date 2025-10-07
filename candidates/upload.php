@@ -4,7 +4,12 @@ require_once '../config/database.php';
 require_once '../config/constants.php';
 
 
-
+if (isset($_SESSION['upload_success'])) {
+    $success_message = $_SESSION['upload_success'];
+    $success_criteria_id = $_SESSION['upload_criteria_id'] ?? null;
+    unset($_SESSION['upload_success']);
+    unset($_SESSION['upload_criteria_id']);
+}
 // Check if user is logged in and is a candidate
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'candidate') {
     header('Location: ../auth/login.php');
@@ -1348,8 +1353,8 @@ $is_hierarchical = (
                                     </div> -->
                                     
                                 
-            <div class="mt-3">
-    <button type="submit" name="upload_hierarchical_document" class="btn btn-success">
+                                    <div class="mt-3">
+    <button type="button" class="btn btn-success" onclick="submitHierarchicalUpload(this)">
         <i class="fas fa-upload me-2"></i>Upload with Specifications
     </button>
     <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">

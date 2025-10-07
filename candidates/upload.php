@@ -536,7 +536,7 @@ if ($_POST && isset($_POST['submit_application']) && $current_application) {
     </nav>
 
     <div class="container mt-4">
-   
+  
         <div class="row g-4">
             <!-- Main Content -->
             <div class="col-lg-9">
@@ -714,27 +714,7 @@ $is_hierarchical = (
                             </div>
 
                             <!-- Hierarchical Upload Section -->
-                             
                             <div class="hierarchical-upload-section" id="hierarchical-<?php echo $criteria['id']; ?>">
-                                     <!-- Messages -->
-        <?php if (!empty($errors)): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                <ul class="mb-0">
-                    <?php foreach ($errors as $error): ?>
-                        <li><?php echo htmlspecialchars($error); ?></li>
-                    <?php endforeach; ?>
-                </ul>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($success_message): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle me-2"></i>
-                <?php echo htmlspecialchars($success_message); ?>
-            </div>
-        <?php endif; ?>
-
                                 <h6 class="text-primary mb-3">
                                     <i class="fas fa-sitemap me-2"></i>Detailed Specification Upload
                                 </h6>
@@ -1737,10 +1717,89 @@ if ($hier && is_array($hier)) {
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <!-- Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>Success!
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <i class="fas fa-check-circle text-success mb-3" style="font-size: 4rem;"></i>
+                    <h5 id="successModalMessage"><?php echo htmlspecialchars($success_message); ?></h5>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+                        <i class="fas fa-thumbs-up me-2"></i>OK
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Modal -->
+    <div class="modal fade" id="errorModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Error
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="mb-0" id="errorModalList">
+                        <?php if (!empty($errors)): ?>
+                            <?php foreach ($errors as $error): ?>
+                                <li><?php echo htmlspecialchars($error); ?></li>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </ul>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-danger" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+ <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         let uploadModal;
         let viewerModal;
+         let successModal;
+        let errorModal;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+            successModal = new bootstrap.Modal(document.getElementById('successModal'));
+            errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+            
+            // Show success modal if there's a success message
+            <?php if ($success_message): ?>
+                successModal.show();
+                // Auto-close any open hierarchical upload sections
+                setTimeout(() => {
+                    document.querySelectorAll('.hierarchical-upload-section.show').forEach(section => {
+                        section.classList.remove('show');
+                    });
+                }, 3500);
+            <?php endif; ?>
+            
+            // Show error modal if there are errors
+            <?php if (!empty($errors)): ?>
+                errorModal.show();
+            <?php endif; ?>
+            
+            // Add event listeners for point calculations
+            setupPointCalculators();
+        });
 
         document.addEventListener('DOMContentLoaded', function() {
             uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
@@ -1950,7 +2009,8 @@ if ($hier && is_array($hier)) {
             }, 200);
         }
 
-        // Auto-hide modals on successful upload
+  
+      // Auto-hide modals on successful upload
         <?php if ($success_message && strpos($success_message, 'uploaded') !== false): ?>
         setTimeout(() => {
             if (uploadModal && uploadModal._isShown) {

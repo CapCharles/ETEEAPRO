@@ -478,6 +478,31 @@ if ($_POST && isset($_POST['submit_application']) && $current_application) {
             padding: 1rem;
             margin-top: 1rem;
         }
+
+        .upload-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    display: none;
+}
+
+.upload-overlay.show {
+    display: flex;
+}
+
+.upload-spinner {
+    background: white;
+    padding: 2rem;
+    border-radius: 10px;
+    text-align: center;
+}
     </style>
 </head>
 <body>
@@ -1348,7 +1373,7 @@ $is_hierarchical = (
                                     </div> -->
                                     
                                 
-                                    <div class="mt-3">
+ <div class="mt-3">
     <button type="button" class="btn btn-success" onclick="submitHierarchicalUpload(this)">
         <i class="fas fa-upload me-2"></i>Upload with Specifications
     </button>
@@ -1762,6 +1787,14 @@ if ($hier && is_array($hier)) {
         </div>
     </div>
 
+    <div class="upload-overlay" id="uploadOverlay">
+    <div class="upload-spinner">
+        <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+        <h5>Uploading Document...</h5>
+        <p class="text-muted mb-0">Please wait</p>
+    </div>
+</div>
+
  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         let uploadModal;
@@ -1776,15 +1809,12 @@ if ($hier && is_array($hier)) {
             errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
             
             // Show success modal if there's a success message
-            <?php if ($success_message): ?>
-                successModal.show();
-                // Auto-close any open hierarchical upload sections
-                setTimeout(() => {
-                    document.querySelectorAll('.hierarchical-upload-section.show').forEach(section => {
-                        section.classList.remove('show');
-                    });
-                }, 3500);
-            <?php endif; ?>
+              // Auto-hide success modal after 3 seconds
+    document.getElementById('successModal').addEventListener('shown.bs.modal', function() {
+        setTimeout(() => {
+            successModal.hide();
+        }, 3000);
+    });
             
             // Show error modal if there are errors
             <?php if (!empty($errors)): ?>
@@ -1818,6 +1848,91 @@ if ($hier && is_array($hier)) {
                 section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
         }
+        function submitHierarchicalUpload(button) {
+    const form = button.closest('form');
+    const formData = new FormData(form);
+    formData.append('upload_hierarchical_document', '1');
+    
+    // Show loading state
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+    
+    // Submit via AJAX
+    fetch('upload.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.text())
+    .then(html => {
+        // Parse the response to check for success/error
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        // Check if there's a success message
+        const successMsg = tempDiv.querySelector('.alert-success');
+        const errorMsg = tempDiv.querySelector('.alert-danger');
+        
+        if (successMsg) {
+            // Show success modal
+            document.getElementById('successModalMessage').textContent = successMsg.textContent.trim();
+            successModal.show();
+            
+            // Reset form and hide hierarchical section
+            form.reset();
+            const criteriaId = form.querySelector('input[name="criteria_id"]').value;
+            hideHierarchicalUpload(criteriaId);
+            
+            // Reload the document list after 2 seconds
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else if (errorMsg) {
+            // Show error modal
+            const errorList = tempDiv.querySelectorAll('.alert-danger li');
+            let errors = '';
+            errorList.forEach(li => {
+                errors += '<li>' + li.textContent + '</li>';
+            });
+            document.getElementById('errorModalList').innerHTML = errors;
+            errorModal.show();
+        }
+        
+        // Reset button state
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-upload me-2"></i>Upload with Specifications';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred during upload. Please try again.');
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-upload me-2"></i>Upload with Specifications';
+    });
+}
+
+// Update the existing submit event listener
+document.addEventListener('submit', function(e) {
+    const form = e.target;
+    
+    // Check if this is a hierarchical upload form
+    if (form.querySelector('button[onclick*="submitHierarchicalUpload"]')) {
+        e.preventDefault(); // Prevent default form submission
+        return false;
+    }
+    
+    // Rest of your validation code remains the same...
+    if (form.querySelector('input[name="upload_hierarchical_document"]')) {
+        let hasRequiredSelections = true;
+        let errorMessage = '';
+        
+        // Your existing validation code here...
+        
+        if (!hasRequiredSelections) {
+            e.preventDefault();
+            alert(errorMessage);
+            return false;
+        }
+    }
+});
 
         function hideHierarchicalUpload(criteriaId) {
             const section = document.getElementById('hierarchical-' + criteriaId);

@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
     header('Location: ../auth/login.php');
     exit();
 }
-
+$sidebar_pending_count = getPendingReviewsCount($pdo);
 $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 

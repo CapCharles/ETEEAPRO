@@ -834,7 +834,14 @@ if ($flash) {
                                                         type="button" data-bs-toggle="dropdown">
                                                     <i class="fas fa-ellipsis-v"></i>
                                                 </button>
-                                                <li>
+         
+                                                <ul class="dropdown-menu">
+                                                    <li>
+                                                        <button class="dropdown-item" onclick="editUser(<?php echo htmlspecialchars(json_encode($user)); ?>)">
+                                                            <i class="fas fa-edit me-2"></i>Edit User
+                                                        </button>
+                                                    </li>
+                                                                                           <li>
     <button class="dropdown-item"
         onclick="openAssignProgram(
             <?php echo (int)$user['id']; ?>,
@@ -847,12 +854,6 @@ if ($flash) {
     </button>
 </li>
 
-                                                <ul class="dropdown-menu">
-                                                    <li>
-                                                        <button class="dropdown-item" onclick="editUser(<?php echo htmlspecialchars(json_encode($user)); ?>)">
-                                                            <i class="fas fa-edit me-2"></i>Edit User
-                                                        </button>
-                                                    </li>
                                                     <li>
                                                         <button class="dropdown-item" onclick="resetPassword('<?php echo $user['id']; ?>', '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>')">
                                                             <i class="fas fa-key me-2"></i>Reset Password

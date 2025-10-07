@@ -1395,7 +1395,7 @@ try {
 .sidebar .nav-link .badge {
     font-size: 0.65rem;
     padding: 0.25em 0.5em;
-    font-weight: 600;
+    font-weight: 800;
     animation: pulse-badge 2s ease-in-out infinite;
 }
 

@@ -614,14 +614,14 @@ if ($application && in_array($application['application_status'], ['qualified', '
 
 
                 <!-- Uploaded Documents -->
-                <div class="assessment-card p-4">
-                    
-            </div>
+                 <div class="col-lg-8">
+
+</div>
 
             
 
             <!-- Sidebar -->
-            <div class="col-lg-4">
+           <div class="col-lg-4 position-sticky" style="top: 1rem;">
                 <!-- Application Timeline -->
                 <div class="assessment-card p-4 mb-4">
                     <h6 class="mb-3">

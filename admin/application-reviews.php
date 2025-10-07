@@ -1612,9 +1612,9 @@ if ($flash) {
   </button>
 </div>
 
-                            <div class="col-md-2 text-end">
+                           <div class="col-md-2 text-end" style="margin-left:-40px;">
                                 ${!allProcessed && (status === 'pending_review' || status === 'needs_revision') ? `
-                              <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;" style="margin-right:120px;">
+                              <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;" >
     <button type="button" class="btn btn-success"
             onclick="setDocumentAction('approve_document', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
       <i class="fas fa-check me-1"></i>Approve

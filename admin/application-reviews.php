@@ -695,7 +695,7 @@ if ($flash) {
 .sidebar .nav-link .badge {
     font-size: 0.65rem;
     padding: 0.25em 0.5em;
-    font-weight: 600;
+     font-weight: 900;
 }
 
 .sidebar .nav-link:hover .badge {

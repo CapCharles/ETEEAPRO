@@ -792,6 +792,7 @@ if ($flash) {
     <div class="modal fade" id="addUserModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
+                 <form id="addUserForm" method="POST" action="add_user_process.php">
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="fas fa-user-plus me-2"></i>Add New User
@@ -1017,7 +1018,8 @@ if ($flash) {
             }
             return password;
         }
-// Show/Hide program list if evaluator selected
+
+        // Show/Hide program list if evaluator selected
         document.getElementById('roleSelect').addEventListener('change', function() {
   const programWrapper = document.getElementById('programSelectWrapper');
   programWrapper.style.display = (this.value === 'evaluator') ? 'block' : 'none';

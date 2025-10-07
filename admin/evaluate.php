@@ -62,6 +62,36 @@ if (!empty($current_application['program_id'])) {
         $predefined_subjects = [];
     }
 }
+
+
+$sidebar_pending_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT u.id) as total 
+        FROM users u
+        INNER JOIN application_forms af ON u.id = af.user_id
+        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' OR u.application_form_status NOT IN ('approved', 'rejected'))
+    ");
+    $sidebar_pending_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_pending_count = 0;
+}
+
+function getPendingReviewsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(DISTINCT u.id) as total 
+            FROM users u
+            INNER JOIN application_forms af ON u.id = af.user_id
+            WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
+                   OR u.application_form_status NOT IN ('approved', 'rejected'))
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting pending reviews count: " . $e->getMessage());
+        return 0;
+    }
+}
 // Email configuration
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -1588,6 +1618,9 @@ try {
     <a class="nav-link" href="application-reviews.php">
         <i class="fas fa-file-signature me-2"></i>
         Application Reviews
+            <?php if ($sidebar_pending_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
+        <?php endif; ?>
     </a>
 
     <a class="nav-link" href="evaluate.php">

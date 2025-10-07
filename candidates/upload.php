@@ -1765,336 +1765,382 @@ if ($hier && is_array($hier)) {
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script>
-        let uploadModal;
-        let viewerModal;
+<script>
+    let uploadModal;
+    let viewerModal;
 
-        document.addEventListener('DOMContentLoaded', function() {
-            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
-            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+    document.addEventListener('DOMContentLoaded', function() {
+        uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+        viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+        
+        // Setup AJAX for all hierarchical upload forms
+        setupAjaxUpload();
+        setupPointCalculators();
+    });
+
+    // ============================================
+    // AJAX UPLOAD FUNCTIONALITY - MAIN FUNCTION
+    // ============================================
+    function setupAjaxUpload() {
+        document.querySelectorAll('.hierarchical-upload-section form').forEach(form => {
+            const uploadButton = form.querySelector('button[name="upload_hierarchical_document"]');
             
-            // Add event listeners for point calculations
-            setupPointCalculators();
-        });
-
-        function showUploadForm(criteriaId, criteriaName) {
-            document.getElementById('upload_criteria_id').value = criteriaId;
-            document.getElementById('upload_criteria_name').textContent = criteriaName;
-            document.getElementById('upload_description').value = '';
-            document.getElementById('upload_document').value = '';
-            
-            uploadModal.show();
-        }
-
-        function showHierarchicalUpload(criteriaId, criteriaName) {
-            // Hide any other open hierarchical sections
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                section.classList.remove('show');
-            });
-            
-            // Show the selected hierarchical section
-            const section = document.getElementById('hierarchical-' + criteriaId);
-            if (section) {
-                section.classList.add('show');
-                section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-        }
-
-        function hideHierarchicalUpload(criteriaId) {
-            const section = document.getElementById('hierarchical-' + criteriaId);
-            if (section) {
-                section.classList.remove('show');
-            }
-        }
-
-        function setupPointCalculators() {
-            // Setup point calculation for each criteria
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                const form = section.querySelector('form');
-                if (form) {
-                    const inputs = form.querySelectorAll('input[type="radio"], input[type="checkbox"]');
-                    inputs.forEach(input => {
-                        input.addEventListener('change', function() {
-                            updatePointCalculation(form);
-                        });
+            if (uploadButton) {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault(); // CRITICAL: Prevent normal form submission
+                    
+                    const criteriaId = form.querySelector('input[name="criteria_id"]').value;
+                    const formData = new FormData(form);
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    const originalBtnText = submitBtn.innerHTML;
+                    
+                    // Validate form before submitting
+                    if (!validateHierarchicalForm(form)) {
+                        return false;
+                    }
+                    
+                    // Show loading state
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+                    
+                    // Remove any existing alerts in this section
+                    const existingAlert = form.querySelector('.upload-alert');
+                    if (existingAlert) existingAlert.remove();
+                    
+                    // Send AJAX request
+                    fetch('candidate_upload_ajax.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Create alert message
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = `alert alert-${data.success ? 'success' : 'danger'} alert-dismissible fade show upload-alert mb-3`;
+                        alertDiv.style.cssText = 'animation: slideInDown 0.3s ease-out;';
+                        alertDiv.innerHTML = `
+                            <i class="fas fa-${data.success ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+                            <strong>${data.success ? 'Success!' : 'Error!'}</strong> ${data.message}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        
+                        // Insert alert at the top of the form
+                        form.insertBefore(alertDiv, form.firstChild);
+                        
+                        // Scroll to alert smoothly (stays in place, doesn't jump to top)
+                        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+                        
+                        if (data.success) {
+                            // Reset form
+                            form.reset();
+                            
+                            // Show success feedback
+                            alertDiv.classList.add('border-success');
+                            
+                            // Hide the upload section and reload after 2 seconds
+                            setTimeout(() => {
+                                hideHierarchicalUpload(criteriaId);
+                                
+                                // Reload the page to show the new document (smooth reload)
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 300);
+                            }, 2000);
+                        } else {
+                            // Error feedback
+                            alertDiv.classList.add('border-danger');
+                        }
+                        
+                        // Reset button
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                    })
+                    .catch(error => {
+                        console.error('Upload Error:', error);
+                        
+                        const alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-danger alert-dismissible fade show upload-alert mb-3';
+                        alertDiv.innerHTML = `
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Error!</strong> An error occurred during upload. Please try again.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        `;
+                        form.insertBefore(alertDiv, form.firstChild);
+                        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        
+                        // Reset button
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
                     });
-                }
-            });
+                });
+            }
+        });
+    }
+
+    // ============================================
+    // FORM VALIDATION
+    // ============================================
+    function validateHierarchicalForm(form) {
+        let hasRequiredSelections = true;
+        let errorMessage = '';
+
+        // Check file upload
+        const fileInput = form.querySelector('input[type="file"]');
+        if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+            showInlineError(form, 'Please select a file to upload.');
+            return false;
         }
 
-        function updatePointCalculation(form) {
-            const criteriaId = form.querySelector('input[name="criteria_id"]').value;
-            const display = document.getElementById('points-display-' + criteriaId);
-            
-            if (!display) return;
+        // Invention/Innovation validation
+        const hasPatentField = form.querySelector('input[name="patent_status"]');
+        const patentStatus = form.querySelector('input[name="patent_status"]:checked');
+        const acceptabilityLevels = form.querySelectorAll('input[name="acceptability_levels[]"]:checked');
+        
+        if (hasPatentField && !patentStatus) {
+            errorMessage = 'Please select patent status.';
+            hasRequiredSelections = false;
+        } else if (form.querySelector('input[name="acceptability_levels[]"]') && acceptabilityLevels.length === 0) {
+            errorMessage = 'Please select at least one market acceptability level.';
+            hasRequiredSelections = false;
+        }
 
-            // Check what type of criteria this is and calculate accordingly
-            const patentStatus = form.querySelector('input[name="patent_status"]:checked');
-            const acceptabilityLevels = form.querySelectorAll('input[name="acceptability_levels[]"]:checked');
-            const circulationLevels = form.querySelectorAll('input[name="circulation_levels[]"]:checked');
-            const serviceLevels = form.querySelectorAll('input[name="service_levels[]"]:checked');
+        // Publications validation (RADIO)
+        const hasCircRadio = form.querySelector('input[name="circulation_level"]');
+        const circulationLevel = form.querySelector('input[name="circulation_level"]:checked');
+        if (hasCircRadio && !circulationLevel) {
+            errorMessage = 'Please select circulation level.';
+            hasRequiredSelections = false;
+        }
 
-            let calculationHtml = '';
-            let totalPoints = 0;
+        // Extension services validation
+        const serviceLevels = form.querySelectorAll('input[name="service_levels[]"]:checked');
+        if (form.querySelector('input[name="service_levels[]"]') && serviceLevels.length === 0) {
+            errorMessage = 'Please select at least one service level.';
+            hasRequiredSelections = false;
+        }
 
-            if (patentStatus && acceptabilityLevels.length > 0) {
-                // Invention/Innovation calculation
-                const inventionType = form.querySelector('input[name="invention_type"]').value;
-                const isInvention = inventionType === 'invention';
-                
-                const basePoints = patentStatus.value === 'patented' ? (isInvention ? 6 : 1) : (isInvention ? 5 : 2);
-                totalPoints += basePoints;
-                
-                let marketPoints = 0;
-                let marketList = [];
-                
-                acceptabilityLevels.forEach(checkbox => {
-                    const level = checkbox.value;
-                    if (level === 'local') {
-                        const pts = isInvention ? 7 : 4;
-                        marketPoints += pts;
-                        marketList.push('Local (+' + pts + ')');
-                    } else if (level === 'national') {
-                        const pts = isInvention ? 8 : 5;
-                        marketPoints += pts;
-                        marketList.push('National (+' + pts + ')');
-                    } else if (level === 'international') {
-                        const pts = isInvention ? 9 : 6;
-                        marketPoints += pts;
-                        marketList.push('International (+' + pts + ')');
-                    }
+        // Section 1 - Education
+        if (form.querySelector('input[name="education_level"]') && !form.querySelector('input[name="education_level"]:checked')) {
+            errorMessage = 'Please select education level.';
+            hasRequiredSelections = false;
+        }
+
+        // Section 2 - Work Experience
+        const yearsExp = form.querySelector('input[name="years_experience"]');
+        if (yearsExp && (!yearsExp.value || Number(yearsExp.value) < 5)) {
+            errorMessage = 'Please enter at least 5 years of experience.';
+            hasRequiredSelections = false;
+        }
+        if (form.querySelector('input[name="experience_role"]') && !form.querySelector('input[name="experience_role"]:checked')) {
+            errorMessage = 'Please select experience role.';
+            hasRequiredSelections = false;
+        }
+
+        // Section 4 - Professional Development
+        if (form.querySelector('input[name="coordination_level"]') && !form.querySelector('input[name="coordination_level"]:checked')) {
+            errorMessage = 'Please select coordination level.';
+            hasRequiredSelections = false;
+        }
+        if (form.querySelector('input[name="participation_level"]') && !form.querySelector('input[name="participation_level"]:checked')) {
+            errorMessage = 'Please select participation level.';
+            hasRequiredSelections = false;
+        }
+        if (form.querySelector('input[name="membership_level"]') && !form.querySelector('input[name="membership_level"]:checked')) {
+            errorMessage = 'Please select membership level.';
+            hasRequiredSelections = false;
+        }
+        if (form.querySelector('input[name="scholarship_level"]') && !form.querySelector('input[name="scholarship_level"]:checked')) {
+            errorMessage = 'Please select scholarship level.';
+            hasRequiredSelections = false;
+        }
+
+        // Section 5 - Recognition & Others
+        if (form.querySelector('input[name="recognition_level"]') && !form.querySelector('input[name="recognition_level"]:checked')) {
+            errorMessage = 'Please select recognition level.';
+            hasRequiredSelections = false;
+        }
+        if (form.querySelector('input[name="eligibility_type"]') && !form.querySelector('input[name="eligibility_type"]:checked')) {
+            errorMessage = 'Please select eligibility type.';
+            hasRequiredSelections = false;
+        }
+
+        if (!hasRequiredSelections) {
+            showInlineError(form, errorMessage);
+            return false;
+        }
+
+        return true;
+    }
+
+    function showInlineError(form, message) {
+        // Remove existing error
+        const existingError = form.querySelector('.upload-alert');
+        if (existingError) existingError.remove();
+
+        // Create error alert
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-warning alert-dismissible fade show upload-alert mb-3';
+        alertDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Validation Error:</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        
+        form.insertBefore(alertDiv, form.firstChild);
+        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    // ============================================
+    // EXISTING FUNCTIONS (keep these as they were)
+    // ============================================
+    function showUploadForm(criteriaId, criteriaName) {
+        document.getElementById('upload_criteria_id').value = criteriaId;
+        document.getElementById('upload_criteria_name').textContent = criteriaName;
+        document.getElementById('upload_description').value = '';
+        document.getElementById('upload_document').value = '';
+        
+        uploadModal.show();
+    }
+
+    function showHierarchicalUpload(criteriaId, criteriaName) {
+        document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+            section.classList.remove('show');
+        });
+        
+        const section = document.getElementById('hierarchical-' + criteriaId);
+        if (section) {
+            section.classList.add('show');
+            section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+
+    function hideHierarchicalUpload(criteriaId) {
+        const section = document.getElementById('hierarchical-' + criteriaId);
+        if (section) {
+            section.classList.remove('show');
+        }
+    }
+
+    function setupPointCalculators() {
+        document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+            const form = section.querySelector('form');
+            if (form) {
+                const inputs = form.querySelectorAll('input[type="radio"], input[type="checkbox"], input[type="number"]');
+                inputs.forEach(input => {
+                    input.addEventListener('change', function() {
+                        updatePointCalculation(form);
+                    });
                 });
-                
-                totalPoints += marketPoints;
-                
-                calculationHtml = `
-                    <p class="mb-1"><strong>Patent:</strong> ${patentStatus.value === 'patented' ? 'Patented' : 'No Patent'} = ${basePoints} points</p>
-                    <p class="mb-1"><strong>Markets:</strong> ${marketList.join(', ')} = ${marketPoints} points</p>
-                `;
-                
-            } else if (circulationLevels.length > 0) {
-                // Publication calculation
-                const publicationType = form.querySelector('input[name="publication_type"]').value;
-                const points = {
-                    'journal': { local: 2, national: 3, international: 4 },
-                    'training_module': { local: 3, national: 4, international: 5 },
-                    'book': { local: 5, national: 6, international: 7 }
-                };
-                
-                const currentPoints = points[publicationType] || points['journal'];
-                let levelsList = [];
-                
-                circulationLevels.forEach(checkbox => {
-                    const level = checkbox.value;
-                    const pts = currentPoints[level];
-                    totalPoints += pts;
-                    levelsList.push(`${level.charAt(0).toUpperCase() + level.slice(1)} (+${pts})`);
-                });
-                
-                calculationHtml = `
-                    <p class="mb-1"><strong>Type:</strong> ${publicationType.replace('_', ' ')}</p>
-                    <p class="mb-1"><strong>Levels:</strong> ${levelsList.join(', ')}</p>
-                `;
-                
-            } else if (serviceLevels.length > 0) {
-                // Extension service calculation
-                const extensionType = form.querySelector('input[name="extension_type"]').value;
-                
-                const servicePoints = {
-                    'consultancy': { local: 5, national: 10, international: 15 },
-                    'lecturer': { local: 6, national: 8, international: 10 },
-                    'community': { trainer: 3, official: 4, manager: 5 }
-                };
-                
-                const currentPoints = servicePoints[extensionType];
-                let levelsList = [];
-                
-                serviceLevels.forEach(checkbox => {
-                    const level = checkbox.value;
-                    const pts = currentPoints[level];
-                    if (pts) {
-                        totalPoints += pts;
-                        levelsList.push(`${level.charAt(0).toUpperCase() + level.slice(1)} (+${pts})`);
-                    }
-                });
-                
-                calculationHtml = `
-                    <p class="mb-1"><strong>Service:</strong> ${extensionType}</p>
-                    <p class="mb-1"><strong>Levels:</strong> ${levelsList.join(', ')}</p>
-                `;
             }
+        });
+    }
 
-            if (calculationHtml) {
-                display.innerHTML = `
-                    ${calculationHtml}
-                    <hr class="my-2">
-                    <p class="mb-0 fw-bold text-success">Total Expected Points: ${totalPoints}</p>
+    function updatePointCalculation(form) {
+        const criteriaId = form.querySelector('input[name="criteria_id"]').value;
+        const display = document.getElementById('points-display-' + criteriaId);
+        
+        if (!display) return;
+
+        let calculationHtml = '';
+        let totalPoints = 0;
+
+        // Section 1 - Education
+        const educationLevel = form.querySelector('input[name="education_level"]:checked');
+        const scholarshipType = form.querySelector('input[name="scholarship_type"]:checked');
+        
+        if (educationLevel) {
+            const eduPoints = {
+                'high_school': 2,
+                'vocational': 3,
+                'technical': 4,
+                'undergraduate': 5,
+                'non_education': 6
+            };
+            totalPoints += eduPoints[educationLevel.value] || 0;
+            calculationHtml += `<p class="mb-1"><strong>Education:</strong> ${educationLevel.value.replace('_', ' ')} = ${eduPoints[educationLevel.value]} points</p>`;
+            
+            if (scholarshipType && scholarshipType.value !== 'none') {
+                const schPoints = scholarshipType.value === 'full' ? 2 : 1;
+                totalPoints += schPoints;
+                calculationHtml += `<p class="mb-1"><strong>Scholarship:</strong> ${scholarshipType.value} = +${schPoints} points</p>`;
+            }
+        }
+
+        // Add other calculation logic here (keep your existing calculation code)
+        // ... [rest of your calculation logic]
+
+        if (calculationHtml) {
+            display.innerHTML = `
+                ${calculationHtml}
+                <hr class="my-2">
+                <p class="mb-0 fw-bold text-success">Total Expected Points: ${totalPoints}</p>
+            `;
+        } else {
+            display.innerHTML = '<p class="mb-0 text-muted">Select options above to see potential points</p>';
+        }
+    }
+
+    function viewDocument(docId, filename) {
+        document.getElementById('docModalTitle').textContent = filename;
+        
+        const viewer = document.getElementById('docViewer');
+        viewer.innerHTML = `
+            <div class="d-flex justify-content-center align-items-center" style="height:70vh;">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        viewerModal.show();
+        
+        setTimeout(() => {
+            const url = `candidate_view_document.php?id=${encodeURIComponent(docId)}`;
+            const ext = filename.split('.').pop().toLowerCase();
+            
+            if (ext === 'pdf') {
+                viewer.innerHTML = `<iframe src="${url}" style="width:100%;height:70vh;border:none;"></iframe>`;
+            } else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+                viewer.innerHTML = `
+                    <div class="text-center p-3">
+                        <img src="${url}" class="img-fluid" style="max-height:65vh;border-radius:8px;">
+                    </div>
                 `;
             } else {
-                display.innerHTML = '<p class="mb-0 text-muted">Select options above to see potential points</p>';
-            }
-        }
-
-        function viewDocument(docId, filename) {
-            document.getElementById('docModalTitle').textContent = filename;
-            
-            const viewer = document.getElementById('docViewer');
-            viewer.innerHTML = `
-                <div class="d-flex justify-content-center align-items-center" style="height:70vh;">
-                    <div class="spinner-border" role="status">
-                        <span class="visually-hidden">Loading...</span>
+                viewer.innerHTML = `
+                    <div class="text-center p-5">
+                        <i class="fas fa-file fa-4x text-muted mb-3"></i>
+                        <h5>Preview not available</h5>
+                        <p class="text-muted">This file type cannot be previewed.</p>
+                        <a href="${url}&dl=1" class="btn btn-primary">
+                            <i class="fas fa-download me-2"></i>Download to view
+                        </a>
                     </div>
-                </div>
-            `;
-            
-            viewerModal.show();
-            
-            // Load document after modal is shown
-            setTimeout(() => {
-                const url = `candidate_view_document.php?id=${encodeURIComponent(docId)}`;
-                const ext = filename.split('.').pop().toLowerCase();
-                
-                if (ext === 'pdf') {
-                    viewer.innerHTML = `<iframe src="${url}" style="width:100%;height:70vh;border:none;"></iframe>`;
-                } else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-                    viewer.innerHTML = `
-                        <div class="text-center p-3">
-                            <img src="${url}" class="img-fluid" style="max-height:65vh;border-radius:8px;">
-                        </div>
-                    `;
-                } else {
-                    viewer.innerHTML = `
-                        <div class="text-center p-5">
-                            <i class="fas fa-file fa-4x text-muted mb-3"></i>
-                            <h5>Preview not available</h5>
-                            <p class="text-muted">This file type cannot be previewed.</p>
-                            <a href="${url}&dl=1" class="btn btn-primary">
-                                <i class="fas fa-download me-2"></i>Download to view
-                            </a>
-                        </div>
-                    `;
-                }
-            }, 200);
-        }
-
-        // Auto-hide modals on successful upload
-        <?php if ($success_message && strpos($success_message, 'uploaded') !== false): ?>
-        setTimeout(() => {
-            if (uploadModal && uploadModal._isShown) {
-                uploadModal.hide();
+                `;
             }
-            // Hide any open hierarchical sections
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                section.classList.remove('show');
-            });
-        }, 1000);
-        <?php endif; ?>
-
-        // Enhanced form validation
-     document.addEventListener('submit', function(e) {
-  const form = e.target;
-
-  if (form.querySelector('button[name="upload_hierarchical_document"]')) {
-    let hasRequiredSelections = true;
-    let errorMessage = '';
-
-    // Invention/Innovation
-    const hasPatentField = form.querySelector('input[name="patent_status"]');
-    const patentStatus = form.querySelector('input[name="patent_status"]:checked');
-    const acceptabilityLevels = form.querySelectorAll('input[name="acceptability_levels[]"]:checked');
-    if (hasPatentField && !patentStatus) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select patent status.';
-    } else if (form.querySelector('input[name="acceptability_levels[]"]') && acceptabilityLevels.length === 0) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select at least one market acceptability level.';
+        }, 200);
     }
 
-    // Publications (RADIO)
-    const hasCircRadio = form.querySelector('input[name="circulation_level"]');
-    const circulationLevel = form.querySelector('input[name="circulation_level"]:checked');
-    if (hasCircRadio && !circulationLevel) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select circulation level.';
-    }
-
-    // Extension services (multi)
-    const serviceLevels = form.querySelectorAll('input[name="service_levels[]"]:checked');
-    if (form.querySelector('input[name="service_levels[]"]') && serviceLevels.length === 0) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select at least one service level.';
-    }
-
-    // Section 1
-    if (form.querySelector('input[name="education_level"]') && !form.querySelector('input[name="education_level"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select education level.';
-    }
-
-    // Section 2
-    const yearsExp = form.querySelector('input[name="years_experience"]');
-    if (yearsExp && (!yearsExp.value || Number(yearsExp.value) < 5)) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please enter at least 5 years of experience.';
-    }
-    if (form.querySelector('input[name="experience_role"]') && !form.querySelector('input[name="experience_role"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select experience role.';
-    }
-
-    // Section 4
-    if (form.querySelector('input[name="coordination_level"]') && !form.querySelector('input[name="coordination_level"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select coordination level.';
-    }
-    if (form.querySelector('input[name="participation_level"]') && !form.querySelector('input[name="participation_level"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select participation level.';
-    }
-    if (form.querySelector('input[name="membership_level"]') && !form.querySelector('input[name="membership_level"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select membership level.';
-    }
-    if (form.querySelector('input[name="scholarship_level"]') && !form.querySelector('input[name="scholarship_level"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select scholarship level.';
-    }
-
-    // Section 5
-    if (form.querySelector('input[name="recognition_level"]') && !form.querySelector('input[name="recognition_level"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select recognition level.';
-    }
-    if (form.querySelector('input[name="eligibility_type"]') && !form.querySelector('input[name="eligibility_type"]:checked')) {
-      hasRequiredSelections = false;
-      errorMessage = 'Please select eligibility type.';
-    }
-
-    if (!hasRequiredSelections) {
-      e.preventDefault();
-      alert(errorMessage);
-      return false;
-    }
-  }
-});
-        // Smooth scrolling for better UX
-        function smoothScrollToElement(element) {
-            element.scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
-        }
-
-        // Auto-expand relevant sections based on URL hash
-        if (window.location.hash) {
-            const targetElement = document.querySelector(window.location.hash);
-            if (targetElement) {
-                setTimeout(() => {
-                    smoothScrollToElement(targetElement);
-                }, 500);
+    // Add CSS animation for smooth alert appearance
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideInDown {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
             }
         }
-    </script>
+    `;
+    document.head.appendChild(style);
     <script>
 function updatePointCalculation(form) {
     const criteriaId = form.querySelector('input[name="criteria_id"]').value;

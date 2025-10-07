@@ -612,11 +612,11 @@ if ($application && in_array($application['application_status'], ['qualified', '
                 
 
 
-<!-- Uploaded Documents Removed -->
-<div class="assessment-card p-4 text-center text-muted" style="min-height: 150px;">
-    
-</div>
 
+                <!-- Uploaded Documents -->
+                <div class="assessment-card p-4">
+                    
+            </div>
 
             
 

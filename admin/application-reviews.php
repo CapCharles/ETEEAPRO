@@ -888,14 +888,10 @@ if ($flash) {
   border-top-left-radius: 0;  border-bottom-left-radius: 0;
 }
 
-.d-flex.gap-2.flex-wrap {
-  flex-wrap: wrap !important;
-}
-.btn-group .btn {
-  border-radius: 50px 0 0 50px; /* approve */
-}
-.btn-group .btn:last-child {
-  border-radius: 0 50px 50px 0; /* revise */
+
+
+.btn-outline-primary {
+  transform: translateX(5px); /* move papasok */
 }
 
     </style>

@@ -1012,7 +1012,7 @@ if ($flash) {
             new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
         }
 
-        unction toggleProgramSelect() {
+        function toggleProgramSelect() {
   const roleSelect = document.getElementById('add_user_type');
   const programWrapper = document.getElementById('programSelectWrapper');
   if (!roleSelect || !programWrapper) return;

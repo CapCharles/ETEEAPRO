@@ -789,79 +789,100 @@ if ($flash) {
     </div>
 
     <!-- Add User Modal -->
-    <div class="modal fade" id="addUserModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="fas fa-user-plus me-2"></i>Add New User
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form method="POST" action="">
-                    <div class="modal-body">
-                        <div class="row g-3">
-                            <div class="col-md-4">
-                                <label for="add_first_name" class="form-label">First Name *</label>
-                                <input type="text" class="form-control" id="add_first_name" name="first_name" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="add_last_name" class="form-label">Last Name *</label>
-                                <input type="text" class="form-control" id="add_last_name" name="last_name" required>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="add_middle_name" class="form-label">Middle Name</label>
-                                <input type="text" class="form-control" id="add_middle_name" name="middle_name">
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label for="add_email" class="form-label">Email Address *</label>
-                                <input type="email" class="form-control" id="add_email" name="email" required>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="add_phone" class="form-label">Phone Number</label>
-                                <input type="tel" class="form-control" id="add_phone" name="phone">
-                            </div>
-                            
-                            <div class="col-12">
-                                <label for="add_address" class="form-label">Address</label>
-                                <textarea class="form-control" id="add_address" name="address" rows="2"></textarea>
-                            </div>
-                            
-                            <div class="col-md-4">
-                                <label for="add_user_type" class="form-label">User Role *</label>
-                                <select class="form-select" id="add_user_type" name="user_type" required>
-                                    <option value="">Select Role</option>
-                                    <option value="candidate">Candidate</option>
-                                    <option value="evaluator">Evaluator</option>
-                                    <option value="admin">Administrator</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="add_status" class="form-label">Status *</label>
-                                <select class="form-select" id="add_status" name="status" required>
-                                    <option value="active">Active</option>
-                                    <option value="pending">Pending</option>
-                                    <option value="inactive">Inactive</option>
-                                </select>
-                            </div>
-                            <div class="col-md-4">
-                                <label for="add_password" class="form-label">Password *</label>
-                                <input type="password" class="form-control" id="add_password" name="password" required>
-                                <div class="form-text">Minimum 6 characters</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" name="add_user" class="btn btn-primary">
-                            <i class="fas fa-save me-1"></i>Create User
-                        </button>
-                    </div>
-                </form>
-            </div>
+<div class="modal fade" id="addUserModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <!-- SINGLE FORM ONLY -->
+      <form id="addUserForm" method="POST" action="add_user_process.php">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-user-plus me-2"></i>Add New User
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
+
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="add_first_name" class="form-label">First Name *</label>
+              <input type="text" class="form-control" id="add_first_name" name="first_name" required>
+            </div>
+            <div class="col-md-4">
+              <label for="add_last_name" class="form-label">Last Name *</label>
+              <input type="text" class="form-control" id="add_last_name" name="last_name" required>
+            </div>
+            <div class="col-md-4">
+              <label for="add_middle_name" class="form-label">Middle Name</label>
+              <input type="text" class="form-control" id="add_middle_name" name="middle_name">
+            </div>
+
+            <div class="col-md-6">
+              <label for="add_email" class="form-label">Email Address *</label>
+              <input type="email" class="form-control" id="add_email" name="email" required>
+            </div>
+            <div class="col-md-6">
+              <label for="add_phone" class="form-label">Phone Number</label>
+              <input type="tel" class="form-control" id="add_phone" name="phone">
+            </div>
+
+            <div class="col-12">
+              <label for="add_address" class="form-label">Address</label>
+              <textarea class="form-control" id="add_address" name="address" rows="2"></textarea>
+            </div>
+
+            <div class="col-md-4">
+              <label for="add_user_type" class="form-label">User Role *</label>
+              <select class="form-select" id="add_user_type" name="user_type" required>
+                <option value="">Select Role</option>
+                <option value="candidate">Candidate</option>
+                <option value="evaluator">Evaluator</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+
+            <!-- Program Dropdown (hidden by default) -->
+            <div class="col-md-8" id="programSelectWrapper" style="display:none;">
+              <label class="form-label">Assign Program</label>
+        <select name="program_id[]" id="program_id" class="form-select" multiple>
+
+                <option value="">-- Select Program --</option>
+                <?php
+                  // $pdo is already available above, no need to require again
+                  $programs = $pdo->query("SELECT id, program_name, program_code FROM programs")->fetchAll();
+                  foreach ($programs as $p) {
+                    echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['program_code'].' - '.$p['program_name']).'</option>';
+                  }
+                ?>
+              </select>
+            </div>
+
+            <div class="col-md-4">
+              <label for="add_status" class="form-label">Status *</label>
+              <select class="form-select" id="add_status" name="status" required>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label for="add_password" class="form-label">Password *</label>
+              <input type="password" class="form-control" id="add_password" name="password" required>
+              <div class="form-text">Minimum 6 characters</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" name="add_user" class="btn btn-primary">
+            <i class="fas fa-save me-1"></i>Create User
+          </button>
+        </div>
+      </form>
     </div>
+  </div>
+</div>
+
 
     <!-- Edit User Modal -->
     <div class="modal fade" id="editUserModal" tabindex="-1">
@@ -992,16 +1013,51 @@ if ($flash) {
             new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
         }
 
-        // Generate random password
-        function generatePassword() {
-            const length = 8;
-            const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-            let password = "";
-            for (let i = 0; i < length; i++) {
-                password += charset.charAt(Math.floor(Math.random() * charset.length));
-            }
-            return password;
-        }
+        function toggleProgramSelect() {
+  const roleSelect = document.getElementById('add_user_type');
+  const programWrapper = document.getElementById('programSelectWrapper');
+  if (!roleSelect || !programWrapper) return;
+  programWrapper.style.display = (roleSelect.value === 'evaluator') ? 'block' : 'none';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  // initial
+  toggleProgramSelect();
+
+  // on change
+  const roleSelect = document.getElementById('add_user_type');
+  roleSelect && roleSelect.addEventListener('change', toggleProgramSelect);
+
+  // when modal opens, recheck (in case default value changes)
+  const addUserModalEl = document.getElementById('addUserModal');
+  if (addUserModalEl) {
+    addUserModalEl.addEventListener('shown.bs.modal', toggleProgramSelect);
+  }
+
+  // Generate password buttons (kept from your code)
+  const addPasswordField = document.getElementById('add_password');
+  if (addPasswordField && !document.getElementById('genPassBtnAdd')) {
+    const generateBtnAdd = document.createElement('button');
+    generateBtnAdd.id = 'genPassBtnAdd';
+    generateBtnAdd.type = 'button';
+    generateBtnAdd.className = 'btn btn-outline-secondary btn-sm mt-1';
+    generateBtnAdd.innerHTML = '<i class="fas fa-random me-1"></i>Generate';
+    generateBtnAdd.onclick = function() {
+      addPasswordField.value = generatePassword();
+    };
+    addPasswordField.parentNode.appendChild(generateBtnAdd);
+  }
+});
+
+function generatePassword() {
+  const length = 8;
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+}
 
         // Add generate password buttons
         document.addEventListener('DOMContentLoaded', function() {

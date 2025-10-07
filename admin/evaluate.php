@@ -48,6 +48,18 @@ function makeMailer(): PHPMailer {
 }
 
 
+$sidebar_submitted_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as total 
+        FROM applications 
+        WHERE application_status IN ('submitted', 'under_review')
+    ");
+    $sidebar_submitted_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+}
+
 // Get subjects from database for bridging recommendations
 $predefined_subjects = [];
 if (!empty($current_application['program_id'])) {
@@ -69,6 +81,20 @@ if (!empty($current_application['program_id'])) {
     } catch (PDOException $e) {
         error_log("Error fetching subjects: " . $e->getMessage());
         $predefined_subjects = [];
+    }
+}
+
+function getSubmittedApplicationsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(*) as total 
+            FROM applications 
+            WHERE application_status IN ('submitted', 'under_review')
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting submitted applications count: " . $e->getMessage());
+        return 0;
     }
 }
 function calculateBridgingUnits($finalScore) {
@@ -1362,6 +1388,28 @@ try {
             color: white;
             background-color: rgba(255, 255, 255, 0.2);
         }
+
+        /* Add to your existing <style> section */
+.sidebar .nav-link .badge {
+    font-size: 0.65rem;
+    padding: 0.25em 0.5em;
+    font-weight: 600;
+    animation: pulse-badge 2s ease-in-out infinite;
+}
+
+.sidebar .nav-link:hover .badge {
+    background-color: #ffc107 !important;
+}
+
+.sidebar .nav-link.active .badge {
+    background-color: #fff !important;
+    color: #667eea !important;
+}
+
+@keyframes pulse-badge {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
         .evaluation-card {
             background: white;
             border-radius: 15px;
@@ -1543,6 +1591,9 @@ try {
     <a class="nav-link" href="evaluate.php">
         <i class="fas fa-clipboard-check me-2"></i>
         Evaluate Applications
+             <?php if ($sidebar_submitted_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_submitted_count; ?></span>
+        <?php endif; ?>
     </a>
 
     <a class="nav-link" href="reports.php">

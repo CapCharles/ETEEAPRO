@@ -614,8 +614,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
 
 <!-- Uploaded Documents Removed -->
 <div class="assessment-card p-4 text-center text-muted" style="min-height: 150px;">
-    <i class="fas fa-folder-open fa-2x mb-2"></i>
-    <p>No uploaded documents to show.</p>
+    
 </div>
 
 

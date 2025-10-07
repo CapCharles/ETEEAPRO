@@ -284,18 +284,9 @@ if ($_POST && isset($_POST['upload_document'])) {
                     $criteria_id
                 ]);
                 
-                $success_message = "Document uploaded successfully!";
-
-                try {
-    $engine = new PrescriptiveEngine($pdo);
-    $analysis = $engine->analyzeApplication($application_id, $user_id);
-    
-    if ($analysis['success']) {
-        $success_message .= " AI Analysis completed!";
-    }
-} catch (Exception $e) {
-    error_log("Prescriptive analysis failed: " . $e->getMessage());
-}
+              
+                $success_message = 'Document uploaded successfully with detailed specifications!';
+    $success_criteria_id = $criteria_id;
             } else {
                 $errors[] = "Failed to upload file. Please try again.";
             }
@@ -1354,14 +1345,14 @@ $is_hierarchical = (
                                         </div>
                                     </div> -->
                                     
-                                    <div class="mt-3">
-                                        <button type="submit" name="upload_hierarchical_document" class="btn btn-success">
-                                            <i class="fas fa-upload me-2"></i>Upload with Specifications
-                                        </button>
-                                        <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">
-                                            Cancel
-                                        </button>
-                                    </div>
+                                  <div class="mt-3">
+    <button type="button" class="btn btn-success" onclick="submitHierarchicalUpload(this)">
+        <i class="fas fa-upload me-2"></i>Upload with Specifications
+    </button>
+    <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">
+        Cancel
+    </button>
+</div>
                                 </form>
                             </div>
 
@@ -1770,89 +1761,130 @@ if ($hier && is_array($hier)) {
 
  <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-        let uploadModal;
-        let viewerModal;
-         let successModal;
-        let errorModal;
+          let uploadModal;
+    let viewerModal;
+    let successModal;
+    let errorModal;
 
-        document.addEventListener('DOMContentLoaded', function() {
-            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
-            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
-            successModal = new bootstrap.Modal(document.getElementById('successModal'));
-            errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
-            
-            // Show success modal if there's a success message
-            <?php if ($success_message): ?>
-                successModal.show();
-                // Auto-close any open hierarchical upload sections
-                setTimeout(() => {
-                    document.querySelectorAll('.hierarchical-upload-section.show').forEach(section => {
-                        section.classList.remove('show');
-                    });
-                }, 3500);
-            <?php endif; ?>
-            
-            // Show error modal if there are errors
-            <?php if (!empty($errors)): ?>
-                errorModal.show();
-            <?php endif; ?>
-            
-            // Add event listeners for point calculations
-            setupPointCalculators();
-        });
+    document.addEventListener('DOMContentLoaded', function() {
+        uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+        viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+        successModal = new bootstrap.Modal(document.getElementById('successModal'));
+        errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
+        
+        // ONLY show modal if from PHP success (keep this for non-AJAX uploads)
+        <?php if ($success_message && !isset($_POST['ajax_upload'])): ?>
+            successModal.show();
+        <?php endif; ?>
+        
+        <?php if (!empty($errors) && !isset($_POST['ajax_upload'])): ?>
+            errorModal.show();
+        <?php endif; ?>
+        
+        setupPointCalculators();
+    });
 
-        document.addEventListener('DOMContentLoaded', function() {
-            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
-            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+    // AJAX Upload Function
+    function submitHierarchicalUpload(button) {
+        const form = button.closest('form');
+        const formData = new FormData(form);
+        formData.append('upload_hierarchical_document', '1');
+        formData.append('ajax_upload', '1');
+        
+        // Show loading on button
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+        
+        fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.text())
+        .then(html => {
+            // Parse response to check for success/error
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
             
-            // Add event listeners for point calculations
-            setupPointCalculators();
-        });
-
-        function showUploadForm(criteriaId, criteriaName) {
-            document.getElementById('upload_criteria_id').value = criteriaId;
-            document.getElementById('upload_criteria_name').textContent = criteriaName;
-            document.getElementById('upload_description').value = '';
-            document.getElementById('upload_document').value = '';
+            // Check if upload was successful by looking for new document in response
+            const hasError = html.includes('alert-danger') || html.includes('Failed to upload');
             
-            uploadModal.show();
-        }
-
-        function showHierarchicalUpload(criteriaId, criteriaName) {
-            // Hide any other open hierarchical sections
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                section.classList.remove('show');
-            });
-            
-            // Show the selected hierarchical section
-            // const section = document.getElementById('hierarchical-' + criteriaId);
-            // if (section) {
-            //     section.classList.add('show');
-            //     section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            // }
-        }
-
-        function hideHierarchicalUpload(criteriaId) {
-            const section = document.getElementById('hierarchical-' + criteriaId);
-            if (section) {
-                section.classList.remove('show');
-            }
-        }
-
-        function setupPointCalculators() {
-            // Setup point calculation for each criteria
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                const form = section.querySelector('form');
-                if (form) {
-                    const inputs = form.querySelectorAll('input[type="radio"], input[type="checkbox"]');
-                    inputs.forEach(input => {
-                        input.addEventListener('change', function() {
-                            updatePointCalculation(form);
-                        });
-                    });
+            if (hasError) {
+                // Show error modal
+                const errorMsg = doc.querySelector('.alert-danger');
+                if (errorMsg) {
+                    document.getElementById('errorModalList').innerHTML = errorMsg.querySelector('ul').innerHTML;
                 }
-            });
+                errorModal.show();
+            } else {
+                // Show success modal
+                document.getElementById('successModalMessage').textContent = 'Document uploaded successfully with detailed specifications!';
+                successModal.show();
+                
+                // Hide the upload form
+                const criteriaId = form.querySelector('input[name="criteria_id"]').value;
+                hideHierarchicalUpload(criteriaId);
+                
+                // Reload just the document list for this criteria (without full page reload)
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            }
+            
+            // Reset button
+            button.disabled = false;
+            button.innerHTML = originalText;
+        })
+        .catch(error => {
+            console.error('Upload error:', error);
+            alert('Upload failed. Please try again.');
+            button.disabled = false;
+            button.innerHTML = originalText;
+        });
+        
+        return false;
+    }
+
+    function showUploadForm(criteriaId, criteriaName) {
+        document.getElementById('upload_criteria_id').value = criteriaId;
+        document.getElementById('upload_criteria_name').textContent = criteriaName;
+        document.getElementById('upload_description').value = '';
+        document.getElementById('upload_document').value = '';
+        
+        uploadModal.show();
+    }
+
+    function showHierarchicalUpload(criteriaId, criteriaName) {
+        document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+            section.classList.remove('show');
+        });
+        
+        const section = document.getElementById('hierarchical-' + criteriaId);
+        if (section) {
+            section.classList.add('show');
         }
+    }
+
+    function hideHierarchicalUpload(criteriaId) {
+        const section = document.getElementById('hierarchical-' + criteriaId);
+        if (section) {
+            section.classList.remove('show');
+        }
+    }
+
+    function setupPointCalculators() {
+        document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+            const form = section.querySelector('form');
+            if (form) {
+                const inputs = form.querySelectorAll('input[type="radio"], input[type="checkbox"], input[type="number"]');
+                inputs.forEach(input => {
+                    input.addEventListener('change', function() {
+                        updatePointCalculation(form);
+                    });
+                });
+            }
+        });
+    }
 
         function updatePointCalculation(form) {
             const criteriaId = form.querySelector('input[name="criteria_id"]').value;

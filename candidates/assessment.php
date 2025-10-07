@@ -613,6 +613,13 @@ if ($application && in_array($application['application_status'], ['qualified', '
 
 
 
+                <!-- Uploaded Documents -->
+                <div class="assessment-card p-4">
+                    
+            </div>
+
+            
+
             <!-- Sidebar -->
             <div class="col-lg-4">
                 <!-- Application Timeline -->

@@ -1395,12 +1395,12 @@ try {
 .sidebar .nav-link .badge {
     font-size: 0.65rem;
     padding: 0.25em 0.5em;
-    font-weight: 800;
+    font-weight: 900;
     animation: pulse-badge 2s ease-in-out infinite;
 }
 
 .sidebar .nav-link:hover .badge {
-    background-color: #ff0707ff !important;
+    background-color: #ffc107 !important;
 }
 
 .sidebar .nav-link.active .badge {

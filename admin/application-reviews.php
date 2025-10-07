@@ -878,6 +878,15 @@ if ($flash) {
             align-items: center;
             justify-content: center;
         }
+
+        .review-actions { display: inline-flex; }
+.review-actions .btn { flex: 1 0 0; }              /* pantay ang lapad */
+.review-actions .btn:first-child{
+  border-top-right-radius: 0; border-bottom-right-radius: 0;
+}
+.review-actions .btn:last-child{
+  border-top-left-radius: 0;  border-bottom-left-radius: 0;
+}
     </style>
 </head>
 <body>
@@ -1596,19 +1605,19 @@ if ($flash) {
                                     <i class="fas fa-eye me-1"></i>View
                                 </button>
                             </div>
-                            <div class="col-md-2 text-end">
-                                ${!allProcessed && (status === 'pending_review' || status === 'needs_revision') ? `
-                                <div class="btn-group-vertical btn-group-sm w-100">
-                                    <button type="button" class="btn btn-success btn-sm" 
-                                            onclick="setDocumentAction('approve_document', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
-                                        <i class="fas fa-check me-1"></i>Approve
-                                    </button>
-                                    <button type="button" class="btn btn-warning btn-sm" 
-                                            onclick="setDocumentAction('request_revision', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
-                                        <i class="fas fa-edit me-1"></i>Revise
-                                    </button>
-                              
-                                </div>
+                          <div class="d-flex justify-content-end">
+  <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;">
+    <button type="button" class="btn btn-success"
+            onclick="setDocumentAction('approve_document', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
+      <i class="fas fa-check me-1"></i>Approve
+    </button>
+    <button type="button" class="btn btn-warning"
+            onclick="setDocumentAction('request_revision', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
+      <i class="fas fa-edit me-1"></i>Revise
+    </button>
+  </div>
+</div>
+
                                 ` : `
                                 <div class="text-center">
                                     ${status === 'approved' ? 

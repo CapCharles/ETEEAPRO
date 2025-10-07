@@ -11,6 +11,71 @@ $user_id = $_SESSION['user_id'];
 $errors = [];
 $success_message = '';
 
+$sidebar_submitted_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as total 
+        FROM applications 
+        WHERE application_status IN ('submitted', 'under_review')
+    ");
+    $sidebar_submitted_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+}
+
+// Get subjects from database for bridging recommendations
+$predefined_subjects = [];
+if (!empty($current_application['program_id'])) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 
+                subject_code as code, 
+                subject_name as name, 
+                units,
+                year_level,
+                semester,
+                1 as priority
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Error fetching subjects: " . $e->getMessage());
+        $predefined_subjects = [];
+    }
+}
+
+
+$sidebar_pending_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT u.id) as total 
+        FROM users u
+        INNER JOIN application_forms af ON u.id = af.user_id
+        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' OR u.application_form_status NOT IN ('approved', 'rejected'))
+    ");
+    $sidebar_pending_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_pending_count = 0;
+}
+
+function getPendingReviewsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(DISTINCT u.id) as total 
+            FROM users u
+            INNER JOIN application_forms af ON u.id = af.user_id
+            WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
+                   OR u.application_form_status NOT IN ('approved', 'rejected'))
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting pending reviews count: " . $e->getMessage());
+        return 0;
+    }
+}
 // Handle program actions
 if ($_POST) {
     if (isset($_POST['add_program'])) {
@@ -612,6 +677,22 @@ if ($flash) {
             color: white;
             background-color: rgba(255, 255, 255, 0.2);
         }
+
+        .sidebar .nav-link .badge {
+    font-size: 0.65rem;
+    padding: 0.25em 0.5em;
+     font-weight: 900;
+}
+
+.sidebar .nav-link:hover .badge {
+    background-color: #ffc107 !important;
+}
+
+.sidebar .nav-link.active .badge {
+    background-color: #fff !important;
+    color: #667eea !important;
+}
+
         .program-card {
             background: white;
             border-radius: 15px;
@@ -668,14 +749,21 @@ if ($flash) {
                             <i class="fas fa-tachometer-alt me-2"></i>
                             Dashboard
                         </a>
-                        <a class="nav-link" href="application-reviews.php">
-                            <i class="fas fa-file-signature me-2"></i>
-                            Application Reviews
-                        </a>
-                        <a class="nav-link" href="evaluate.php">
-                            <i class="fas fa-clipboard-check me-2"></i>
-                            Evaluate Applications
-                        </a>
+                       <a class="nav-link" href="application-reviews.php">
+        <i class="fas fa-file-signature me-2"></i>
+        Application Reviews
+            <?php if ($sidebar_pending_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
+        <?php endif; ?>
+    </a>
+
+    <a class="nav-link" href="evaluate.php">
+        <i class="fas fa-clipboard-check me-2"></i>
+        Evaluate Applications
+             <?php if ($sidebar_submitted_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_submitted_count; ?></span>
+        <?php endif; ?>
+    </a>
                         <a class="nav-link" href="reports.php">
                             <i class="fas fa-chart-bar me-2"></i>
                             Reports

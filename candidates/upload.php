@@ -2097,23 +2097,23 @@ if ($hier && is_array($hier)) {
     }
   }
 });
-        // // Smooth scrolling for better UX
-        // function smoothScrollToElement(element) {
-        //     element.scrollIntoView({
-        //         behavior: 'smooth',
-        //         block: 'center'
-        //     });
-        // }
+        // Smooth scrolling for better UX
+        function smoothScrollToElement(element) {
+            element.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
 
-        // // Auto-expand relevant sections based on URL hash
-        // if (window.location.hash) {
-        //     const targetElement = document.querySelector(window.location.hash);
-        //     if (targetElement) {
-        //         setTimeout(() => {
-        //             smoothScrollToElement(targetElement);
-        //         }, 500);
-        //     }
-        // }
+        // Auto-expand relevant sections based on URL hash
+        if (window.location.hash) {
+            const targetElement = document.querySelector(window.location.hash);
+            if (targetElement) {
+                setTimeout(() => {
+                    smoothScrollToElement(targetElement);
+                }, 500);
+            }
+        }
     </script>
     <script>
 function updatePointCalculation(form) {
@@ -2410,7 +2410,7 @@ if (form.querySelector('input[name="circulation_level"]') && !circulationLevel) 
             alert(errorMessage);
             return false;
         }
-    }
+    
 });
 <script>
 </body>

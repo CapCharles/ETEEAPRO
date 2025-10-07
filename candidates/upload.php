@@ -1947,18 +1947,7 @@ if ($hier && is_array($hier)) {
             }, 200);
         }
 
-        // Auto-hide modals on successful upload
-        <?php if ($success_message && strpos($success_message, 'uploaded') !== false): ?>
-        // setTimeout(() => {
-        //     if (uploadModal && uploadModal._isShown) {
-        //         uploadModal.hide();
-        //     }
-        //     // Hide any open hierarchical sections
-        //     document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-        //         section.classList.remove('show');
-        //     });
-        // }, 1000);
-        <?php endif; ?>
+    
 
         // Enhanced form validation
      document.addEventListener('submit', function(e) {

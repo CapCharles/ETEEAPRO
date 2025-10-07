@@ -2,7 +2,6 @@
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
-// require_once 'includes/functions.php';
 
 // Check if user is logged in and is a candidate
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'candidate') {
@@ -16,7 +15,6 @@ $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 // Get user's applications
 try {
     if ($application_id) {
-        // Get specific application
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code, 
                    u.first_name as evaluator_first_name, u.last_name as evaluator_last_name
@@ -33,7 +31,6 @@ try {
             exit();
         }
     } else {
-        // Get latest application
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code,
                    u.first_name as evaluator_first_name, u.last_name as evaluator_last_name
@@ -48,7 +45,6 @@ try {
         $application = $stmt->fetch();
     }
     
-    // Get all user applications for sidebar
     $stmt = $pdo->prepare("
         SELECT a.*, p.program_name, p.program_code 
         FROM applications a 
@@ -64,12 +60,11 @@ try {
     $all_applications = [];
 }
 
-// Get assessment criteria and evaluations if application exists
+// Get assessment criteria and evaluations
 $criteria_evaluations = [];
 $documents = [];
 if ($application) {
     try {
-        // Get assessment criteria with evaluations
         $stmt = $pdo->prepare("
             SELECT ac.*, e.score, e.max_score, e.comments, e.evaluation_date
             FROM assessment_criteria ac
@@ -80,7 +75,6 @@ if ($application) {
         $stmt->execute([$application['id'], $application['program_id']]);
         $criteria_evaluations = $stmt->fetchAll();
         
-        // Get uploaded documents
         $stmt = $pdo->prepare("
             SELECT * FROM documents 
             WHERE application_id = ? 
@@ -94,14 +88,14 @@ if ($application) {
         $documents = [];
     }
 }
-// Get curriculum and bridging data if application is evaluated
+
+// Get curriculum and bridging data
 $curriculum_subjects = [];
 $bridging_requirements = [];
 $passed_subjects = [];
 
 if ($application && in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified'])) {
     try {
-        // Get all curriculum subjects for this program
         $stmt = $pdo->prepare("
             SELECT subject_name, subject_code, units, year_level, semester
             FROM subjects 
@@ -111,7 +105,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
         $stmt->execute([$application['program_id']]);
         $curriculum_subjects = $stmt->fetchAll();
         
-        // Get bridging requirements for this application
         $stmt = $pdo->prepare("
             SELECT subject_name, subject_code, units, priority
             FROM bridging_requirements
@@ -121,10 +114,8 @@ if ($application && in_array($application['application_status'], ['qualified', '
         $stmt->execute([$application['id']]);
         $bridging_requirements = $stmt->fetchAll();
         
-        // Create array of required subject names for easy lookup
         $required_subject_names = array_column($bridging_requirements, 'subject_name');
         
-        // Determine passed subjects (curriculum subjects NOT in bridging requirements)
         foreach ($curriculum_subjects as $subject) {
             if (!in_array($subject['subject_name'], $required_subject_names)) {
                 $passed_subjects[] = $subject;
@@ -135,9 +126,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
         error_log("Error fetching curriculum data: " . $e->getMessage());
     }
 }
-
-
-
 ?>
 
 <!DOCTYPE html>
@@ -152,8 +140,9 @@ if ($application && in_array($application['application_status'], ['qualified', '
     <style>
         body {
             background-color: #f8f9fa;
+            margin: 0;
+            padding-top: 0 !important;
         }
-             body { margin: 0; padding-top: 0 !important; }
         .assessment-card {
             background: white;
             border-radius: 15px;
@@ -300,7 +289,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
         </div>
     </nav>
 
-    <div class="container mt-4">
+    <div class="container mt-4 mb-5">
         <?php if (!$application): ?>
         <!-- No Applications -->
         <div class="row justify-content-center">
@@ -317,7 +306,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
         </div>
         <?php else: ?>
         <div class="row g-4">
-            <!-- Main Assessment Content -->
+            <!-- Main Assessment Content (Left Side - 8 columns) -->
             <div class="col-lg-8">
                 <!-- Application Overview -->
                 <div class="assessment-card p-4 mb-4">
@@ -348,7 +337,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
                                 </span>
                             </div>
                             
-                            <!-- Overall Score -->
                             <?php if ($application['total_score'] > 0): ?>
                             <div class="score-circle <?php 
                                 if ($application['total_score'] >= 90) echo 'score-excellent';
@@ -437,180 +425,176 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     <?php endif; ?>
                 </div>
 
-                
-                                    
-              <!-- Recommendation with Curriculum Breakdown -->
-<?php if ($application['recommendation']): ?>
-<div class="assessment-card p-4 mb-4">
-    <h5 class="mb-3">
-        <i class="fas fa-lightbulb me-2"></i>
-        Evaluator's Recommendation
-    </h5>
-    <div class="alert alert-<?php echo $application['application_status'] === 'qualified' ? 'success' : ($application['application_status'] === 'partially_qualified' ? 'warning' : 'info'); ?>">
-        <?php echo nl2br(htmlspecialchars($application['recommendation'])); ?>
-    </div>
-    <?php if ($application['evaluator_first_name']): ?>
-    <div class="text-end">
-        <small class="text-muted">
-            Evaluated by: <?php echo htmlspecialchars($application['evaluator_first_name'] . ' ' . $application['evaluator_last_name']); ?>
-        </small>
-    </div>
-    <?php endif; ?>
-    
-    <!-- Curriculum Status Breakdown -->
-    <?php if (!empty($curriculum_subjects)): ?>
-    <hr class="my-4">
-    
-    <!-- Passed/Credited Subjects -->
-    <?php if (!empty($passed_subjects)): ?>
-    <div class="mb-4">
-        <h6 class="mb-3">
-            <i class="fas fa-check-circle me-2 text-success"></i>
-            Credited Subjects - Prior Learning Recognition
-            <span class="badge bg-success ms-2"><?php echo count($passed_subjects); ?> subjects</span>
-        </h6>
-        <div class="alert alert-success bg-opacity-10">
-            <p class="small mb-2">
-                <i class="fas fa-info-circle me-1"></i>
-                The following subjects have been <strong>CREDITED</strong> based on your demonstrated competencies and uploaded evidence:
-            </p>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-success">
-                    <tr>
-                        <th style="width: 50%;">Subject Name</th>
-                        <th style="width: 20%;">Code</th>
-                        <th style="width: 15%;" class="text-center">Units</th>
-                        <th style="width: 15%;" class="text-center">Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($passed_subjects as $subject): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($subject['subject_name']); ?></td>
-                        <td><code class="small"><?php echo htmlspecialchars($subject['subject_code']); ?></code></td>
-                        <td class="text-center">
-                            <span class="badge bg-light text-dark"><?php echo $subject['units']; ?></span>
-                        </td>
-                        <td class="text-center">
-                            <span class="badge bg-success">
-                                <i class="fas fa-check me-1"></i>Credited
-                            </span>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <td colspan="2" class="text-end fw-bold">Total Credited Units:</td>
-                        <td class="text-center fw-bold"><?php echo array_sum(array_column($passed_subjects, 'units')); ?></td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </div>
-    <?php endif; ?>
-    
-    <!-- Required/Bridging Subjects -->
-    <?php if (!empty($bridging_requirements)): ?>
-    <div class="mb-3">
-        <h6 class="mb-3">
-            <i class="fas fa-graduation-cap me-2 text-warning"></i>
-            Required Bridging Courses
-            <span class="badge bg-warning text-dark ms-2"><?php echo count($bridging_requirements); ?> subjects</span>
-        </h6>
-        <div class="alert alert-warning bg-opacity-10">
-            <p class="small mb-2">
-                <i class="fas fa-exclamation-triangle me-1"></i>
-                To complete your degree, you must fulfill the following bridging courses:
-            </p>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm table-hover">
-                <thead class="table-warning">
-                    <tr>
-                        <th style="width: 50%;">Subject Name</th>
-                        <th style="width: 20%;">Code</th>
-                        <th style="width: 15%;" class="text-center">Units</th>
-                        <th style="width: 15%;" class="text-center">Priority</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($bridging_requirements as $req): ?>
-                    <tr>
-                        <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
-                        <td><code class="small"><?php echo htmlspecialchars($req['subject_code']); ?></code></td>
-                        <td class="text-center">
-                            <span class="badge bg-light text-dark"><?php echo $req['units']; ?></span>
-                        </td>
-                        <td class="text-center">
-                            <?php
-                            $priority = (int)$req['priority'];
-                            if ($priority === 1) {
-                                echo '<span class="badge bg-danger">High</span>';
-                            } elseif ($priority === 2) {
-                                echo '<span class="badge bg-warning text-dark">Medium</span>';
-                            } else {
-                                echo '<span class="badge bg-secondary">Low</span>';
-                            }
-                            ?>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <td colspan="2" class="text-end fw-bold">Total Bridging Units Required:</td>
-                        <td class="text-center fw-bold"><?php echo array_sum(array_column($bridging_requirements, 'units')); ?></td>
-                        <td></td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-        <div class="alert alert-info mt-3 small mb-0">
-            <i class="fas fa-lightbulb me-1"></i>
-            <strong>Next Steps:</strong> Schedule an academic counseling session to finalize your study plan and begin enrollment for bridging courses.
-        </div>
-    </div>
-    <?php endif; ?>
-    
-    <!-- Summary Statistics -->
-    <?php if (!empty($curriculum_subjects)): ?>
-    <div class="card border-primary mt-4">
-        <div class="card-header bg-primary text-white">
-            <i class="fas fa-chart-pie me-2"></i>Program Completion Summary
-        </div>
-        <div class="card-body">
-            <div class="row text-center">
-                <div class="col-md-3">
-                    <div class="h4 text-primary"><?php echo count($curriculum_subjects); ?></div>
-                    <div class="small text-muted">Total Subjects</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="h4 text-success"><?php echo count($passed_subjects); ?></div>
-                    <div class="small text-muted">Credited</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="h4 text-warning"><?php echo count($bridging_requirements); ?></div>
-                    <div class="small text-muted">Required</div>
-                </div>
-                <div class="col-md-3">
-                    <div class="h4 text-info">
-                        <?php echo round((count($passed_subjects) / count($curriculum_subjects)) * 100, 1); ?>%
+                <!-- Recommendation with Curriculum Breakdown -->
+                <?php if ($application['recommendation']): ?>
+                <div class="assessment-card p-4 mb-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Evaluator's Recommendation
+                    </h5>
+                    <div class="alert alert-<?php echo $application['application_status'] === 'qualified' ? 'success' : ($application['application_status'] === 'partially_qualified' ? 'warning' : 'info'); ?>">
+                        <?php echo nl2br(htmlspecialchars($application['recommendation'])); ?>
                     </div>
-                    <div class="small text-muted">Completion Rate</div>
+                    <?php if ($application['evaluator_first_name']): ?>
+                    <div class="text-end">
+                        <small class="text-muted">
+                            Evaluated by: <?php echo htmlspecialchars($application['evaluator_first_name'] . ' ' . $application['evaluator_last_name']); ?>
+                        </small>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <!-- Curriculum Status Breakdown -->
+                    <?php if (!empty($curriculum_subjects)): ?>
+                    <hr class="my-4">
+                    
+                    <!-- Passed/Credited Subjects -->
+                    <?php if (!empty($passed_subjects)): ?>
+                    <div class="mb-4">
+                        <h6 class="mb-3">
+                            <i class="fas fa-check-circle me-2 text-success"></i>
+                            Credited Subjects - Prior Learning Recognition
+                            <span class="badge bg-success ms-2"><?php echo count($passed_subjects); ?> subjects</span>
+                        </h6>
+                        <div class="alert alert-success bg-opacity-10">
+                            <p class="small mb-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                The following subjects have been <strong>CREDITED</strong> based on your demonstrated competencies:
+                            </p>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-success">
+                                    <tr>
+                                        <th style="width: 50%;">Subject Name</th>
+                                        <th style="width: 20%;">Code</th>
+                                        <th style="width: 15%;" class="text-center">Units</th>
+                                        <th style="width: 15%;" class="text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($passed_subjects as $subject): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($subject['subject_name']); ?></td>
+                                        <td><code class="small"><?php echo htmlspecialchars($subject['subject_code']); ?></code></td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark"><?php echo $subject['units']; ?></span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="badge bg-success">
+                                                <i class="fas fa-check me-1"></i>Credited
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <td colspan="2" class="text-end fw-bold">Total Credited Units:</td>
+                                        <td class="text-center fw-bold"><?php echo array_sum(array_column($passed_subjects, 'units')); ?></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <!-- Required/Bridging Subjects -->
+                    <?php if (!empty($bridging_requirements)): ?>
+                    <div class="mb-3">
+                        <h6 class="mb-3">
+                            <i class="fas fa-graduation-cap me-2 text-warning"></i>
+                            Required Bridging Courses
+                            <span class="badge bg-warning text-dark ms-2"><?php echo count($bridging_requirements); ?> subjects</span>
+                        </h6>
+                        <div class="alert alert-warning bg-opacity-10">
+                            <p class="small mb-2">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                To complete your degree, you must fulfill the following bridging courses:
+                            </p>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-warning">
+                                    <tr>
+                                        <th style="width: 50%;">Subject Name</th>
+                                        <th style="width: 20%;">Code</th>
+                                        <th style="width: 15%;" class="text-center">Units</th>
+                                        <th style="width: 15%;" class="text-center">Priority</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($bridging_requirements as $req): ?>
+                                    <tr>
+                                        <td><?php echo htmlspecialchars($req['subject_name']); ?></td>
+                                        <td><code class="small"><?php echo htmlspecialchars($req['subject_code']); ?></code></td>
+                                        <td class="text-center">
+                                            <span class="badge bg-light text-dark"><?php echo $req['units']; ?></span>
+                                        </td>
+                                        <td class="text-center">
+                                            <?php
+                                            $priority = (int)$req['priority'];
+                                            if ($priority === 1) {
+                                                echo '<span class="badge bg-danger">High</span>';
+                                            } elseif ($priority === 2) {
+                                                echo '<span class="badge bg-warning text-dark">Medium</span>';
+                                            } else {
+                                                echo '<span class="badge bg-secondary">Low</span>';
+                                            }
+                                            ?>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <td colspan="2" class="text-end fw-bold">Total Bridging Units Required:</td>
+                                        <td class="text-center fw-bold"><?php echo array_sum(array_column($bridging_requirements, 'units')); ?></td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <!-- Summary Statistics -->
+                    <?php if (!empty($curriculum_subjects)): ?>
+                    <div class="card border-primary mt-4">
+                        <div class="card-header bg-primary text-white">
+                            <i class="fas fa-chart-pie me-2"></i>Program Completion Summary
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-md-3">
+                                    <div class="h4 text-primary"><?php echo count($curriculum_subjects); ?></div>
+                                    <div class="small text-muted">Total Subjects</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="h4 text-success"><?php echo count($passed_subjects); ?></div>
+                                    <div class="small text-muted">Credited</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="h4 text-warning"><?php echo count($bridging_requirements); ?></div>
+                                    <div class="small text-muted">Required</div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="h4 text-info">
+                                        <?php echo round((count($passed_subjects) / count($curriculum_subjects)) * 100, 1); ?>%
+                                    </div>
+                                    <div class="small text-muted">Completion Rate</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php endif; ?>
                 </div>
+                <?php endif; ?>
+
             </div>
-        </div>
-    </div>
-    <?php endif; ?>
-    <?php endif; ?>
-</div>
-<?php endif; ?>
-                
-            <!-- Sidebar -->
+
+            <!-- Sidebar (Right Side - 4 columns) -->
             <div class="col-lg-4">
                 <!-- Application Timeline -->
                 <div class="assessment-card p-4 mb-4">

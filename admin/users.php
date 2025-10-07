@@ -844,7 +844,6 @@ if ($flash) {
             <div class="col-md-8" id="programSelectWrapper" style="display:none;">
               <label class="form-label">Assign Program</label>
             <select name="program_id[]" id="program_id" class="form-select" multiple>
-
                 <option value="">-- Select Program --</option>
                 <?php
                   // $pdo is already available above, no need to require again

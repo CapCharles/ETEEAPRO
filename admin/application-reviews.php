@@ -1616,6 +1616,7 @@ if ($flash) {
                                 ${!allProcessed && (status === 'pending_review' || status === 'needs_revision') ? `
                               <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;">
     <button type="button" class="btn btn-success"
+      style="margin-right:50px;"
             onclick="setDocumentAction('approve_document', '${doc.id}', '${escapeHtml(fileName)}', '${applicantId}')">
       <i class="fas fa-check me-1"></i>Approve
     </button>

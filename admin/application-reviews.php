@@ -1606,7 +1606,7 @@ if ($flash) {
                             </div>
                           <div class="col-md-3 text-end">
   <button class="btn btn-sm btn-outline-primary mb-1" 
-          style="margin-right:140px;"
+          style="margin-right:120px;"
           onclick="viewDocument('${doc.path}', '${escapeHtml(fileName)}', '${doc.id}')">
     <i class="fas fa-eye me-1"></i>View
   </button>

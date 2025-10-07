@@ -45,6 +45,44 @@ function getPendingReviewsCount($pdo) {
         return 0;
     }
 }
+
+$sidebar_submitted_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as total 
+        FROM applications 
+        WHERE application_status IN ('submitted', 'under_review')
+    ");
+    $sidebar_submitted_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+}
+
+// Get subjects from database for bridging recommendations
+$predefined_subjects = [];
+if (!empty($current_application['program_id'])) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 
+                subject_code as code, 
+                subject_name as name, 
+                units,
+                year_level,
+                semester,
+                1 as priority
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Error fetching subjects: " . $e->getMessage());
+        $predefined_subjects = [];
+    }
+}
+
+
 // Handle individual document actions
 if ($_POST && isset($_POST['document_action'])) {
     $action = $_POST['document_action'];
@@ -863,9 +901,12 @@ if ($flash) {
         <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
         <?php endif; ?>
     </a>
-
-    <a class="nav-link" href="evaluate.php">
-        <i class="fas fa-clipboard-check me-2"></i> Evaluate Applications
+  <a class="nav-link" href="evaluate.php">
+        <i class="fas fa-clipboard-check me-2"></i>
+        Evaluate Applications
+             <?php if ($sidebar_submitted_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_submitted_count; ?></span>
+        <?php endif; ?>
     </a>
 
     <a class="nav-link" href="reports.php">

@@ -1801,14 +1801,6 @@ if ($hier && is_array($hier)) {
             setupPointCalculators();
         });
 
-        document.addEventListener('DOMContentLoaded', function() {
-            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
-            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
-            
-            // Add event listeners for point calculations
-            setupPointCalculators();
-        });
-
         function showUploadForm(criteriaId, criteriaName) {
             document.getElementById('upload_criteria_id').value = criteriaId;
             document.getElementById('upload_criteria_name').textContent = criteriaName;

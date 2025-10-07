@@ -136,41 +136,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
     }
 }
 
-$critStmt = $pdo->prepare("
-    SELECT id, criteria_code, title, max_points
-    FROM assessment_criteria
-    WHERE program_id = ?
-    ORDER BY COALESCE(display_order, 9999), id
-");
-$critStmt->execute([$application['program_id']]);
-$criteriaList = $critStmt->fetchAll(PDO::FETCH_ASSOC);
-
-// 2) Kunin lahat ng documents ng application
-//    Palitan `documents` kung iba ang table mo, at columns kung iba ang pangalan.
-$docStmt = $pdo->prepare("
-    SELECT id, criteria_id, file_name, file_path, file_type, created_at, meta_json
-    FROM documents
-    WHERE application_id = ?
-    ORDER BY created_at DESC
-");
-$docStmt->execute([$application_id]);
-$appDocs = $docStmt->fetchAll(PDO::FETCH_ASSOC);
-
-// 3) I-group ang docs per criteria_id
-$docsByCrit = [];
-foreach ($appDocs as $d) {
-    $cid = (int)$d['criteria_id'];
-    $docsByCrit[$cid][] = $d;
-}
-
-// maliit na helper para sa icons
-function file_icon_html($typeOrName) {
-    $t = strtolower($typeOrName ?? '');
-    if (str_contains($t,'pdf') || $t === 'pdf')               return '<i class="fa-solid fa-file-pdf text-danger"></i>';
-    if (str_contains($t,'image') || preg_match('/\b(jpe?g|png|gif|webp)\b/', $t)) return '<i class="fa-solid fa-file-image"></i>';
-    if (preg_match('/\b(docx?|odt)\b/',$t))                    return '<i class="fa-solid fa-file-word text-primary"></i>';
-    return '<i class="fa-solid fa-file-lines"></i>';
-}
 
 
 ?>
@@ -410,104 +375,68 @@ function file_icon_html($typeOrName) {
                 </div>
 
                 <!-- Assessment Criteria -->
-              <div class="mt-4">
-  <h4 class="mb-3">
-    <i class="fa-regular fa-clipboard-check me-2"></i>
-    Assessment Breakdown
-  </h4>
-
-  <?php foreach ($criteriaList as $crit): 
-        $cid   = (int)$crit['id'];
-        $title = htmlspecialchars($crit['title']);
-        $code  = htmlspecialchars($crit['criteria_code']);
-        $max   = (float)$crit['max_points'];
-        $docs  = $docsByCrit[$cid] ?? [];
-  ?>
-    <div class="card border-0 shadow-sm mb-3" style="border-radius:14px;">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start flex-wrap">
-          <div class="pe-3">
-            <div class="fw-semibold fs-5"><?php echo $title; ?></div>
-            <div class="text-muted small"><?php echo $code; ?></div>
-          </div>
-          <div class="text-end">
-            <span class="badge bg-secondary-subtle text-secondary border me-2">
-              Max: <?php echo number_format($max,2); ?> pts
-            </span>
-            <span class="badge bg-warning-subtle text-warning border">
-              <i class="fa-regular fa-hourglass-half me-1"></i>Awaiting evaluation
-            </span>
-          </div>
-        </div>
-
-        <!-- Documents under this criterion -->
-        <div class="mt-3 pt-3 border-top">
-          <?php if (empty($docs)): ?>
-            <div class="d-flex align-items-center gap-2 text-muted">
-              <i class="fa-regular fa-folder-open"></i>
-              <span class="small">No documents submitted yet for this criterion.</span>
-            </div>
-          <?php else: ?>
-            <?php foreach ($docs as $doc): 
-                  $fname = htmlspecialchars($doc['file_name']);
-                  $fpath = htmlspecialchars($doc['file_path']); // dapat public/served path
-                  $ftype = htmlspecialchars($doc['file_type'] ?: pathinfo($fname, PATHINFO_EXTENSION));
-                  $when  = date('M j, Y g:i A', strtotime($doc['created_at']));
-
-                  // decode meta tags kung meron (education level, patent, market, etc.)
-                  $badges = [];
-                  if (!empty($doc['meta_json'])) {
-                      $meta = json_decode($doc['meta_json'], true);
-                      if (is_array($meta)) {
-                          if (!empty($meta['education_level'])) $badges[] = 'Education: '.$meta['education_level'];
-                          if (!empty($meta['patent_status']))   $badges[] = 'Patent: '.$meta['patent_status'];
-                          if (!empty($meta['acceptability'])) {
-                              $acc = is_array($meta['acceptability']) ? implode('/', $meta['acceptability']) : $meta['acceptability'];
-                              $badges[] = 'Market: '.$acc;
-                          }
-                          if (!empty($meta['circulation']))      $badges[] = 'Circulation: '.$meta['circulation'];
-                      }
-                  }
-            ?>
-              <div class="d-flex justify-content-between align-items-center bg-light rounded-3 p-2 px-3 mb-2">
-                <div class="d-flex align-items-center gap-2">
-                  <span class="fs-5"><?php echo file_icon_html($ftype); ?></span>
-                  <div>
-                    <div class="fw-semibold"><?php echo $fname; ?></div>
-                    <div class="small text-muted">
-                      <?php echo strtoupper($ftype); ?> · <?php echo $when; ?>
+                <div class="assessment-card p-4 mb-4">
+                    <h5 class="mb-4">
+                        <i class="fas fa-clipboard-check me-2"></i>
+                        Assessment Breakdown
+                    </h5>
+                    
+                    <?php if (empty($criteria_evaluations)): ?>
+                    <div class="text-center py-4">
+                        <i class="fas fa-hourglass-half fa-2x text-muted mb-3"></i>
+                        <p class="text-muted">Assessment criteria not yet available</p>
                     </div>
-                    <?php if ($badges): ?>
-                      <div class="mt-1 d-flex flex-wrap gap-1">
-                        <?php foreach ($badges as $b): ?>
-                          <span class="badge bg-body-secondary text-secondary border"><?php echo htmlspecialchars($b); ?></span>
-                        <?php endforeach; ?>
-                      </div>
+                    <?php else: ?>
+                    <?php foreach ($criteria_evaluations as $criteria): ?>
+                    <div class="criteria-item <?php echo $criteria['score'] !== null ? 'criteria-evaluated' : 'criteria-pending'; ?>">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h6 class="mb-1"><?php echo htmlspecialchars($criteria['criteria_name']); ?></h6>
+                                <p class="text-muted mb-2 small"><?php echo htmlspecialchars($criteria['description']); ?></p>
+                                
+                                <?php if ($criteria['score'] !== null): ?>
+                                <div class="mb-2">
+                                    <div class="progress progress-bar-custom">
+                                        <div class="progress-bar bg-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>" 
+                                             style="width: <?php echo ($criteria['score'] / $criteria['max_score']) * 100; ?>%"></div>
+                                    </div>
+                                    <small class="text-muted">
+                                        Score: <?php echo $criteria['score']; ?> / <?php echo $criteria['max_score']; ?>
+                                        (<?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 1); ?>%)
+                                    </small>
+                                </div>
+                                
+                                <?php if ($criteria['comments']): ?>
+                                <div class="alert alert-info small mb-0">
+                                    <strong>Evaluator Comments:</strong><br>
+                                    <?php echo nl2br(htmlspecialchars($criteria['comments'])); ?>
+                                </div>
+                                <?php endif; ?>
+                                <?php else: ?>
+                                <div class="text-muted small">
+                                    <i class="fas fa-clock me-1"></i>
+                                    Awaiting evaluation
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <div class="badge bg-secondary">
+                                    <?php echo ucfirst(str_replace('_', ' ', $criteria['criteria_type'])); ?>
+                                </div>
+                                <?php if ($criteria['score'] !== null): ?>
+                                <div class="mt-2">
+                                    <span class="h5 text-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>">
+                                        <?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 0); ?>%
+                                    </span>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
                     <?php endif; ?>
-                  </div>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                  <a class="btn btn-outline-primary btn-sm" href="<?php echo $fpath; ?>" target="_blank">
-                    <i class="fa-regular fa-eye me-1"></i>View
-                  </a>
-                  <!-- OPTIONAL delete kung pinapayagan -->
-                  <!--
-                  <form method="post" action="delete_document.php" onsubmit="return confirm('Delete this document?');">
-                    <input type="hidden" name="doc_id" value="<?php echo (int)$doc['id']; ?>">
-                    <button class="btn btn-outline-danger btn-sm" type="submit">
-                      <i class="fa-regular fa-trash-can me-1"></i>Delete
-                    </button>
-                  </form>
-                  -->
-                </div>
-              </div>
-            <?php endforeach; ?>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
-  <?php endforeach; ?>
-</div>
+
                 
                                     
               <!-- Recommendation with Curriculum Breakdown -->

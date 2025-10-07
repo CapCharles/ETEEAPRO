@@ -844,6 +844,7 @@ if ($flash) {
             <div class="col-md-8" id="programSelectWrapper" style="display:none;">
               <label class="form-label">Assign Program</label>
             <select name="program_id[]" id="program_id" class="form-select" multiple>
+
                 <option value="">-- Select Program --</option>
                 <?php
                   // $pdo is already available above, no need to require again
@@ -1012,7 +1013,7 @@ if ($flash) {
             new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
         }
 
-        function toggleProgramSelect() {
+        unction toggleProgramSelect() {
   const roleSelect = document.getElementById('add_user_type');
   const programWrapper = document.getElementById('programSelectWrapper');
   if (!roleSelect || !programWrapper) return;
@@ -1033,22 +1034,17 @@ document.addEventListener('DOMContentLoaded', function () {
     addUserModalEl.addEventListener('shown.bs.modal', toggleProgramSelect);
   }
 
-  // Generate password buttons (kept from your code)
-  const addPasswordField = document.getElementById('add_password');
-  if (addPasswordField && !document.getElementById('genPassBtnAdd')) {
-    const generateBtnAdd = document.createElement('button');
-    generateBtnAdd.id = 'genPassBtnAdd';
-    generateBtnAdd.type = 'button';
-    generateBtnAdd.className = 'btn btn-outline-secondary btn-sm mt-1';
-    generateBtnAdd.innerHTML = '<i class="fas fa-random me-1"></i>Generate';
-    generateBtnAdd.onclick = function() {
-      addPasswordField.value = generatePassword();
-    };
-    addPasswordField.parentNode.appendChild(generateBtnAdd);
-  }
 });
 
-
+function generatePassword() {
+  const length = 8;
+  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+  let password = "";
+  for (let i = 0; i < length; i++) {
+    password += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+  return password;
+}
 
         // Add generate password buttons
         document.addEventListener('DOMContentLoaded', function() {

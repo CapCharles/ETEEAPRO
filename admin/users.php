@@ -78,20 +78,6 @@ function getPendingReviewsCount($pdo) {
     }
 }
 
-// Load programs for assignment dropdown
-$all_programs = [];
-try {
-    $stmt = $pdo->query("
-        SELECT id, program_code, program_name
-        FROM programs
-        WHERE status = 'active'
-        ORDER BY program_code, program_name
-    ");
-    $all_programs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) {
-    $all_programs = [];
-}
-
 
 // Handle user actions
 if ($_POST) {
@@ -251,67 +237,6 @@ if ($_POST) {
             }
         }
     }
-    elseif (isset($_POST['assign_program'])) {
-    $target_user_id = $_POST['user_id'] ?? null;
-    // program_id can be empty => means "Remove assignment"
-    $program_id_raw = $_POST['program_id'] ?? '';
-    $program_id = ($program_id_raw === '' ? null : intval($program_id_raw));
-
-    if (!$target_user_id) {
-        $errors[] = "Missing user id for program assignment.";
-    } else {
-        try {
-            // Validate target user exists and is evaluator
-            $stmt = $pdo->prepare("SELECT id, user_type FROM users WHERE id = ?");
-            $stmt->execute([$target_user_id]);
-            $u = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            if (!$u) {
-                $errors[] = "User not found.";
-            } elseif ($u['user_type'] !== 'evaluator') {
-                $errors[] = "Program assignment is only allowed for evaluator accounts.";
-            } else {
-                // If program set, ensure it exists
-                if ($program_id !== null) {
-                    $stmt = $pdo->prepare("SELECT id FROM programs WHERE id = ? AND status = 'active'");
-                    $stmt->execute([$program_id]);
-                    if (!$stmt->fetch()) {
-                        $errors[] = "Selected program is invalid or inactive.";
-                    }
-                }
-            }
-
-            if (empty($errors)) {
-                $stmt = $pdo->prepare("UPDATE users SET assigned_program_id = :pid WHERE id = :uid");
-                $stmt->execute([
-                    ':pid' => $program_id,
-                    ':uid' => $target_user_id
-                ]);
-
-                // Optional log
-                logActivity(
-                    $pdo,
-                    "evaluator_program_assigned",
-                    $user_id,
-                    "users",
-                    $target_user_id,
-                    null,
-                    ['assigned_program_id' => $program_id]
-                );
-
-                redirectWithMessage('users.php',
-                    $program_id === null
-                    ? 'Program assignment removed for evaluator.'
-                    : 'Evaluator program assignment updated successfully.',
-                    'success'
-                );
-            }
-        } catch (PDOException $e) {
-            $errors[] = "Failed to assign program. Please try again.";
-        }
-    }
-}
-
 }
 
 // Handle user deletion
@@ -402,22 +327,16 @@ try {
 $users = [];
 try {
     $stmt = $pdo->prepare("
-  
-    SELECT 
-        u.*, 
-        p.program_name AS assigned_program_name,
-        p.program_code AS assigned_program_code,
-        COUNT(a.id) as application_count,
-        MAX(a.created_at) as last_application
-    FROM users u
-    LEFT JOIN applications a ON u.id = a.user_id
-    LEFT JOIN programs p ON p.id = u.assigned_program_id
-    $where_clause
-    GROUP BY u.id
-    ORDER BY u.created_at DESC
-    LIMIT $per_page OFFSET $offset
-");
-
+        SELECT u.*, 
+               COUNT(a.id) as application_count,
+               MAX(a.created_at) as last_application
+        FROM users u
+        LEFT JOIN applications a ON u.id = a.user_id
+        $where_clause
+        GROUP BY u.id
+        ORDER BY u.created_at DESC
+        LIMIT $per_page OFFSET $offset
+    ");
     $stmt->execute($params);
     $users = $stmt->fetchAll();
 } catch (PDOException $e) {
@@ -756,7 +675,6 @@ if ($flash) {
                                         <th>Applications</th>
                                         <th>Joined</th>
                                         <th>Last Activity</th>
-                                        <th>Assigned Program</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -798,20 +716,6 @@ if ($flash) {
                                             </span>
                                         </td>
                                         <td>
-    <?php if ($user['user_type'] === 'evaluator'): ?>
-        <?php if (!empty($user['assigned_program_name'])): ?>
-            <span class="badge bg-secondary">
-                <?php echo htmlspecialchars(($user['assigned_program_code'] ?? '') . ' ' . $user['assigned_program_name']); ?>
-            </span>
-        <?php else: ?>
-            <span class="text-muted">—</span>
-        <?php endif; ?>
-    <?php else: ?>
-        <span class="text-muted">N/A</span>
-    <?php endif; ?>
-</td>
-
-                                        <td>
                                             <?php if ($user['application_count'] > 0): ?>
                                                 <span class="badge bg-primary"><?php echo $user['application_count']; ?></span>
                                             <?php else: ?>
@@ -834,26 +738,12 @@ if ($flash) {
                                                         type="button" data-bs-toggle="dropdown">
                                                     <i class="fas fa-ellipsis-v"></i>
                                                 </button>
-         
                                                 <ul class="dropdown-menu">
                                                     <li>
                                                         <button class="dropdown-item" onclick="editUser(<?php echo htmlspecialchars(json_encode($user)); ?>)">
                                                             <i class="fas fa-edit me-2"></i>Edit User
                                                         </button>
                                                     </li>
-                                                                                           <li>
-    <button class="dropdown-item"
-        onclick="openAssignProgram(
-            <?php echo (int)$user['id']; ?>,
-            '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES); ?>',
-            <?php echo $user['assigned_program_id'] ? (int)$user['assigned_program_id'] : 'null'; ?>
-        )"
-        <?php echo ($user['user_type'] !== 'evaluator') ? 'disabled' : ''; ?>
-    >
-        <i class="fas fa-graduation-cap me-2"></i>Assign Program
-    </button>
-</li>
-
                                                     <li>
                                                         <button class="dropdown-item" onclick="resetPassword('<?php echo $user['id']; ?>', '<?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>')">
                                                             <i class="fas fa-key me-2"></i>Reset Password
@@ -902,7 +792,6 @@ if ($flash) {
     <div class="modal fade" id="addUserModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
-                 <form id="addUserForm" method="POST" action="add_user_process.php">
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="fas fa-user-plus me-2"></i>Add New User
@@ -948,63 +837,6 @@ if ($flash) {
                                     <option value="admin">Administrator</option>
                                 </select>
                             </div>
-
-                            <!-- Assign Program Modal -->
-<div class="modal fade" id="assignProgramModal" tabindex="-1">
-  <div class="modal-dialog">
-    <form method="POST" class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">
-          <i class="fas fa-graduation-cap me-2"></i>Assign Program to Evaluator
-        </h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-
-      <input type="hidden" name="user_id" id="assign_user_id">
-      <input type="hidden" name="assign_program" value="1">
-
-      <div class="modal-body">
-        <div class="mb-2">
-          Assigning to: <strong id="assign_user_name">—</strong>
-        </div>
-        <label for="assign_program_id" class="form-label">Program</label>
-        <select class="form-select" name="program_id" id="assign_program_id">
-          <option value="">— Remove assignment —</option>
-          <?php foreach ($all_programs as $prog): ?>
-            <option value="<?php echo (int)$prog['id']; ?>">
-              <?php echo htmlspecialchars($prog['program_code'].' — '.$prog['program_name']); ?>
-            </option>
-          <?php endforeach; ?>
-        </select>
-        <div class="form-text">
-          Leave blank to remove the evaluator’s current assignment.
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-        <button type="submit" class="btn btn-primary">
-          <i class="fas fa-save me-1"></i>Save Assignment
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-
-                             <!-- Program Dropdown (hidden by default) -->
-          <div class="mb-3" id="programSelectWrapper" style="display:none;">
-            <label class="form-label">Assign Program</label>
-            <select name="program_id" class="form-select">
-              <option value="">-- Select Program --</option>
-              <?php
-              require '../config/database.php';
-              $programs = $pdo->query("SELECT id, program_name, program_code FROM programs")->fetchAll();
-              foreach ($programs as $p) {
-                  echo '<option value="'.$p['id'].'">'.$p['program_code'].' - '.$p['program_name'].'</option>';
-              }
-              ?>
-            </select>
-          </div>
                             <div class="col-md-4">
                                 <label for="add_status" class="form-label">Status *</label>
                                 <select class="form-select" id="add_status" name="status" required>
@@ -1170,29 +1002,6 @@ if ($flash) {
             }
             return password;
         }
-
-        // Show/Hide program list if evaluator selected
-        document.getElementById('roleSelect').addEventListener('change', function() {
-  const programWrapper = document.getElementById('programSelectWrapper');
-  programWrapper.style.display = (this.value === 'evaluator') ? 'block' : 'none';
-});
-
-
-function openAssignProgram(userId, fullName, currentProgramId) {
-    document.getElementById('assign_user_id').value = userId;
-    document.getElementById('assign_user_name').textContent = fullName;
-
-    const sel = document.getElementById('assign_program_id');
-    // Reset selection
-    sel.value = "";
-    // If there is an existing assignment, preselect it
-    if (currentProgramId !== null && currentProgramId !== undefined) {
-        const opt = Array.from(sel.options).find(o => o.value === String(currentProgramId));
-        if (opt) sel.value = String(currentProgramId);
-    }
-
-    new bootstrap.Modal(document.getElementById('assignProgramModal')).show();
-}
 
         // Add generate password buttons
         document.addEventListener('DOMContentLoaded', function() {

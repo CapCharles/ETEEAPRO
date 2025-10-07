@@ -837,6 +837,21 @@ if ($flash) {
                                     <option value="admin">Administrator</option>
                                 </select>
                             </div>
+
+                             <!-- Program Dropdown (hidden by default) -->
+          <div class="mb-3" id="programSelectWrapper" style="display:none;">
+            <label class="form-label">Assign Program</label>
+            <select name="program_id" class="form-select">
+              <option value="">-- Select Program --</option>
+              <?php
+              require '../config/database.php';
+              $programs = $pdo->query("SELECT id, program_name, program_code FROM programs")->fetchAll();
+              foreach ($programs as $p) {
+                  echo '<option value="'.$p['id'].'">'.$p['program_code'].' - '.$p['program_name'].'</option>';
+              }
+              ?>
+            </select>
+          </div>
                             <div class="col-md-4">
                                 <label for="add_status" class="form-label">Status *</label>
                                 <select class="form-select" id="add_status" name="status" required>
@@ -1002,6 +1017,11 @@ if ($flash) {
             }
             return password;
         }
+// Show/Hide program list if evaluator selected
+        document.getElementById('roleSelect').addEventListener('change', function() {
+  const programWrapper = document.getElementById('programSelectWrapper');
+  programWrapper.style.display = (this.value === 'evaluator') ? 'block' : 'none';
+});
 
         // Add generate password buttons
         document.addEventListener('DOMContentLoaded', function() {

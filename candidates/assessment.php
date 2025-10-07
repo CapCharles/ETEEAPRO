@@ -613,7 +613,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
 
 
 
-                <!-- Uploaded Documents -->
+                <!-- Uploaded Documents
                 <div class="assessment-card p-4">
                     <h5 class="mb-3">
                         <i class="fas fa-file-alt me-2"></i>
@@ -655,7 +655,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                     <?php endif; ?>
                 </div>
-            </div>
+            </div> -->
 
             
 

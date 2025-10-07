@@ -890,9 +890,6 @@ if ($flash) {
 
 
 
-.btn-outline-primary {
-  transform: translateX(5px); /* move papasok */
-}
 
     </style>
 </head>
@@ -1607,11 +1604,14 @@ if ($flash) {
                                     ${reviewerName ? `<br><small class="text-muted">- ${escapeHtml(reviewerName)}</small>` : ''}
                                 </div>` : ''}
                             </div>
-                            <div class="col-md-3 text-end">
-                                <button class="btn btn-sm btn-outline-primary mb-1"  onclick="viewDocument('${doc.path}', '${escapeHtml(fileName)}', '${doc.id}')  style="margin-right:-6px;">
-                                    <i class="fas fa-eye me-1"></i>View
-                                </button>
-                            </div>
+                          <div class="col-md-3 text-end">
+  <button class="btn btn-sm btn-outline-primary mb-1" 
+          style="margin-right:-6px;"
+          onclick="viewDocument('${doc.path}', '${escapeHtml(fileName)}', '${doc.id}')">
+    <i class="fas fa-eye me-1"></i>View
+  </button>
+</div>
+
                             <div class="col-md-2 text-end">
                                 ${!allProcessed && (status === 'pending_review' || status === 'needs_revision') ? `
                               <div class="btn-group btn-group-sm w-100 review-actions" role="group" style="max-width:240px;">

@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
     header('Location: ../auth/login.php');
     exit();
 }
-$sidebar_pending_count = getPendingReviewsCount($pdo);
+
 $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 
@@ -221,7 +221,6 @@ try {
     <a class="nav-link" href="application-reviews.php">
         <i class="fas fa-file-signature me-2"></i>
         Application Reviews
-         <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
     </a>
 
     <a class="nav-link" href="evaluate.php">

@@ -16,6 +16,35 @@ $user_id = $_SESSION['user_id'];
 $errors = [];
 $success_message = '';
 
+
+$sidebar_pending_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT u.id) as total 
+        FROM users u
+        INNER JOIN application_forms af ON u.id = af.user_id
+        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' OR u.application_form_status NOT IN ('approved', 'rejected'))
+    ");
+    $sidebar_pending_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_pending_count = 0;
+}
+
+function getPendingReviewsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(DISTINCT u.id) as total 
+            FROM users u
+            INNER JOIN application_forms af ON u.id = af.user_id
+            WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
+                   OR u.application_form_status NOT IN ('approved', 'rejected'))
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting pending reviews count: " . $e->getMessage());
+        return 0;
+    }
+}
 // Handle individual document actions
 if ($_POST && isset($_POST['document_action'])) {
     $action = $_POST['document_action'];
@@ -662,6 +691,21 @@ if ($flash) {
             color: white;
             background-color: rgba(255, 255, 255, 0.2);
         }
+        /* Add to your existing <style> section */
+.sidebar .nav-link .badge {
+    font-size: 0.65rem;
+    padding: 0.25em 0.5em;
+    font-weight: 600;
+}
+
+.sidebar .nav-link:hover .badge {
+    background-color: #ffc107 !important;
+}
+
+.sidebar .nav-link.active .badge {
+    background-color: #fff !important;
+    color: #667eea !important;
+}
         .table-container {
             background: white;
             border-radius: 15px;
@@ -815,6 +859,7 @@ if ($flash) {
 
     <a class="nav-link" href="application-reviews.php">
         <i class="fas fa-file-signature me-2"></i> Application Reviews
+         <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
     </a>
 
     <a class="nav-link" href="evaluate.php">
@@ -1732,6 +1777,8 @@ function rejectApplicantDirect(userId, applicantName) {
     form.submit();
 }
 
+
+
 // Helper function for escaping HTML
 function escapeHtml(text) {
     const div = document.createElement('div');
@@ -1828,6 +1875,8 @@ function escapeHtml(text) {
             });
         }
 
+
+        
         // Handle program assignment changes
         document.addEventListener('change', function(e){
             if (e.target && e.target.matches('select[id^="assigned_program_"]')) {

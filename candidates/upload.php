@@ -1801,7 +1801,44 @@ if ($hier && is_array($hier)) {
             setupPointCalculators();
         });
 
-        
+        document.addEventListener('DOMContentLoaded', function() {
+            uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+            viewerModal = new bootstrap.Modal(document.getElementById('documentViewerModal'));
+            
+            // Add event listeners for point calculations
+            setupPointCalculators();
+        });
+
+        function showUploadForm(criteriaId, criteriaName) {
+            document.getElementById('upload_criteria_id').value = criteriaId;
+            document.getElementById('upload_criteria_name').textContent = criteriaName;
+            document.getElementById('upload_description').value = '';
+            document.getElementById('upload_document').value = '';
+            
+            uploadModal.show();
+        }
+
+        function showHierarchicalUpload(criteriaId, criteriaName) {
+            // Hide any other open hierarchical sections
+            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
+                section.classList.remove('show');
+            });
+            
+            // Show the selected hierarchical section
+            const section = document.getElementById('hierarchical-' + criteriaId);
+            if (section) {
+                section.classList.add('show');
+                // section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function hideHierarchicalUpload(criteriaId) {
+            const section = document.getElementById('hierarchical-' + criteriaId);
+            if (section) {
+                section.classList.remove('show');
+            }
+        }
+
         function setupPointCalculators() {
             // Setup point calculation for each criteria
             document.querySelectorAll('.hierarchical-upload-section').forEach(section => {

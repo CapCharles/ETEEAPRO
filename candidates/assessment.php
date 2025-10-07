@@ -680,7 +680,7 @@ $uncategorized_docs = array_filter($documents, function($doc) use ($categorized_
     return !in_array(strtolower($doc['document_type']), $categorized_types);
 });
 ?>
-<!-- 
+
 <?php if (!empty($uncategorized_docs)): ?>
 <div class="assessment-card p-4">
     <h5 class="mb-3">
@@ -716,7 +716,7 @@ $uncategorized_docs = array_filter($documents, function($doc) use ($categorized_
         <?php endforeach; ?>
     </div>
 </div>
-<?php endif; ?> -->
+<?php endif; ?>
             
 
             <!-- Sidebar -->

@@ -1374,10 +1374,10 @@ if ($flash) {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <div class="text-muted small">
+                    <!-- <div class="text-muted small">
                         <i class="fas fa-info-circle me-1"></i>
                         Changes will be saved automatically and notifications sent to the candidate.
-                    </div>
+                    </div> -->
                 </div>
             </div>
         </div>

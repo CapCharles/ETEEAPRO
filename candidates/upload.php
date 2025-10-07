@@ -1348,8 +1348,8 @@ $is_hierarchical = (
                                     </div> -->
                                     
                                 
-                                    <div class="mt-3">
-    <button type="button" class="btn btn-success" onclick="submitHierarchicalUpload(this)">
+            <div class="mt-3">
+    <button type="submit" name="upload_hierarchical_document" class="btn btn-success">
         <i class="fas fa-upload me-2"></i>Upload with Specifications
     </button>
     <button type="button" class="btn btn-secondary ms-2" onclick="hideHierarchicalUpload(<?php echo $criteria['id']; ?>)">

@@ -136,7 +136,47 @@ if ($application && in_array($application['application_status'], ['qualified', '
     }
 }
 
+// table names (palitan kung iba ang pangalan sa schema mo)
+$TABLE_CRITERIA = 'assessment_criteria';   // cols: id, program_id, criteria_code, title, max_points, display_order?
+$TABLE_DOCS     = 'documents';             // cols: id, application_id, criteria_id, file_name, file_path, file_type, created_at, meta_json
 
+// 1) sanity: may program_id ba?
+$programId = $application['program_id'] ?? null;
+
+// 2) kuha ng criteria
+$critSql = "
+    SELECT id, criteria_code, title, max_points, COALESCE(display_order, 9999) AS ord
+    FROM {$TABLE_CRITERIA}
+    /** kung wala kang program_id sa table, alisin ang WHERE clause */
+    WHERE (:pid IS NULL OR program_id = :pid)
+    ORDER BY ord, id
+";
+$critStmt = $pdo->prepare($critSql);
+$critStmt->execute([':pid' => $programId]);
+$criteriaList = $critStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 3) kuha ng docs
+$docSql = "
+    SELECT id, application_id, criteria_id, file_name, file_path, file_type, created_at, meta_json
+    FROM {$TABLE_DOCS}
+    WHERE application_id = :aid
+    ORDER BY created_at DESC, id DESC
+";
+$docStmt = $pdo->prepare($docSql);
+$docStmt->execute([':aid' => $application_id]);
+$appDocs = $docStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// 4) group by criteria_id
+$docsByCrit = [];
+foreach ($appDocs as $d) {
+    // guard: baka null or 0 ang criteria_id → hindi magpapakita sa ilalim ng card
+    $cid = (int)($d['criteria_id'] ?? 0);
+    if ($cid <= 0) {
+        $docsByCrit['__NO_CRITERIA__'][] = $d; // para makita natin sa debug kung may “floating” docs
+        continue;
+    }
+    $docsByCrit[$cid][] = $d;
+}
 
 ?>
 
@@ -374,68 +414,94 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                 </div>
 
-                <!-- Assessment Criteria -->
-                <div class="assessment-card p-4 mb-4">
-                    <h5 class="mb-4">
-                        <i class="fas fa-clipboard-check me-2"></i>
-                        Assessment Breakdown
-                    </h5>
-                    
-                    <?php if (empty($criteria_evaluations)): ?>
-                    <div class="text-center py-4">
-                        <i class="fas fa-hourglass-half fa-2x text-muted mb-3"></i>
-                        <p class="text-muted">Assessment criteria not yet available</p>
+            <?php
+function file_icon_html($typeOrName) {
+    $t = strtolower($typeOrName ?? '');
+    if (str_contains($t,'pdf') || $t==='pdf') return '<i class="fa-solid fa-file-pdf text-danger"></i>';
+    if (str_contains($t,'image') || preg_match('/\b(jpe?g|png|gif|webp)\b/',$t)) return '<i class="fa-solid fa-file-image"></i>';
+    if (preg_match('/\b(docx?|odt)\b/',$t)) return '<i class="fa-solid fa-file-word text-primary"></i>';
+    return '<i class="fa-solid fa-file-lines"></i>';
+}
+?>
+
+<div class="mt-4">
+  <h4 class="mb-3"><i class="fa-regular fa-clipboard-check me-2"></i>Assessment Breakdown</h4>
+
+  <?php if (empty($criteriaList)): ?>
+      <div class="alert alert-warning">No assessment criteria found for this program.</div>
+  <?php else: foreach ($criteriaList as $crit): 
+        $cid   = (int)$crit['id'];
+        $title = htmlspecialchars($crit['title'] ?? 'Untitled');
+        $code  = htmlspecialchars($crit['criteria_code'] ?? '');
+        $max   = (float)($crit['max_points'] ?? 0);
+        $docs  = $docsByCrit[$cid] ?? [];
+  ?>
+    <div class="card border-0 shadow-sm mb-3" style="border-radius:14px;">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap">
+          <div class="pe-3">
+            <div class="fw-semibold fs-5"><?= $title ?></div>
+            <div class="text-muted small"><?= $code ?></div>
+          </div>
+          <div class="text-end">
+            <span class="badge bg-secondary-subtle text-secondary border me-2">Max: <?= number_format($max,2) ?> pts</span>
+            <span class="badge bg-warning-subtle text-warning border"><i class="fa-regular fa-hourglass-half me-1"></i>Awaiting evaluation</span>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-3 border-top">
+          <?php if (empty($docs)): ?>
+            <div class="d-flex align-items-center gap-2 text-muted">
+              <i class="fa-regular fa-folder-open"></i>
+              <span class="small">No documents submitted yet for this criterion.</span>
+            </div>
+          <?php else: foreach ($docs as $doc):
+                $fname = htmlspecialchars($doc['file_name'] ?? 'file');
+                $fpath = htmlspecialchars($doc['file_path'] ?? '#');
+                $ftype = htmlspecialchars($doc['file_type'] ?: pathinfo($fname, PATHINFO_EXTENSION));
+                $when  = !empty($doc['created_at']) ? date('M j, Y g:i A', strtotime($doc['created_at'])) : '';
+                // decode meta tags safely
+                $badges = [];
+                if (!empty($doc['meta_json'])) {
+                    $meta = json_decode($doc['meta_json'], true);
+                    if (is_array($meta)) {
+                        if (!empty($meta['education_level'])) $badges[] = 'Education: '.$meta['education_level'];
+                        if (!empty($meta['patent_status']))   $badges[] = 'Patent: '.$meta['patent_status'];
+                        if (!empty($meta['acceptability'])) {
+                            $acc = is_array($meta['acceptability']) ? implode('/', $meta['acceptability']) : $meta['acceptability'];
+                            $badges[] = 'Market: '.$acc;
+                        }
+                        if (!empty($meta['circulation']))      $badges[] = 'Circulation: '.$meta['circulation'];
+                    }
+                }
+          ?>
+            <div class="d-flex justify-content-between align-items-center bg-light rounded-3 p-2 px-3 mb-2">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fs-5"><?= file_icon_html($ftype) ?></span>
+                <div>
+                  <div class="fw-semibold"><?= $fname ?></div>
+                  <div class="small text-muted"><?= strtoupper($ftype) ?><?= $when? ' · '.$when : '' ?></div>
+                  <?php if ($badges): ?>
+                    <div class="mt-1 d-flex flex-wrap gap-1">
+                      <?php foreach ($badges as $b): ?>
+                        <span class="badge bg-body-secondary text-secondary border"><?= htmlspecialchars($b) ?></span>
+                      <?php endforeach; ?>
                     </div>
-                    <?php else: ?>
-                    <?php foreach ($criteria_evaluations as $criteria): ?>
-                    <div class="criteria-item <?php echo $criteria['score'] !== null ? 'criteria-evaluated' : 'criteria-pending'; ?>">
-                        <div class="row align-items-center">
-                            <div class="col-md-8">
-                                <h6 class="mb-1"><?php echo htmlspecialchars($criteria['criteria_name']); ?></h6>
-                                <p class="text-muted mb-2 small"><?php echo htmlspecialchars($criteria['description']); ?></p>
-                                
-                                <?php if ($criteria['score'] !== null): ?>
-                                <div class="mb-2">
-                                    <div class="progress progress-bar-custom">
-                                        <div class="progress-bar bg-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>" 
-                                             style="width: <?php echo ($criteria['score'] / $criteria['max_score']) * 100; ?>%"></div>
-                                    </div>
-                                    <small class="text-muted">
-                                        Score: <?php echo $criteria['score']; ?> / <?php echo $criteria['max_score']; ?>
-                                        (<?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 1); ?>%)
-                                    </small>
-                                </div>
-                                
-                                <?php if ($criteria['comments']): ?>
-                                <div class="alert alert-info small mb-0">
-                                    <strong>Evaluator Comments:</strong><br>
-                                    <?php echo nl2br(htmlspecialchars($criteria['comments'])); ?>
-                                </div>
-                                <?php endif; ?>
-                                <?php else: ?>
-                                <div class="text-muted small">
-                                    <i class="fas fa-clock me-1"></i>
-                                    Awaiting evaluation
-                                </div>
-                                <?php endif; ?>
-                            </div>
-                            <div class="col-md-4 text-md-end">
-                                <div class="badge bg-secondary">
-                                    <?php echo ucfirst(str_replace('_', ' ', $criteria['criteria_type'])); ?>
-                                </div>
-                                <?php if ($criteria['score'] !== null): ?>
-                                <div class="mt-2">
-                                    <span class="h5 text-<?php echo $criteria['score'] >= ($criteria['max_score'] * 0.7) ? 'success' : ($criteria['score'] >= ($criteria['max_score'] * 0.5) ? 'warning' : 'danger'); ?>">
-                                        <?php echo number_format(($criteria['score'] / $criteria['max_score']) * 100, 0); ?>%
-                                    </span>
-                                </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endforeach; ?>
-                    <?php endif; ?>
+                  <?php endif; ?>
                 </div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <a class="btn btn-outline-primary btn-sm" href="<?= $fpath ?>" target="_blank">
+                  <i class="fa-regular fa-eye me-1"></i>View
+                </a>
+              </div>
+            </div>
+          <?php endforeach; endif; ?>
+        </div>
+      </div>
+    </div>
+  <?php endforeach; endif; ?>
+</div>
 
                 
                                     

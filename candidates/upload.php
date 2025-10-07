@@ -3,13 +3,7 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-// Check for upload success from redirect
-if (isset($_SESSION['upload_success'])) {
-    $success_message = $_SESSION['upload_success'];
-    $success_criteria_id = $_SESSION['upload_criteria_id'] ?? null;
-    unset($_SESSION['upload_success']);
-    unset($_SESSION['upload_criteria_id']);
-}
+
 
 // Check if user is logged in and is a candidate
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'candidate') {
@@ -290,20 +284,25 @@ if ($_POST && isset($_POST['upload_document'])) {
                     $criteria_id
                 ]);
                 
-             $success_message = 'Document uploaded successfully with detailed specifications!';
-            
-            // Store in session and redirect to same page with anchor
-            $_SESSION['upload_success'] = $success_message;
-            $_SESSION['upload_criteria_id'] = $criteria_id;
-            header("Location: " . $_SERVER['PHP_SELF'] . "#criteria-" . $criteria_id);
-            exit();
-        } else {
-            $errors[] = 'Failed to upload file. Please try again.';
-        }
-    } catch (PDOException $e) {
-        $errors[] = 'Database error occurred while saving document.';
+                $success_message = "Document uploaded successfully!";
+
+                try {
+    $engine = new PrescriptiveEngine($pdo);
+    $analysis = $engine->analyzeApplication($application_id, $user_id);
+    
+    if ($analysis['success']) {
+        $success_message .= " AI Analysis completed!";
     }
+} catch (Exception $e) {
+    error_log("Prescriptive analysis failed: " . $e->getMessage());
 }
+            } else {
+                $errors[] = "Failed to upload file. Please try again.";
+            }
+        } catch (PDOException $e) {
+            $errors[] = "Database error occurred while saving document.";
+        }
+    }
 }
 
 // Get uploaded documents with criteria info
@@ -486,16 +485,6 @@ if ($_POST && isset($_POST['submit_application']) && $current_application) {
             padding: 1rem;
             margin-top: 1rem;
         }
-            html {
-        scroll-behavior: smooth;
-    }
-    
-    /* Keep position when modals open */
-    body.modal-open {
-        overflow: hidden;
-        position: fixed;
-        width: 100%;
-    }
     </style>
 </head>
 <body>
@@ -1792,71 +1781,27 @@ if ($hier && is_array($hier)) {
             successModal = new bootstrap.Modal(document.getElementById('successModal'));
             errorModal = new bootstrap.Modal(document.getElementById('errorModal'));
             
-         // Show success modal if there's a success message
-    <?php if ($success_message): ?>
-        // Wait a bit for page to fully load, then show modal
-        setTimeout(() => {
-            successModal.show();
-            
-            // Scroll to the criteria that was just uploaded
-            <?php if (isset($success_criteria_id)): ?>
-            const criteriaElement = document.getElementById('hierarchical-<?php echo $success_criteria_id; ?>');
-            if (criteriaElement) {
-                criteriaElement.closest('.criteria-card').scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'center' 
-                });
-            }
+            // Show success modal if there's a success message
+            <?php if ($success_message): ?>
+                successModal.show();
+                // Auto-close any open hierarchical upload sections
+                setTimeout(() => {
+                    document.querySelectorAll('.hierarchical-upload-section.show').forEach(section => {
+                        section.classList.remove('show');
+                    });
+                }, 3500);
             <?php endif; ?>
             
-            // Auto-close hierarchical upload sections after showing modal
-            setTimeout(() => {
-                document.querySelectorAll('.hierarchical-upload-section.show').forEach(section => {
-                    section.classList.remove('show');
-                });
-            }, 1500);
-        }, 300);
-    <?php endif; ?>
-    
-    // Show error modal if there are errors
-    <?php if (!empty($errors)): ?>
-        errorModal.show();
-    <?php endif; ?>
-    
-    // Add event listeners for point calculations
-    setupPointCalculators();
-});
-
-        function showUploadForm(criteriaId, criteriaName) {
-            document.getElementById('upload_criteria_id').value = criteriaId;
-            document.getElementById('upload_criteria_name').textContent = criteriaName;
-            document.getElementById('upload_description').value = '';
-            document.getElementById('upload_document').value = '';
+            // Show error modal if there are errors
+            <?php if (!empty($errors)): ?>
+                errorModal.show();
+            <?php endif; ?>
             
-            uploadModal.show();
-        }
+            // Add event listeners for point calculations
+            setupPointCalculators();
+        });
 
-        function showHierarchicalUpload(criteriaId, criteriaName) {
-            // Hide any other open hierarchical sections
-            document.querySelectorAll('.hierarchical-upload-section').forEach(section => {
-                section.classList.remove('show');
-            });
-            
-            // Show the selected hierarchical section
-            const section = document.getElementById('hierarchical-' + criteriaId);
-            if (section) {
-                section.classList.add('show');
-                section.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-        }
-
-        function hideHierarchicalUpload(criteriaId) {
-            const section = document.getElementById('hierarchical-' + criteriaId);
-            if (section) {
-                section.classList.remove('show');
-            }
-        }
-
+        
         function setupPointCalculators() {
             // Setup point calculation for each criteria
             document.querySelectorAll('.hierarchical-upload-section').forEach(section => {

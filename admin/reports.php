@@ -25,29 +25,6 @@ try {
     $sidebar_submitted_count = 0;
 }
 
-// Get subjects from database for bridging recommendations
-$predefined_subjects = [];
-if (!empty($current_application['program_id'])) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                subject_code as code, 
-                subject_name as name, 
-                units,
-                year_level,
-                semester,
-                1 as priority
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level DESC, semester DESC, subject_name
-        ");
-        $stmt->execute([$current_application['program_id']]);
-        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error fetching subjects: " . $e->getMessage());
-        $predefined_subjects = [];
-    }
-}
 
 
 $sidebar_pending_count = 0;

@@ -22,22 +22,30 @@ $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
-
+$is_admin = ($user_type === 'admin');
 $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
 
-$sidebar_submitted_count = 0;
-try {
-    $stmt = $pdo->query("
-        SELECT COUNT(*) as total 
-        FROM applications 
-        WHERE application_status IN ('submitted', 'under_review')
-    ");
-    $sidebar_submitted_count = $stmt->fetch()['total'];
-} catch (PDOException $e) {
-    $sidebar_submitted_count = 0;
+
+
+function evalScopeWhere($is_admin, $user_id) {
+    if ($is_admin) return ['', []];
+    return [' WHERE a.evaluator_id = ? ', [$user_id]];
 }
+
+$sidebar_submitted_count = 0;
+list($scopeWhere, $scopeParams) = evalScopeWhere($is_admin, $user_id);
+
+$sql = "
+    SELECT COUNT(*) 
+    FROM applications a
+    " . ($is_admin ? " WHERE " : $scopeWhere . " AND ") . "
+    a.application_status IN ('submitted', 'under_review')
+";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($scopeParams);
+$sidebar_submitted_count = (int)$stmt->fetchColumn();
 
 // Get subjects from database for bridging recommendations
 $predefined_subjects = [];
@@ -1362,29 +1370,22 @@ if ($filter_status) {
     $params[] = $filter_status;
 }
 
-try {
-    $stmt = $pdo->prepare("
-        SELECT a.*, p.program_name, p.program_code,
-            CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
-            u.email as candidate_email
-        FROM applications a 
-        LEFT JOIN programs p ON a.program_id = p.id 
-        LEFT JOIN users u ON a.user_id = u.id
-        $where_clause
-        ORDER BY 
-            CASE a.application_status
-                WHEN 'submitted' THEN 1
-                WHEN 'under_review' THEN 2
-                ELSE 3
-            END,
-            a.submission_date DESC,
-            a.created_at DESC
-    ");
-    $stmt->execute($params);
-    $applications = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $applications = [];
-}
+list($scopeWhere, $scopeParams) = evalScopeWhere($is_admin, $user_id);
+
+$sql = "
+  SELECT a.*, p.program_code, p.program_name, u.first_name, u.last_name
+  FROM applications a
+  LEFT JOIN programs p ON p.id = a.program_id
+  LEFT JOIN users u ON u.id = a.user_id
+  " . ($is_admin ? " WHERE " : $scopeWhere . " AND ") . "
+  a.application_status IN ('submitted','under_review')
+  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
+  LIMIT 50
+";
+$stmt = $pdo->prepare($sql);
+$stmt->execute($scopeParams);
+$rows = $stmt->fetchAll();
+
 ?>
 
 <!DOCTYPE html>

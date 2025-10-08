@@ -480,7 +480,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
       <span class="badge bg-success ms-2"><?php echo count($passed_subjects); ?> subjects</span>
     </h6>
     <button type="button" class="btn btn-secondary btn-sm no-print" onclick="printSection('credited')">
-      <i class="fas fa-print me-1"></i>Print Credited
+      <i class="fas fa-print me-1"></i>Print 
     </button>
   </div>
                         <div class="table-responsive">
@@ -532,7 +532,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
       <span class="badge bg-warning text-dark ms-2"><?php echo count($bridging_requirements); ?> subjects</span>
     </h6>
     <button type="button" class="btn btn-secondary btn-sm no-print" onclick="printSection('bridging')">
-      <i class="fas fa-print me-1"></i>Print Required
+      <i class="fas fa-print me-1"></i>Print
     </button>
   </div>
 

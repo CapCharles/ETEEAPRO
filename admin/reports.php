@@ -472,7 +472,32 @@ function getStatusColor($status) {
 
   <!-- Status Distribution -->
   <h4 style="margin:16px 0 6px;">Application Status Distribution</h4>
-
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th style="width:40%;">Status</th>
+        <th style="width:20%;">Count</th>
+        <th style="width:40%;">% of Total</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php
+      $__total = max(1, (int)$stats['total_applications']);
+      if (!empty($status_distribution)):
+        foreach ($status_distribution as $row):
+          $cnt = (int)$row['count'];
+          $pct = round(($cnt / $__total) * 100, 1);
+    ?>
+      <tr>
+        <td><?php echo htmlspecialchars($row['status']); ?></td>
+        <td><?php echo $cnt; ?></td>
+        <td><?php echo $pct; ?>%</td>
+      </tr>
+    <?php endforeach; else: ?>
+      <tr><td colspan="3" class="muted">No data</td></tr>
+    <?php endif; ?>
+    </tbody>
+  </table>
 
   <!-- Monthly Trends -->
   <h4 style="margin:16px 0 6px;">Monthly Trends</h4>

@@ -239,9 +239,32 @@ if ($application && in_array($application['application_status'], ['qualified', '
         .document-preview:hover {
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+
+        #print-area { display: none; }
+
+/* Clean table style for print */
+#print-area .print-title { margin: 0 0 6px; }
+#print-area .meta { font-size: 12px; color:#444; line-height:1.4; margin-bottom:10px; }
+#print-area .print-table { width:100%; border-collapse:collapse; font-size:12px; }
+#print-area .print-table th, 
+#print-area .print-table td { border:1px solid #e5e7eb; padding:6px 8px; vertical-align:top; }
+#print-area .print-table thead th { background:#f3f4f6; font-weight:700; }
+.no-print { display: inline-block; }
+
+@media print {
+  /* hide everything by default */
+  body * { visibility: hidden !important; }
+  /* show only print area */
+  #print-area, #print-area * { visibility: visible !important; }
+  #print-area { display:block; position: absolute; left:0; top:0; width:100%; padding:0 10mm; }
+  /* ensure buttons never print */
+  .no-print { display: none !important; }
+  @page { size: A4 portrait; margin: 14mm; }
+}
     </style>
 </head>
 <body>
+    <div id="print-area"></div>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
@@ -449,12 +472,13 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     
                     <!-- Passed/Credited Subjects -->
                     <?php if (!empty($passed_subjects)): ?>
-                    <div class="mb-4">
-                        <h6 class="mb-3">
-                            <i class="fas fa-check-circle me-2 text-success"></i>
-                            Credited Subjects - Prior Learning Recognition
-                            <span class="badge bg-success ms-2"><?php echo count($passed_subjects); ?> subjects</span>
-                        </h6>
+                 <div id="credited-section" class="mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0">
+      <i class="fas fa-check-circle me-2 text-success"></i>
+      Credited Subjects - Prior Learning Recognition
+      <span class="badge bg-success ms-2"><?php echo count($passed_subjects); ?> subjects</span>
+    </h6>
                         <div class="alert alert-success bg-opacity-10">
                             <p class="small mb-2">
                                 <i class="fas fa-info-circle me-1"></i>
@@ -495,6 +519,9 @@ if ($application && in_array($application['application_status'], ['qualified', '
                                     </tr>
                                 </tfoot>
                             </table>
+                               <button type="button" class="btn btn-secondary btn-sm no-print" onclick="printSection('credited')">
+      <i class="fas fa-print me-1"></i>Print Credited
+    </button>
                         </div>
                     </div>
                     <?php endif; ?>

@@ -27,6 +27,7 @@ $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
 
+
 function getEvaluatorPrograms($pdo, $user_id, $user_type) {
     if ($user_type === 'admin') {
         // Admins see all programs - return empty array to indicate "no filter"
@@ -184,21 +185,6 @@ function makeMailer(): PHPMailer {
 }
 
 
-
-
-function getSubmittedApplicationsCount($pdo) {
-    try {
-        $stmt = $pdo->query("
-            SELECT COUNT(*) as total 
-            FROM applications 
-            WHERE application_status IN ('submitted', 'under_review')
-        ");
-        return (int)$stmt->fetch()['total'];
-    } catch (PDOException $e) {
-        error_log("Error getting submitted applications count: " . $e->getMessage());
-        return 0;
-    }
-}
 function calculateBridgingUnits($finalScore) {
     if ($finalScore >= 95) return 3;
     if ($finalScore >= 91) return 6;
@@ -1336,7 +1322,22 @@ $predefined_subjects = []; // Initialize empty
 
 if ($application_id) {
     try {
-        // 1. GET APPLICATION DETAILS FIRST
+        // Build program access check for evaluators
+        $program_check = "";
+        $check_params = [$application_id];
+        
+        if ($user_type === 'evaluator' && is_array($evaluator_programs)) {
+            if (empty($evaluator_programs)) {
+                // No access - evaluator has no programs assigned
+                $program_check = "AND 1=0";
+            } else {
+                $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
+                $program_check = "AND a.program_id IN ($placeholders)";
+                $check_params = array_merge($check_params, $evaluator_programs);
+            }
+        }
+        
+        // 1. GET APPLICATION DETAILS WITH ACCESS CHECK
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code,
                 CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
@@ -1345,12 +1346,21 @@ if ($application_id) {
             LEFT JOIN programs p ON a.program_id = p.id 
             LEFT JOIN users u ON a.user_id = u.id
             WHERE a.id = ?
+            $program_check
         ");
-        $stmt->execute([$application_id]);
+        $stmt->execute($check_params);
         $current_application = $stmt->fetch();
         
+        // If evaluator doesn't have access to this application's program
+        if (!$current_application && $user_type === 'evaluator') {
+            $_SESSION['error'] = "You don't have access to evaluate this application.";
+            header('Location: evaluate.php');
+            exit();
+        }
+        
+        // Only proceed if we have a valid application
         if ($current_application) {
-            // 2. NOW GET SUBJECTS FOR THIS PROGRAM (from database)
+            // 2. GET SUBJECTS FOR THIS PROGRAM
             $stmt = $pdo->prepare("
                 SELECT 
                     subject_code as code, 
@@ -1374,7 +1384,7 @@ if ($application_id) {
             $stmt->execute([$current_application['program_id']]);
             $assessment_criteria = $stmt->fetchAll();
             
-            // Get existing evaluations
+            // 4. GET EXISTING EVALUATIONS
             $stmt = $pdo->prepare("
                 SELECT * FROM evaluations 
                 WHERE application_id = ?
@@ -1385,45 +1395,23 @@ if ($application_id) {
                 $existing_evaluations[$eval['criteria_id']] = $eval;
             }
             
-            try {
-        // Build program access check
-        $program_check = "";
-        $check_params = [$application_id];
-        
-        if ($user_type === 'evaluator' && is_array($evaluator_programs)) {
-            if (empty($evaluator_programs)) {
-                // No access
-                $program_check = "AND 1=0";
-            } else {
-                $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
-                $program_check = "AND a.program_id IN ($placeholders)";
-                $check_params = array_merge($check_params, $evaluator_programs);
-            }
-        }
-             // 1. GET APPLICATION DETAILS WITH ACCESS CHECK
-        $stmt = $pdo->prepare("
-            SELECT a.*, p.program_name, p.program_code,
-                CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
-                u.email as candidate_email, u.phone, u.address
-            FROM applications a 
-            LEFT JOIN programs p ON a.program_id = p.id 
-            LEFT JOIN users u ON a.user_id = u.id
-            WHERE a.id = ?
-            $program_check
-        ");
-        $stmt->execute($check_params);
-        $current_application = $stmt->fetch();
-        
-        // If evaluator doesn't have access to this application's program
-        if (!$current_application && $user_type === 'evaluator') {
-            $_SESSION['error'] = "You don't have access to evaluate this application.";
-            header('Location: evaluate.php');
-            exit();
-        }
-
-
-
-            // Set document flags and counts
+            // 5. FETCH DOCUMENTS WITH ENHANCED CHECKING
+            $stmt = $pdo->prepare("
+                SELECT *, 
+                       CASE 
+                           WHEN LOWER(mime_type) LIKE '%pdf%' THEN 'pdf'
+                           WHEN LOWER(mime_type) LIKE '%image%' THEN 'image'
+                           WHEN LOWER(mime_type) LIKE '%word%' OR LOWER(mime_type) LIKE '%doc%' THEN 'document'
+                           ELSE 'other'
+                       END as file_category
+                FROM documents 
+                WHERE application_id = ? 
+                ORDER BY document_type, upload_date DESC
+            ");
+            $stmt->execute([$application_id]);
+            $documents = $stmt->fetchAll();
+            
+            // 6. SET DOCUMENT FLAGS AND COUNTS
             $hasDocs = count($documents) > 0;
             $docCounts = [
                 'total' => count($documents),
@@ -1440,6 +1428,7 @@ if ($application_id) {
             }
         }
     } catch (PDOException $e) {
+        error_log("Error fetching application data: " . $e->getMessage());
         $current_application = null;
     }
 }
@@ -1491,7 +1480,7 @@ try {
     $applications = [];
 }
 
-
+}
 
 
 ?>

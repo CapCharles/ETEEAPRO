@@ -420,6 +420,7 @@ function getStatusColor($status) {
 <!-- ===================== PRINT-ONLY TABULAR REPORT ====================== -->
 <div id="print-report" class="d-none d-print-block">
   <!-- Header -->
+     <div class="container-fluid">
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
     <!-- Optional logo -->
     <!-- <img src="../assets/img/logo.png" alt="Logo" style="height:40px;"> -->
@@ -611,6 +612,7 @@ function getStatusColor($status) {
   <div style="margin-top:10px;font-size:11px;color:#666;text-align:center;">
     <hr style="margin:8px 0 6px 0;">
     Confidential – For internal use only
+      </div>
   </div>
 </div>
 <!-- =================== END PRINT-ONLY TABULAR REPORT ==================== -->

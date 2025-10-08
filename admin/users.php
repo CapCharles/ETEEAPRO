@@ -1022,7 +1022,7 @@ if ($flash) {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-     function toggleEditProgram() {
+function toggleEditProgram() {
   const roleSel = document.getElementById('edit_user_type');
   const wrap = document.getElementById('editProgramSelectWrapper');
   if (!roleSel || !wrap) return;
@@ -1032,18 +1032,19 @@ if ($flash) {
     if (sel) sel.value = '';
   }
 }
+document.getElementById('edit_user_type').onchange = toggleEditProgram;
 
 // Get assigned program ids of a user
 async function fetchUserPrograms(userId) {
   try {
-   const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(user.id));
-
+    const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(userId));
     if (!res.ok) return [];
     return await res.json(); // ["2","5",...]
   } catch (e) {
     return [];
   }
 }
+
 
 // Preselect in dropdown (single-select)
 async function preselectEditProgram(userId) {

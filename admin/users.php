@@ -465,11 +465,7 @@ if ($flash) {
         .role-evaluator { background-color: #fd7e14; color: white; }
         .role-candidate { background-color: #0dcaf0; color: white; }
 
-        #programSelectWrapper .form-select {
-  height: auto;      /* huwag gawing listbox height */
-  min-height: auto;
-  appearance: auto;  /* ibalik native dropdown arrow */
-}
+ 
 
     </style>
 </head>

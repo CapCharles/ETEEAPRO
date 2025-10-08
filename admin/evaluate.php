@@ -22,7 +22,8 @@ $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
-$is_admin = ($user_type === 'admin');
+$is_admin = ($_SESSION['user_type'] === 'admin'); // exact string match
+
 $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
@@ -1440,10 +1441,10 @@ try {
     $applications = [];
 }
 
+// soften scope: assigned to me OR unassigned
 function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = 'a') {
     if ($is_admin) return $sql;
 
-    // Find insertion point BEFORE trailing clauses
     $upper = strtoupper($sql);
     $cutPositions = [];
     foreach ([' ORDER BY ', ' GROUP BY ', ' LIMIT ', ' OFFSET ', ' UNION ', ' INTERSECT ', ' EXCEPT '] as $kw) {
@@ -1453,18 +1454,18 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = '
     $insertPos = empty($cutPositions) ? strlen($sql) : min($cutPositions);
 
     $head = substr($sql, 0, $insertPos);
-    $tail = substr($sql, $insertPos); // ORDER BY.../LIMIT... part (or empty)
+    $tail = substr($sql, $insertPos);
 
-    // Does head already have WHERE?
     if (stripos($head, ' WHERE ') !== false) {
-        $head .= " AND {$alias}.evaluator_id = ?";
+        $head .= " AND ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
     } else {
-        $head .= " WHERE {$alias}.evaluator_id = ?";
+        $head .= " WHERE ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
     }
 
     $params[] = $user_id;
     return $head . $tail;
 }
+
 ?>
 
 <!DOCTYPE html>

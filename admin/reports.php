@@ -707,8 +707,8 @@ function getStatusColor($status) {
                             <p class="text-muted mb-0">Comprehensive insights into ETEEAP system performance</p>
                         </div>
                         <div class="d-flex gap-2">
-                           <button class="btn btn-outline-primary" onclick="printReport()">
-  <i class="fas fa-print me-1"></i>Print Report
+       <button class="btn btn-secondary" onclick="window.print()">
+  <i class="fas fa-table me-1"></i>Print (Tabular)
 </button>
                             <button class="btn btn-primary" onclick="exportData()">
                                 <i class="fas fa-download me-1"></i>Export Data

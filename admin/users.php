@@ -164,8 +164,6 @@ if ($_POST) {
         $user_type = $_POST['user_type'];
         $status = $_POST['status'];
         
-
-         $program_id = isset($_POST['program_id']) ? trim($_POST['program_id']) : '';
         // Validation
         if (empty($first_name) || empty($last_name) || empty($email) || empty($user_type)) {
             $errors[] = "All required fields must be filled";
@@ -191,7 +189,6 @@ if ($_POST) {
         // Update user
         if (empty($errors)) {
             try {
-                
                 $stmt = $pdo->prepare("
                     UPDATE users 
                     SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
@@ -1012,63 +1009,19 @@ if ($flash) {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-async function fetchUserPrograms(userId) {
-  try {
-    const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(userId));
-    if (!res.ok) return [];
-    return await res.json(); // e.g., ["2","5"]
-  } catch (e) {
-    return [];
-  }
-}
-
-function toggleEditProgram() {
-  const roleSel = document.getElementById('edit_user_type');
-  const wrap = document.getElementById('editProgramSelectWrapper');
-  if (!roleSel || !wrap) return;
-  wrap.style.display = (roleSel.value === 'evaluator') ? 'block' : 'none';
-}
-
-async function preselectEditProgram(userId) {
-  const select = document.getElementById('edit_program_id');
-  if (!select) return;
-  // clear
-  for (const opt of select.options) opt.selected = false;
-
-  const assigned = await fetchUserPrograms(userId); // ["<program_id>", ...]
-  if (assigned.length) {
-    const val = String(assigned[0]); // single-select: first assigned
-    for (const opt of select.options) {
-      opt.selected = (opt.value === val);
-    }
-  } else {
-    select.value = '';
-  }
-
-
-
         function editUser(user) {
-           document.getElementById('edit_user_id').value = user.id;
-  document.getElementById('edit_first_name').value = user.first_name || '';
-  document.getElementById('edit_last_name').value = user.last_name || '';
-  document.getElementById('edit_middle_name').value = user.middle_name || '';
-  document.getElementById('edit_email').value = user.email || '';
-  document.getElementById('edit_phone').value = user.phone || '';
-  document.getElementById('edit_address').value = user.address || '';
-  document.getElementById('edit_user_type').value = user.user_type || '';
-  document.getElementById('edit_status').value = user.status || '';
-
-  // Show/hide program select
-  toggleEditProgram();
-  document.getElementById('edit_user_type').onchange = toggleEditProgram;
-
-  // Kung evaluator, preselect current program
-  if (document.getElementById('edit_user_type').value === 'evaluator') {
-    await preselectEditProgram(user.id);
-  }
-
-  new bootstrap.Modal(document.getElementById('editUserModal')).show();
-}
+            document.getElementById('edit_user_id').value = user.id;
+            document.getElementById('edit_first_name').value = user.first_name || '';
+            document.getElementById('edit_last_name').value = user.last_name || '';
+            document.getElementById('edit_middle_name').value = user.middle_name || '';
+            document.getElementById('edit_email').value = user.email || '';
+            document.getElementById('edit_phone').value = user.phone || '';
+            document.getElementById('edit_address').value = user.address || '';
+            document.getElementById('edit_user_type').value = user.user_type || '';
+            document.getElementById('edit_status').value = user.status || '';
+            
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        }
 
         function resetPassword(userId, userName) {
             document.getElementById('reset_user_id').value = userId;

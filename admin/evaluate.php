@@ -27,89 +27,18 @@ $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
 
-
-function getEvaluatorPrograms($pdo, $user_id, $user_type) {
-    if ($user_type === 'admin') {
-        // Admins see all programs - return empty array to indicate "no filter"
-        return null;
-    }
-    
-    try {
-        $stmt = $pdo->prepare("
-            SELECT program_id 
-            FROM evaluator_programs 
-            WHERE evaluator_id = ?
-        ");
-        $stmt->execute([$user_id]);
-        $programs = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        
-        return $programs ?: []; // Return empty array if no programs assigned
-    } catch (PDOException $e) {
-        error_log("Error fetching evaluator programs: " . $e->getMessage());
-        return []; // Return empty array on error (evaluator sees nothing)
-    }
-}
-
-// Add this right after getting $user_id and $user_type (around line 23)
-$evaluator_programs = getEvaluatorPrograms($pdo, $user_id, $user_type);
-
-// If evaluator has no assigned programs, show appropriate message
-if ($user_type === 'evaluator' && is_array($evaluator_programs) && empty($evaluator_programs)) {
-    $no_programs_assigned = true;
-} else {
-    $no_programs_assigned = false;
-}
-
-// MODIFY the sidebar counts query (around line 29) - UPDATE THIS SECTION:
 $sidebar_submitted_count = 0;
 try {
-    $where_program = "";
-    $params = [];
-    
-    if ($user_type === 'evaluator' && is_array($evaluator_programs) && !empty($evaluator_programs)) {
-        $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
-        $where_program = "AND program_id IN ($placeholders)";
-        $params = $evaluator_programs;
-    }
-    
-    $stmt = $pdo->prepare("
+    $stmt = $pdo->query("
         SELECT COUNT(*) as total 
         FROM applications 
         WHERE application_status IN ('submitted', 'under_review')
-        $where_program
     ");
-    $stmt->execute($params);
     $sidebar_submitted_count = $stmt->fetch()['total'];
 } catch (PDOException $e) {
     $sidebar_submitted_count = 0;
 }
 
-
-// MODIFY the getSubmittedApplicationsCount function (around line 148):
-function getSubmittedApplicationsCount($pdo, $evaluator_programs = null) {
-    try {
-        $where_program = "";
-        $params = [];
-        
-        if (is_array($evaluator_programs) && !empty($evaluator_programs)) {
-            $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
-            $where_program = "AND program_id IN ($placeholders)";
-            $params = $evaluator_programs;
-        }
-        
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM applications 
-            WHERE application_status IN ('submitted', 'under_review')
-            $where_program
-        ");
-        $stmt->execute($params);
-        return (int)$stmt->fetch()['total'];
-    } catch (PDOException $e) {
-        error_log("Error getting submitted applications count: " . $e->getMessage());
-        return 0;
-    }
-}
 // Get subjects from database for bridging recommendations
 $predefined_subjects = [];
 if (!empty($current_application['program_id'])) {
@@ -185,6 +114,21 @@ function makeMailer(): PHPMailer {
 }
 
 
+
+
+function getSubmittedApplicationsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(*) as total 
+            FROM applications 
+            WHERE application_status IN ('submitted', 'under_review')
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting submitted applications count: " . $e->getMessage());
+        return 0;
+    }
+}
 function calculateBridgingUnits($finalScore) {
     if ($finalScore >= 95) return 3;
     if ($finalScore >= 91) return 6;
@@ -1371,44 +1315,22 @@ if ($application_id) {
                 $existing_evaluations[$eval['criteria_id']] = $eval;
             }
             
-            try {
-        // Build program access check
-        $program_check = "";
-        $check_params = [$application_id];
-        
-        if ($user_type === 'evaluator' && is_array($evaluator_programs)) {
-            if (empty($evaluator_programs)) {
-                // No access
-                $program_check = "AND 1=0";
-            } else {
-                $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
-                $program_check = "AND a.program_id IN ($placeholders)";
-                $check_params = array_merge($check_params, $evaluator_programs);
-            }
-        }
-             // 1. GET APPLICATION DETAILS WITH ACCESS CHECK
-        $stmt = $pdo->prepare("
-            SELECT a.*, p.program_name, p.program_code,
-                CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
-                u.email as candidate_email, u.phone, u.address
-            FROM applications a 
-            LEFT JOIN programs p ON a.program_id = p.id 
-            LEFT JOIN users u ON a.user_id = u.id
-            WHERE a.id = ?
-            $program_check
-        ");
-        $stmt->execute($check_params);
-        $current_application = $stmt->fetch();
-        
-        // If evaluator doesn't have access to this application's program
-        if (!$current_application && $user_type === 'evaluator') {
-            $_SESSION['error'] = "You don't have access to evaluate this application.";
-            header('Location: evaluate.php');
-            exit();
-        }
-
-
-
+            // Enhanced document fetching with counts
+            $stmt = $pdo->prepare("
+                SELECT *, 
+                       CASE 
+                           WHEN LOWER(mime_type) LIKE '%pdf%' THEN 'pdf'
+                           WHEN LOWER(mime_type) LIKE '%image%' THEN 'image'
+                           WHEN LOWER(mime_type) LIKE '%word%' OR LOWER(mime_type) LIKE '%doc%' THEN 'document'
+                           ELSE 'other'
+                       END as file_category
+                FROM documents 
+                WHERE application_id = ? 
+                ORDER BY document_type, upload_date DESC
+            ");
+            $stmt->execute([$application_id]);
+            $documents = $stmt->fetchAll();
+            
             // Set document flags and counts
             $hasDocs = count($documents) > 0;
             $docCounts = [
@@ -1434,19 +1356,6 @@ if ($application_id) {
 $applications = [];
 $where_clause = "WHERE 1=1";
 $params = [];
-
-
-// Add program filter for evaluators
-if ($user_type === 'evaluator' && is_array($evaluator_programs)) {
-    if (empty($evaluator_programs)) {
-        // Evaluator has no assigned programs - show nothing
-        $where_clause .= " AND 1=0";
-    } else {
-        $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
-        $where_clause .= " AND a.program_id IN ($placeholders)";
-        $params = array_merge($params, $evaluator_programs);
-    }
-}
 
 if ($filter_status) {
     $where_clause .= " AND a.application_status = ?";
@@ -1476,10 +1385,6 @@ try {
 } catch (PDOException $e) {
     $applications = [];
 }
-
-}
-
-
 ?>
 
 <!DOCTYPE html>

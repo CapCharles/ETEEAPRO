@@ -51,6 +51,7 @@ function getEvaluatorPrograms($pdo, $user_id, $user_type) {
 
 // Add this right after getting $user_id and $user_type (around line 23)
 $evaluator_programs = getEvaluatorPrograms($pdo, $user_id, $user_type);
+$no_programs_assigned = ($user_type === 'evaluator' && is_array($evaluator_programs) && empty($evaluator_programs));
 
 // If evaluator has no assigned programs, show appropriate message
 if ($user_type === 'evaluator' && is_array($evaluator_programs) && empty($evaluator_programs)) {
@@ -87,22 +88,22 @@ try {
 // MODIFY the getSubmittedApplicationsCount function (around line 148):
 function getSubmittedApplicationsCount($pdo, $evaluator_programs = null) {
     try {
-        $where_program = "";
-        $params = [];
-        
-        if (is_array($evaluator_programs) && !empty($evaluator_programs)) {
-            $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
-            $where_program = "AND program_id IN ($placeholders)";
-            $params = $evaluator_programs;
-        }
-        
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM applications 
-            WHERE application_status IN ('submitted', 'under_review')
-            $where_program
-        ");
-        $stmt->execute($params);
+   $where_program = "";
+$params = [];
+
+if ($user_type === 'evaluator' && is_array($evaluator_programs) && !empty($evaluator_programs)) {
+    $placeholders = implode(',', array_fill(0, count($evaluator_programs), '?'));
+    $where_program = "AND program_id IN ($placeholders)";
+    $params = $evaluator_programs;
+}
+
+$stmt = $pdo->prepare("
+    SELECT COUNT(*) as total
+    FROM applications
+    WHERE application_status IN ('submitted', 'under_review')
+    $where_program
+");
+$stmt->execute($params);
         return (int)$stmt->fetch()['total'];
     } catch (PDOException $e) {
         error_log("Error getting submitted applications count: " . $e->getMessage());

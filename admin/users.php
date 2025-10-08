@@ -164,6 +164,8 @@ if ($_POST) {
         $user_type = $_POST['user_type'];
         $status = $_POST['status'];
         
+
+         $program_id = isset($_POST['program_id']) ? trim($_POST['program_id']) : '';
         // Validation
         if (empty($first_name) || empty($last_name) || empty($email) || empty($user_type)) {
             $errors[] = "All required fields must be filled";
@@ -189,6 +191,7 @@ if ($_POST) {
         // Update user
         if (empty($errors)) {
             try {
+                 $pdo->beginTransaction();
                 $stmt = $pdo->prepare("
                     UPDATE users 
                     SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
@@ -203,7 +206,17 @@ if ($_POST) {
                 
                 // Log activity
                 logActivity($pdo, "user_updated", $user_id, "users", $edit_user_id);
-                
+                 // 1) burahin muna lahat ng mapping ng user na ito
+            $del = $pdo->prepare("DELETE FROM evaluator_programs WHERE evaluator_id = ?");
+            $del->execute([$edit_user_id]);
+
+            // 2) kung evaluator sya, at may napiling program, i-insert
+            if ($user_type === 'evaluator' && $program_id !== '') {
+                $ins = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
+                $ins->execute([$edit_user_id, (int)$program_id]);
+            }
+
+            $pdo->commit();
                 redirectWithMessage('users.php', 'User updated successfully!', 'success');
                 
             } catch (PDOException $e) {
@@ -935,6 +948,22 @@ if ($flash) {
                                     <option value="admin">Administrator</option>
                                 </select>
                             </div>
+
+                            <!-- SHOW ONLY IF Evaluator -->
+<div class="col-md-6" id="editProgramSelectWrapper" style="display:none;">
+  <label for="edit_program_id" class="form-label">Assign Program</label>
+  <select name="program_id" id="edit_program_id" class="form-select" size="1">
+    <option value="">-- Select Program --</option>
+    <?php
+      // reuse $pdo; no need to require again
+      $programs = $pdo->query("SELECT id, program_name, program_code FROM programs ORDER BY program_code")->fetchAll();
+      foreach ($programs as $p) {
+        echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['program_code'].' - '.$p['program_name']).'</option>';
+      }
+    ?>
+  </select>
+</div>
+
                             <div class="col-md-6">
                                 <label for="edit_status" class="form-label">Status *</label>
                                 <select class="form-select" id="edit_status" name="status" required>
@@ -993,19 +1022,63 @@ if ($flash) {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
+async function fetchUserPrograms(userId) {
+  try {
+    const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(userId));
+    if (!res.ok) return [];
+    return await res.json(); // e.g., ["2","5"]
+  } catch (e) {
+    return [];
+  }
+}
+
+function toggleEditProgram() {
+  const roleSel = document.getElementById('edit_user_type');
+  const wrap = document.getElementById('editProgramSelectWrapper');
+  if (!roleSel || !wrap) return;
+  wrap.style.display = (roleSel.value === 'evaluator') ? 'block' : 'none';
+}
+
+async function preselectEditProgram(userId) {
+  const select = document.getElementById('edit_program_id');
+  if (!select) return;
+  // clear
+  for (const opt of select.options) opt.selected = false;
+
+  const assigned = await fetchUserPrograms(userId); // ["<program_id>", ...]
+  if (assigned.length) {
+    const val = String(assigned[0]); // single-select: first assigned
+    for (const opt of select.options) {
+      opt.selected = (opt.value === val);
+    }
+  } else {
+    select.value = '';
+  }
+
+
+
         function editUser(user) {
-            document.getElementById('edit_user_id').value = user.id;
-            document.getElementById('edit_first_name').value = user.first_name || '';
-            document.getElementById('edit_last_name').value = user.last_name || '';
-            document.getElementById('edit_middle_name').value = user.middle_name || '';
-            document.getElementById('edit_email').value = user.email || '';
-            document.getElementById('edit_phone').value = user.phone || '';
-            document.getElementById('edit_address').value = user.address || '';
-            document.getElementById('edit_user_type').value = user.user_type || '';
-            document.getElementById('edit_status').value = user.status || '';
-            
-            new bootstrap.Modal(document.getElementById('editUserModal')).show();
-        }
+           document.getElementById('edit_user_id').value = user.id;
+  document.getElementById('edit_first_name').value = user.first_name || '';
+  document.getElementById('edit_last_name').value = user.last_name || '';
+  document.getElementById('edit_middle_name').value = user.middle_name || '';
+  document.getElementById('edit_email').value = user.email || '';
+  document.getElementById('edit_phone').value = user.phone || '';
+  document.getElementById('edit_address').value = user.address || '';
+  document.getElementById('edit_user_type').value = user.user_type || '';
+  document.getElementById('edit_status').value = user.status || '';
+
+  // Show/hide program select
+  toggleEditProgram();
+  document.getElementById('edit_user_type').onchange = toggleEditProgram;
+
+  // Kung evaluator, preselect current program
+  if (document.getElementById('edit_user_type').value === 'evaluator') {
+    await preselectEditProgram(user.id);
+  }
+
+  new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
 
         function resetPassword(userId, userName) {
             document.getElementById('reset_user_id').value = userId;

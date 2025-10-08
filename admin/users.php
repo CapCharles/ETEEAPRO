@@ -464,6 +464,13 @@ if ($flash) {
         .role-admin { background-color: #dc3545; color: white; }
         .role-evaluator { background-color: #fd7e14; color: white; }
         .role-candidate { background-color: #0dcaf0; color: white; }
+
+        #programSelectWrapper .form-select {
+  height: auto;      /* huwag gawing listbox height */
+  min-height: auto;
+  appearance: auto;  /* ibalik native dropdown arrow */
+}
+
     </style>
 </head>
 <body>
@@ -843,17 +850,16 @@ if ($flash) {
             <!-- Program Dropdown (hidden by default) -->
             <div class="col-md-8" id="programSelectWrapper" style="display:none;">
               <label class="form-label">Assign Program</label>
-            <select name="program_id[]" id="program_id" class="form-select" multiple>
+          <select name="program_id" id="program_id" class="form-select" size="1">
+  <option value="">-- Select Program --</option>
+  <?php
+    $programs = $pdo->query("SELECT id, program_name, program_code FROM programs")->fetchAll();
+    foreach ($programs as $p) {
+      echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['program_code'].' - '.$p['program_name']).'</option>';
+    }
+  ?>
+</select>
 
-                <option value="">-- Select Program --</option>
-                <?php
-                  // $pdo is already available above, no need to require again
-                  $programs = $pdo->query("SELECT id, program_name, program_code FROM programs")->fetchAll();
-                  foreach ($programs as $p) {
-                    echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['program_code'].' - '.$p['program_name']).'</option>';
-                  }
-                ?>
-              </select>
             </div>
 
             <div class="col-md-4">

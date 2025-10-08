@@ -524,18 +524,18 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     
                     <!-- Required/Bridging Subjects -->
                     <?php if (!empty($bridging_requirements)): ?>
-                    <div class="mb-3">
-                        <h6 class="mb-3">
-                            <i class="fas fa-graduation-cap me-2 text-warning"></i>
-                            Required Bridging Courses
-                            <span class="badge bg-warning text-dark ms-2"><?php echo count($bridging_requirements); ?> subjects</span>
-                        </h6>
-                        <div class="alert alert-warning bg-opacity-10">
-                            <p class="small mb-2">
-                                <i class="fas fa-exclamation-triangle me-1"></i>
-                                To complete your degree, you must fulfill the following bridging courses:
-                            </p>
-                        </div>
+                  <div id="bridging-section" class="mb-3">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0">
+      <i class="fas fa-graduation-cap me-2 text-warning"></i>
+      Required Bridging Courses
+      <span class="badge bg-warning text-dark ms-2"><?php echo count($bridging_requirements); ?> subjects</span>
+    </h6>
+    <button type="button" class="btn btn-secondary btn-sm no-print" onclick="printSection('bridging')">
+      <i class="fas fa-print me-1"></i>Print Required
+    </button>
+  </div>
+
                         <div class="table-responsive">
                             <table class="table table-sm table-hover">
                                 <thead class="table-warning">

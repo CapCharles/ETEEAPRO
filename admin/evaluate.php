@@ -19,15 +19,6 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
 }
 
 $user_id = $_SESSION['user_id'];
-$userRole = $_SESSION['user_type'] ?? '';
-
-// Kunin ang program IDs na naka-assign sa evaluator
-$assignedProgramIds = [];
-if ($userRole === 'evaluator') {
-    $stmt = $pdo->prepare("SELECT program_id FROM evaluator_programs WHERE evaluator_id = ?");
-    $stmt->execute([$userId]);
-    $assignedProgramIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-}
 $user_type = $_SESSION['user_type'];
 $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
@@ -101,49 +92,6 @@ function getPendingReviewsCount($pdo) {
         return 0;
     }
 }
-
-
-$conds = [];      // lahat ng WHERE conditions dito ilalagay
-$params = [];     // lahat ng bound params dito ilalagay
-
-// example: ipakita lang 'submitted' at 'under_review'
-$conds[] = "a.application_status IN ('submitted','under_review')";
-
-if ($userRole === 'evaluator') {
-    if (!empty($assignedProgramIds)) {
-        // a.program_id IN (?, ?, ...)
-        $placeholders = implode(',', array_fill(0, count($assignedProgramIds), '?'));
-        $conds[] = "a.program_id IN ($placeholders)";
-        $params = array_merge($params, $assignedProgramIds);
-    } else {
-        // walang assigned → walang makikita
-        $conds[] = "1=0";
-    }
-}
-
-$whereSql = $conds ? ('WHERE '.implode(' AND ', $conds)) : '';
-
-// === COUNT (for badges / sidebar) ===
-$sqlCount = "SELECT COUNT(*) 
-             FROM applications a
-             $whereSql";
-$stmt = $pdo->prepare($sqlCount);
-$stmt->execute($params);
-$sidebar_submitted_count = (int)$stmt->fetchColumn();
-
-// === MAIN LIST ===
-$sqlList = "SELECT a.*, u.first_name, u.last_name, p.program_code, p.program_name
-            FROM applications a
-            JOIN users u    ON u.id = a.user_id
-            JOIN programs p ON p.id = a.program_id
-            $whereSql
-            ORDER BY a.created_at DESC
-            LIMIT $per_page OFFSET $offset";
-
-$stmt = $pdo->prepare($sqlList);
-$stmt->execute($params);
-$applications = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 // Email configuration
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;

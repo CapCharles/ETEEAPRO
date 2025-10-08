@@ -346,9 +346,81 @@ function getStatusColor($status) {
         .progress {
             height: 8px;
         }
+
+        /* Utility */
+.page-break { break-before: page; }
+
+/* Default canvas height for screen already set in your CSS */
+
+@media print {
+  /* Hide non-report UI */
+  .sidebar,
+  .filter-card,
+  .dropdown,
+  .btn,
+  nav,
+  .d-flex.gap-2 { display: none !important; }
+
+  /* Expand main area */
+  .col-md-9, .col-lg-10 { width: 100% !important; }
+
+  /* Clean card look on paper */
+  .report-card, .stat-card, .chart-container {
+    box-shadow: none !important;
+    border: 1px solid #ddd !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    background: #fff !important;
+  }
+
+  /* Charts height for print */
+  .chart-container canvas { max-height: 300px !important; }
+
+  /* Show print header/footer */
+  #print-header, #print-footer { display: block !important; }
+
+  /* Page margins and color fidelity */
+  @page { size: A4 portrait; margin: 16mm; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  /* Tables */
+  table.table { border-collapse: collapse !important; }
+  table.table th, table.table td { border: 1px solid #e5e7eb !important; }
+}
     </style>
 </head>
 <body>
+
+<!-- PRINT-ONLY HEADER -->
+<div id="print-header" class="d-none">
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+    <!-- Optional logo -->
+    <!-- <img src="../assets/img/logo.png" alt="Logo" style="height:44px;"> -->
+    <div>
+      <h2 style="margin:0;">ETEEAP Reports &amp; Analytics</h2>
+      <div style="font-size:12px;color:#555;">
+        Date Range:
+        <span id="ph-range">
+          <?php
+            $__s = $start_date ? date('m/d/Y', strtotime($start_date)) : '—';
+            $__e = $end_date   ? date('m/d/Y', strtotime($end_date))   : '—';
+            echo htmlspecialchars("$__s to $__e");
+          ?>
+        </span><br>
+        Generated at: <?php echo date('Y-m-d H:i:s'); ?><br>
+        Prepared by: <?php echo htmlspecialchars($_SESSION['user_name'] ?? ''); ?>
+      </div>
+    </div>
+  </div>
+  <hr style="margin:8px 0 14px 0;">
+</div>
+
+<!-- PRINT-ONLY FOOTER -->
+<div id="print-footer" class="d-none" style="font-size:12px;color:#666;text-align:center;margin-top:10px;">
+  <hr style="margin:8px 0 6px 0;">
+  Confidential – For internal use only
+</div>
+
     <div class="container-fluid">
          <div class="row">
             <!-- Sidebar -->
@@ -434,9 +506,9 @@ function getStatusColor($status) {
                             <p class="text-muted mb-0">Comprehensive insights into ETEEAP system performance</p>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-outline-primary" onclick="window.print()">
-                                <i class="fas fa-print me-1"></i>Print Report
-                            </button>
+                           <button class="btn btn-outline-primary" onclick="printReport()">
+  <i class="fas fa-print me-1"></i>Print Report
+</button>
                             <button class="btn btn-primary" onclick="exportData()">
                                 <i class="fas fa-download me-1"></i>Export Data
                             </button>
@@ -866,6 +938,60 @@ function getStatusColor($status) {
             }
         `;
         document.head.appendChild(style);
+
+
+        // Convert canvases to images para crisp sa papel
+function replaceCanvasesWithImages() {
+  const replaced = [];
+  document.querySelectorAll('canvas').forEach(cv => {
+    try {
+      // Ensure white background
+      const tmp = document.createElement('canvas');
+      tmp.width = cv.width; tmp.height = cv.height;
+      const ctx = tmp.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, tmp.width, tmp.height);
+      ctx.drawImage(cv, 0, 0);
+
+      const dataURL = tmp.toDataURL('image/png');
+      const img = new Image();
+      img.src = dataURL;
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+      img.width = cv.width;
+      img.height = cv.height;
+
+      cv.dataset.printBackup = '1';
+      cv.style.display = 'none';
+      cv.parentNode.insertBefore(img, cv.nextSibling);
+      replaced.push({ canvas: cv, image: img });
+    } catch(e) { /* ignore */ }
+  });
+  return replaced;
+}
+
+function restoreCanvases(replaced) {
+  replaced.forEach(({canvas, image}) => {
+    if (image && image.parentNode) image.parentNode.removeChild(image);
+    canvas.style.display = '';
+    delete canvas.dataset.printBackup;
+  });
+}
+
+let _printSwap = [];
+
+function printReport() {
+  _printSwap = replaceCanvasesWithImages();
+  // Small delay para sure loaded images
+  setTimeout(() => {
+    window.print();
+    // Fallback restore kung walang afterprint event
+    setTimeout(() => restoreCanvases(_printSwap), 1200);
+  }, 200);
+}
+
+window.addEventListener('beforeprint', () => { _printSwap = replaceCanvasesWithImages(); });
+window.addEventListener('afterprint',  () => { restoreCanvases(_printSwap); _printSwap = []; });
     </script>
 </body>
 </html>

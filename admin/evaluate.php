@@ -1392,52 +1392,21 @@ if ($application_id) {
 
 // Get all applications for listing
 $applications = [];
-// ---- FILTERS from UI (kung meron kang dropdown "Filter: All") ----
-$status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
-// allowed: 'all', 'submitted', 'under_review', 'completed', 'qualified', 'partially_qualified', 'not_qualified', etc.
-
-// ---- Build query ----
+$where_clause = "WHERE 1=1";
 $params = [];
+
 $sql = "
-  SELECT a.*, p.program_code, p.program_name,
-         CONCAT(u.first_name,' ',u.last_name) AS candidate_name, u.email AS candidate_email
+  SELECT a.*, p.program_code, p.program_name, u.first_name, u.last_name
   FROM applications a
   LEFT JOIN programs p ON p.id = a.program_id
-  LEFT JOIN users u     ON u.id = a.user_id
-  WHERE 1=1
+  LEFT JOIN users u ON u.id = a.user_id
+  WHERE a.application_status IN ('submitted','under_review')
+  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
+  LIMIT 50
 ";
 
-if ($status_filter === 'submitted') {
-    $sql .= " AND a.application_status = 'submitted' ";
-} elseif ($status_filter === 'under_review') {
-    $sql .= " AND a.application_status = 'under_review' ";
-} elseif ($status_filter === 'completed') {
-    $sql .= " AND a.application_status IN ('qualified','partially_qualified','not_qualified') ";
-} elseif (in_array($status_filter, ['qualified','partially_qualified','not_qualified','draft'])) {
-    $sql .= " AND a.application_status = ? ";
-    $params[] = $status_filter;
-} else {
-    // 'all' -> no extra status filter
-}
-
-// order & limit
-$sql .= " ORDER BY COALESCE(a.submission_date, a.created_at) DESC LIMIT 100 ";
-
-// ---- APPLY EVALUATOR SCOPE (assigned-to-me only). 
-// Gusto mong makita rin ang unassigned? gawing true yung 5th arg.
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, /* include_unassigned */ false);
-
-// ---- Execute ----
-try {
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    $rows = $stmt->fetchAll();
-} catch (PDOException $e) {
-    error_log("EVALUATE LIST SQL ERROR: ".$e->getMessage());
-    error_log("SQL: ".$sql);
-    error_log("PARAMS: ".json_encode($params));
-    die('Database error. Please check error_log.');
-}
+// idagdag ang evaluator scope (kung evaluator)
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);

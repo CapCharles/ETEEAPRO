@@ -1049,6 +1049,7 @@ if ($flash) {
 async function fetchUserPrograms(userId) {
   try {
    const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(user.id));
+
     if (!res.ok) return [];
     return await res.json(); // ["2","5",...]
   } catch (e) {

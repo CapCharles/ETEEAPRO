@@ -24,55 +24,31 @@ try {
 } catch (PDOException $e) {
     $sidebar_submitted_count = 0;
 }
-$allowed_program_ids = [];
-if ($user_type === 'evaluator') {
+
+// Get subjects from database for bridging recommendations
+$predefined_subjects = [];
+if (!empty($current_application['program_id'])) {
     try {
-        $stmt = $pdo->prepare("SELECT program_id FROM evaluator_programs WHERE evaluator_id = ?");
-        $stmt->execute([$_SESSION['user_id']]);
-        $allowed_program_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        if (empty($allowed_program_ids)) {
-            // Ensure no data leaks if no assignment
-            $allowed_program_ids = [-1]; 
-        }
+        $stmt = $pdo->prepare("
+            SELECT 
+                subject_code as code, 
+                subject_name as name, 
+                units,
+                year_level,
+                semester,
+                1 as priority
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (PDOException $e) {
-        $allowed_program_ids = [-1];
+        error_log("Error fetching subjects: " . $e->getMessage());
+        $predefined_subjects = [];
     }
 }
 
-function buildFilterWhere(string $tableCreatedAt, bool $useProgramJoin, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids) {
-    $where = [];
-    $params = [];
-
-    // Date range (inclusive)
-    if (!empty($start_date) && !empty($end_date)) {
-        $where[] = "DATE($tableCreatedAt) BETWEEN ? AND ?";
-        $params[] = $start_date;
-        $params[] = $end_date;
-    }
-
-    // Program filter (by program_code if $useProgramJoin, else by program_id)
-    if (!empty($program_filter)) {
-        if ($useProgramJoin) {
-            // assuming alias p.program_code
-            $where[] = "p.program_code = ?";
-            $params[] = $program_filter;
-        } else {
-            // assuming alias a.program_id then subquery map by code
-            $where[] = "a.program_id IN (SELECT id FROM programs WHERE program_code = ?)";
-            $params[] = $program_filter;
-        }
-    }
-
-    // Evaluator scope (limit to assigned program_ids)
-    if ($user_type === 'evaluator' && !empty($allowed_program_ids)) {
-        $in = implode(',', array_fill(0, count($allowed_program_ids), '?'));
-        $where[] = "a.program_id IN ($in)";
-        $params = array_merge($params, $allowed_program_ids);
-    }
-
-    $sqlWhere = $where ? (' WHERE ' . implode(' AND ', $where)) : '';
-    return [$sqlWhere, $params];
-}
 
 $sidebar_pending_count = 0;
 try {
@@ -102,213 +78,154 @@ function getPendingReviewsCount($pdo) {
         return 0;
     }
 }
-
+// Get comprehensive statistics
 $stats = [];
 try {
-    // TOTAL applications (filtered)
-    [$w, $p] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM applications a $w");
-    $stmt->execute($p);
-    $stats['total_applications'] = (int)$stmt->fetch()['total'];
-
-    // TOTAL candidates (filtered via having at least one filtered application)
+    // Basic counts
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM applications");
+    $stats['total_applications'] = $stmt->fetch()['total'];
+    
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'candidate'");
+    $stats['total_candidates'] = $stmt->fetch()['total'];
+    
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM documents");
+    $stats['total_documents'] = $stmt->fetch()['total'];
+    
+    // Applications in date range
     $stmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT a.user_id) AS total
-        FROM applications a
-        $w
+        SELECT COUNT(*) as total FROM applications 
+        WHERE DATE(created_at) BETWEEN ? AND ?
     ");
-    $stmt->execute($p);
-    $stats['total_candidates'] = (int)$stmt->fetch()['total'];
-
-    // TOTAL documents (filtered by documents.created_at and application scope)
-    [$wd, $pd] = buildFilterWhere('d.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    // add join to applications
-    $wd = $wd ? str_replace(' WHERE ', ' WHERE ', $wd) : ' WHERE 1=1 ';
-    $sqlDocs = "
-        SELECT COUNT(*) AS total
-        FROM documents d
-        LEFT JOIN applications a ON a.id = d.application_id
-        " . $wd;
-    $stmt = $pdo->prepare($sqlDocs);
-    $stmt->execute($pd);
-    $stats['total_documents'] = (int)$stmt->fetch()['total'];
-
-    // Applications in period (same as total_applications since we applied date range globally)
-    $stats['period_applications'] = $stats['total_applications'];
-
-    // Avg processing time (filtered)
-    [$w2, $p2] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $sqlAvg = "
-        SELECT AVG(DATEDIFF(a.evaluation_date, a.submission_date)) as avg_days
-        FROM applications a
-        $w2 AND a.submission_date IS NOT NULL AND a.evaluation_date IS NOT NULL
-    ";
-    // if $w2 empty, kailangan ‘WHERE’ bago AND
-    if (!$w2) $sqlAvg = str_replace(' AND ', ' WHERE ', $sqlAvg);
-    $stmt = $pdo->prepare($sqlAvg);
-    $stmt->execute($p2);
-    $stats['avg_processing_days'] = $stmt->fetch()['avg_days'] ? round($stmt->fetch()['avg_days'], 1) : 0;
-
-    // Success rate (filtered)
-    [$w3, $p3] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $sqlSucc = "
+    $stmt->execute([$start_date, $end_date]);
+    $stats['period_applications'] = $stmt->fetch()['total'];
+    
+    // Average processing time (from submission to evaluation)
+    $stmt = $pdo->query("
+        SELECT AVG(DATEDIFF(evaluation_date, submission_date)) as avg_days
+        FROM applications 
+        WHERE submission_date IS NOT NULL AND evaluation_date IS NOT NULL
+    ");
+    $avg_processing = $stmt->fetch()['avg_days'];
+    $stats['avg_processing_days'] = $avg_processing ? round($avg_processing, 1) : 0;
+    
+    // Success rate
+    $stmt = $pdo->query("
         SELECT 
             COUNT(*) as total_evaluated,
-            SUM(CASE WHEN a.application_status IN ('qualified','partially_qualified') THEN 1 ELSE 0 END) as successful
-        FROM applications a
-        $w3 AND a.application_status IN ('qualified','partially_qualified','not_qualified')
-    ";
-    if (!$w3) $sqlSucc = str_replace(' AND ', ' WHERE ', $sqlSucc);
-    $stmt = $pdo->prepare($sqlSucc);
-    $stmt->execute($p3);
+            SUM(CASE WHEN application_status IN ('qualified', 'partially_qualified') THEN 1 ELSE 0 END) as successful
+        FROM applications 
+        WHERE application_status IN ('qualified', 'partially_qualified', 'not_qualified')
+    ");
     $success_data = $stmt->fetch();
-    $stats['success_rate'] = ($success_data['total_evaluated'] ?? 0) > 0
-        ? round(($success_data['successful'] / $success_data['total_evaluated']) * 100, 1)
-        : 0;
-
-    // Avg score (filtered)
-    [$w4, $p4] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $sqlAvgScore = "
-        SELECT AVG(a.total_score) as avg_score
-        FROM applications a
-        $w4 AND a.total_score > 0
-    ";
-    if (!$w4) $sqlAvgScore = str_replace(' AND ', ' WHERE ', $sqlAvgScore);
-    $stmt = $pdo->prepare($sqlAvgScore);
-    $stmt->execute($p4);
+    $stats['success_rate'] = $success_data['total_evaluated'] > 0 ? 
+        round(($success_data['successful'] / $success_data['total_evaluated']) * 100, 1) : 0;
+    
+    // Average score
+    $stmt = $pdo->query("SELECT AVG(total_score) as avg_score FROM applications WHERE total_score > 0");
     $avg_score = $stmt->fetch()['avg_score'];
     $stats['avg_score'] = $avg_score ? round($avg_score, 1) : 0;
-
+    
 } catch (PDOException $e) {
     $stats = array_fill_keys([
-        'total_applications', 'total_candidates', 'total_documents',
+        'total_applications', 'total_candidates', 'total_documents', 
         'period_applications', 'avg_processing_days', 'success_rate', 'avg_score'
     ], 0);
 }
 
-
-
 // Get status distribution
 $status_distribution = [];
 try {
-    [$w, $p] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $sql = "
-        SELECT a.application_status, COUNT(*) as count
-        FROM applications a
-        $w
-        GROUP BY a.application_status
+    $stmt = $pdo->query("
+        SELECT application_status, COUNT(*) as count
+        FROM applications 
+        GROUP BY application_status
         ORDER BY count DESC
-    ";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($p);
+    ");
     while ($row = $stmt->fetch()) {
         $status_distribution[] = [
             'status' => getStatusDisplayName($row['application_status']),
-            'count'  => (int)$row['count'],
-            'color'  => getStatusColor($row['application_status'])
+            'count' => $row['count'],
+            'color' => getStatusColor($row['application_status'])
         ];
     }
-} catch (PDOException $e) { $status_distribution = []; }
-
+} catch (PDOException $e) {
+    $status_distribution = [];
+}
 
 // Get program statistics
 $program_stats = [];
 try {
-    [$w, $p] = buildFilterWhere('a.created_at', true, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    // Note: we still want to list programs even if 0 apps in filtered period -> LEFT JOIN
-    $sql = "
+    $stmt = $pdo->query("
         SELECT 
             p.program_name,
             p.program_code,
             COUNT(a.id) as total_applications,
             AVG(CASE WHEN a.total_score > 0 THEN a.total_score END) as avg_score,
-            SUM(CASE WHEN a.application_status = 'qualified' THEN 1 ELSE 0 END) as qualified_count,
-            SUM(CASE WHEN a.application_status = 'partially_qualified' THEN 1 ELSE 0 END) as partial_count
+            COUNT(CASE WHEN a.application_status = 'qualified' THEN 1 END) as qualified_count,
+            COUNT(CASE WHEN a.application_status = 'partially_qualified' THEN 1 END) as partial_count
         FROM programs p
         LEFT JOIN applications a ON p.id = a.program_id
-        " . ($w ? str_replace(' WHERE ', ' WHERE ', $w) : '') . "
         GROUP BY p.id, p.program_name, p.program_code
-        ORDER BY total_applications DESC, p.program_name
-    ";
-    // If $w is empty, we still need to apply evaluator scope. buildFilterWhere returns empty WHERE, so no scope.
-    // To ensure evaluator scope still applies even if no date/program filter, handle separately:
-    if (!$w && $user_type === 'evaluator' && !empty($allowed_program_ids)) {
-        $in = implode(',', array_fill(0, count($allowed_program_ids), '?'));
-        $sql = str_replace("LEFT JOIN applications a ON p.id = a.program_id",
-            "LEFT JOIN applications a ON p.id = a.program_id AND a.program_id IN ($in)", $sql);
-        $p = array_merge($p, $allowed_program_ids);
-    }
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($p);
+        ORDER BY total_applications DESC
+    ");
     $program_stats = $stmt->fetchAll();
-} catch (PDOException $e) { $program_stats = []; }
-
+} catch (PDOException $e) {
+    $program_stats = [];
+}
 
 // Get monthly trends (last 12 months)
 $monthly_trends = [];
 try {
-    [$w, $p] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $sql = "
+    $stmt = $pdo->query("
         SELECT 
-            DATE_FORMAT(a.created_at, '%Y-%m') as ym,
+            DATE_FORMAT(created_at, '%Y-%m') as month,
             COUNT(*) as applications,
-            SUM(CASE WHEN a.application_status IN ('qualified','partially_qualified') THEN 1 ELSE 0 END) as successful
-        FROM applications a
-        $w
-        GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
-        ORDER BY ym ASC
-    ";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($p);
+            COUNT(CASE WHEN application_status IN ('qualified', 'partially_qualified') THEN 1 END) as successful
+        FROM applications 
+        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        ORDER BY month ASC
+    ");
     while ($row = $stmt->fetch()) {
-        $monthLabel = date('M Y', strtotime($row['ym'] . '-01'));
-        $apps = (int)$row['applications'];
-        $succ = (int)$row['successful'];
         $monthly_trends[] = [
-            'month' => $monthLabel,
-            'applications' => $apps,
-            'successful' => $succ,
-            'success_rate' => $apps > 0 ? round(($succ / $apps) * 100, 1) : 0
+            'month' => date('M Y', strtotime($row['month'] . '-01')),
+            'applications' => $row['applications'],
+            'successful' => $row['successful'],
+            'success_rate' => $row['applications'] > 0 ? round(($row['successful'] / $row['applications']) * 100, 1) : 0
         ];
     }
-} catch (PDOException $e) { $monthly_trends = []; }
-
+} catch (PDOException $e) {
+    $monthly_trends = [];
+}
 
 // Get top documents by type
 $document_stats = [];
 try {
-    [$w, $p] = buildFilterWhere('d.created_at', true, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-    $sql = "
+    $stmt = $pdo->query("
         SELECT 
-            d.document_type,
+            document_type,
             COUNT(*) as count,
-            AVG(d.file_size) as avg_size
-        FROM documents d
-        LEFT JOIN applications a ON a.id = d.application_id
-        LEFT JOIN programs p ON p.id = a.program_id
-        $w
-        GROUP BY d.document_type
+            AVG(file_size) as avg_size
+        FROM documents 
+        GROUP BY document_type
         ORDER BY count DESC
-    ";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($p);
+    ");
     while ($row = $stmt->fetch()) {
         $document_stats[] = [
             'type' => getDocumentTypeDisplayName($row['document_type']),
-            'count' => (int)$row['count'],
+            'count' => $row['count'],
             'avg_size' => formatFileSize($row['avg_size'])
         ];
     }
-} catch (PDOException $e) { $document_stats = []; }
-
+} catch (PDOException $e) {
+    $document_stats = [];
+}
 
 // Get evaluator performance (for admins only)
 $evaluator_stats = [];
 if ($user_type === 'admin') {
     try {
-        [$w, $p] = buildFilterWhere('a.created_at', false, $program_filter, $start_date, $end_date, $user_type, $allowed_program_ids);
-        $sql = "
+        $stmt = $pdo->query("
             SELECT 
                 CONCAT(u.first_name, ' ', u.last_name) as evaluator_name,
                 COUNT(a.id) as applications_evaluated,
@@ -316,37 +233,16 @@ if ($user_type === 'admin') {
                 AVG(DATEDIFF(a.evaluation_date, a.submission_date)) as avg_processing_days
             FROM users u
             LEFT JOIN applications a ON u.id = a.evaluator_id
-            $w AND u.user_type IN ('admin','evaluator')
+            WHERE u.user_type IN ('admin', 'evaluator')
             GROUP BY u.id, u.first_name, u.last_name
             HAVING applications_evaluated > 0
             ORDER BY applications_evaluated DESC
-        ";
-        if (!$w) $sql = str_replace(' AND u.user_type', ' WHERE u.user_type', $sql);
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($p);
+        ");
         $evaluator_stats = $stmt->fetchAll();
-    } catch (PDOException $e) { $evaluator_stats = []; }
-}
-
-
-// Build program list for the dropdown (stable, not from $program_stats)
-$program_options = [];
-try {
-    if ($user_type === 'evaluator') {
-        if (!empty($allowed_program_ids)) {
-            $in = implode(',', array_fill(0, count($allowed_program_ids), '?'));
-            $stmt = $pdo->prepare("SELECT program_code, program_name FROM programs WHERE id IN ($in) ORDER BY program_name");
-            $stmt->execute($allowed_program_ids);
-        } else {
-            $stmt = $pdo->prepare("SELECT program_code, program_name FROM programs WHERE 1=0"); // none
-            $stmt->execute();
-        }
-    } else {
-        $stmt = $pdo->query("SELECT program_code, program_name FROM programs ORDER BY program_name");
+    } catch (PDOException $e) {
+        $evaluator_stats = [];
     }
-    $program_options = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (PDOException $e) { $program_options = []; }
-
+}
 
 // Helper function for status colors
 function getStatusColor($status) {
@@ -583,16 +479,14 @@ function getStatusColor($status) {
                             </div>
                             <div class="col-md-4">
                                 <label for="program" class="form-label">Program Filter</label>
-                               <select class="form-select" id="program" name="program">
-    <option value="">All Programs</option>
-    <?php foreach ($program_options as $p): ?>
-        <option value="<?php echo htmlspecialchars($p['program_code']); ?>"
-            <?php echo $program_filter === $p['program_code'] ? 'selected' : ''; ?>>
-            <?php echo htmlspecialchars($p['program_name']); ?>
-        </option>
-    <?php endforeach; ?>
-</select>
-
+                                <select class="form-select" id="program" name="program">
+                                    <option value="">All Programs</option>
+                                    <?php foreach ($program_stats as $program): ?>
+                                    <option value="<?php echo $program['program_code']; ?>" <?php echo $program_filter === $program['program_code'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($program['program_name']); ?>
+                                    </option>
+                                    <?php endforeach; ?>
+                                </select>
                             </div>
                             <div class="col-md-2">
                                 <button type="submit" class="btn btn-primary w-100">

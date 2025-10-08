@@ -352,41 +352,7 @@ function getStatusColor($status) {
 
 /* Default canvas height for screen already set in your CSS */
 
-@media print {
-  /* Hide non-report UI */
-  .sidebar,
-  .filter-card,
-  .dropdown,
-  .btn,
-  nav,
-  .d-flex.gap-2 { display: none !important; }
 
-  /* Expand main area */
-  .col-md-9, .col-lg-10 { width: 100% !important; }
-
-  /* Clean card look on paper */
-  .report-card, .stat-card, .chart-container {
-    box-shadow: none !important;
-    border: 1px solid #ddd !important;
-    break-inside: avoid;
-    page-break-inside: avoid;
-    background: #fff !important;
-  }
-
-  /* Charts height for print */
-  .chart-container canvas { max-height: 300px !important; }
-
-  /* Show print header/footer */
-  #print-header, #print-footer { display: block !important; }
-
-  /* Page margins and color fidelity */
-  @page { size: A4 portrait; margin: 16mm; }
-  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-  /* Tables */
-  table.table { border-collapse: collapse !important; }
-  table.table th, table.table td { border: 1px solid #e5e7eb !important; }
-}
 #print-report .print-table {
   width: 100%;
   border-collapse: collapse;
@@ -405,12 +371,12 @@ function getStatusColor($status) {
 }
 #print-report .muted { color: #6b7280; }
 
-/* Show/Hide logic for printing */
+
+
 @media print {
-  #screen-report { display: none !important; }  /* hide app UI */
-  #print-report  { display: block !important; } /* show tabular */
-  @page { size: A4 portrait; margin: 14mm; }
-  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* hard override to be absolutely sure */
+  #screen-report { display: none !important; visibility: hidden !important; }
+  #print-report  { display: block !important; visibility: visible !important; }
 }
     </style>
 </head>

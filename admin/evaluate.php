@@ -164,52 +164,30 @@ function getPendingReviewsCount($pdo) {
     }
 }
 
-$appid = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$appid = $_GET['id'] ?? null;
+$application = null;
 
-if ($appid > 0) {
+if ($appid) {
+    $params = [$appid];
     $sql = "
-      SELECT 
-          a.*,
-          p.program_code, p.program_name,
-          c.first_name  AS candidate_first_name,
-          c.last_name   AS candidate_last_name,
-          c.email       AS candidate_email
+      SELECT a.*, p.program_name, p.program_code, u.first_name, u.last_name
       FROM applications a
-      JOIN programs p ON p.id = a.program_id
-      JOIN users   c ON c.id = a.user_id
+      LEFT JOIN programs p ON p.id = a.program_id
+      LEFT JOIN users u ON u.id = a.user_id
       WHERE a.id = ?
     ";
-    $params = [$appid];
-
-    if (!$is_admin) {
-        $sql .= "
-          AND (
-                a.evaluator_id = ?
-             OR (
-                    a.evaluator_id IS NULL
-                AND EXISTS (
-                    SELECT 1
-                    FROM evaluator_programs ep
-                    WHERE ep.evaluator_id = ?
-                      AND ep.program_id   = a.program_id
-                )
-             )
-          )
-        ";
-        $params[] = $user_id;
-        $params[] = $user_id;
-    }
+    // important: idagdag scope DITO rin
+    $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    $application = $stmt->fetch(PDO::FETCH_ASSOC);
+    $application = $stmt->fetch();
 
-    if (!$application) {
+    if (!$application && !$is_admin) {
         http_response_code(403);
-        exit('Forbidden or not found.');
+        exit('Forbidden: This application is not assigned to you.');
     }
 }
-
 // Email configuration
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;

@@ -11,17 +11,6 @@ $user_id = $_SESSION['user_id'];
 $errors = [];
 $success_message = '';
 
-$userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
-if (!$userId) { echo json_encode([]); exit; }
-
-try {
-    $stmt = $pdo->prepare("SELECT program_id FROM evaluator_programs WHERE evaluator_id = ?");
-    $stmt->execute([$userId]);
-    $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    echo json_encode(array_map('strval', $rows)); // ["2","5"]
-} catch (PDOException $e) {
-    echo json_encode([]);
-}
 
 $sidebar_submitted_count = 0;
 try {
@@ -174,9 +163,7 @@ if ($_POST) {
         $address = sanitizeInput($_POST['address']);
         $user_type = $_POST['user_type'];
         $status = $_POST['status'];
-         $program_id   = isset($_POST['program_id']) ? trim($_POST['program_id']) : '';
-
-
+        
         // Validation
         if (empty($first_name) || empty($last_name) || empty($email) || empty($user_type)) {
             $errors[] = "All required fields must be filled";
@@ -199,41 +186,31 @@ if ($_POST) {
             }
         }
         
-  if (empty($errors)) {
-        try {
-            $pdo->beginTransaction();
-
-            // update users table (as-is)
-            $stmt = $pdo->prepare("
-                UPDATE users 
-                   SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
-                       phone = ?, address = ?, user_type = ?, status = ?
-                 WHERE id = ?
-            ");
-            $stmt->execute([
-                $first_name, $last_name, $middle_name, $email,
-                $phone, $address, $user_type, $status, $edit_user_id
-            ]);
-
-            // --- SYNC evaluator_programs
-            // burahin muna lahat ng mapping ng user na ito
-            $del = $pdo->prepare("DELETE FROM evaluator_programs WHERE evaluator_id = ?");
-            $del->execute([$edit_user_id]);
-
-            // kung evaluator at may napiling program, insert
-            if ($user_type === 'evaluator' && $program_id !== '') {
-                $ins = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
-                $ins->execute([$edit_user_id, (int)$program_id]);
+        // Update user
+        if (empty($errors)) {
+            try {
+                $stmt = $pdo->prepare("
+                    UPDATE users 
+                    SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
+                        phone = ?, address = ?, user_type = ?, status = ?
+                    WHERE id = ?
+                ");
+                
+                $stmt->execute([
+                    $first_name, $last_name, $middle_name, $email, $phone, 
+                    $address, $user_type, $status, $edit_user_id
+                ]);
+                
+                // Log activity
+                logActivity($pdo, "user_updated", $user_id, "users", $edit_user_id);
+                
+                redirectWithMessage('users.php', 'User updated successfully!', 'success');
+                
+            } catch (PDOException $e) {
+                $errors[] = "Failed to update user. Please try again.";
             }
-
-            $pdo->commit();
-            redirectWithMessage('users.php', 'User updated successfully!', 'success');
-        } catch (PDOException $e) {
-            $pdo->rollBack();
-            $errors[] = "Failed to update user. Please try again.";
         }
     }
-}
     
     elseif (isset($_POST['reset_password'])) {
         // Reset user password
@@ -959,21 +936,7 @@ if ($flash) {
                                 </select>
                             </div>
 
-                            <!-- SHOW ONLY IF Evaluator -->
-<div class="col-md-6" id="editProgramSelectWrapper" style="display:none;">
-  <label for="edit_program_id" class="form-label">Assign Program</label>
-  <select name="program_id" id="edit_program_id" class="form-select" size="1">
-    <option value="">-- Select Program --</option>
-    <?php
-      // reuse $pdo; no need to require again
-      $programs = $pdo->query("SELECT id, program_name, program_code FROM programs ORDER BY program_code")->fetchAll();
-      foreach ($programs as $p) {
-        echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['program_code'].' - '.$p['program_name']).'</option>';
-      }
-    ?>
-  </select>
-</div>
-
+                            
                             <div class="col-md-6">
                                 <label for="edit_status" class="form-label">Status *</label>
                                 <select class="form-select" id="edit_status" name="status" required>
@@ -1032,71 +995,19 @@ if ($flash) {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-
-        function toggleEditProgram() {
-  const roleSel = document.getElementById('edit_user_type');
-  const wrap = document.getElementById('editProgramSelectWrapper');
-  if (!roleSel || !wrap) return;
-  wrap.style.display = (roleSel.value === 'evaluator') ? 'block' : 'none';
-
-  // kapag hindi evaluator, linisin ang selection
-  if (roleSel.value !== 'evaluator') {
-    const sel = document.getElementById('edit_program_id');
-    if (sel) sel.value = '';
-  }
-}
-
-// --- Kunin ang kasalukuyang naka-assign na program(s) ng user
-async function fetchUserPrograms(userId) {
-  try {
-    const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(userId));
-    if (!res.ok) return [];
-    return await res.json(); // e.g. ["2","5"]
-  } catch (e) {
-    return [];
-  }
-}
-
-// --- Preselect sa dropdown (single-select version)
-async function preselectEditProgram(userId) {
-  const select = document.getElementById('edit_program_id');
-  if (!select) return;
-  // clear
-  for (const opt of select.options) opt.selected = false;
-
-  const assigned = await fetchUserPrograms(userId); // ["<program_id>", ...]
-  if (assigned.length) {
-    const first = String(assigned[0]);
-    for (const opt of select.options) {
-      if (opt.value === first) { opt.selected = true; break; }
-    }
-  } else {
-    select.value = '';
-  }
-}
         function editUser(user) {
-    document.getElementById('edit_user_id').value = user.id;
-  document.getElementById('edit_first_name').value = user.first_name || '';
-  document.getElementById('edit_last_name').value = user.last_name || '';
-  document.getElementById('edit_middle_name').value = user.middle_name || '';
-  document.getElementById('edit_email').value = user.email || '';
-  document.getElementById('edit_phone').value = user.phone || '';
-  document.getElementById('edit_address').value = user.address || '';
-  document.getElementById('edit_user_type').value = user.user_type || '';
-  document.getElementById('edit_status').value = user.status || '';
-
-  // show/hide field based on current role
-  toggleEditProgram();
-  // re-toggle kapag binago sa modal
-  document.getElementById('edit_user_type').onchange = toggleEditProgram;
-
-  // kung evaluator, preselect current program
-  if (document.getElementById('edit_user_type').value === 'evaluator') {
-    await preselectEditProgram(user.id);
-  }
-
-  new bootstrap.Modal(document.getElementById('editUserModal')).show();
-}
+            document.getElementById('edit_user_id').value = user.id;
+            document.getElementById('edit_first_name').value = user.first_name || '';
+            document.getElementById('edit_last_name').value = user.last_name || '';
+            document.getElementById('edit_middle_name').value = user.middle_name || '';
+            document.getElementById('edit_email').value = user.email || '';
+            document.getElementById('edit_phone').value = user.phone || '';
+            document.getElementById('edit_address').value = user.address || '';
+            document.getElementById('edit_user_type').value = user.user_type || '';
+            document.getElementById('edit_status').value = user.status || '';
+            
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        }
 
         function resetPassword(userId, userName) {
             document.getElementById('reset_user_id').value = userId;

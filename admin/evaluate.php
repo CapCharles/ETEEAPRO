@@ -18,19 +18,16 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
     exit();
 }
 
-
+$user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
-
+$is_admin = ($_SESSION['user_type'] === 'admin'); // exact string match
 
 $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
-$is_admin = ($_SESSION['user_type'] === 'admin');
-$user_id  = (int)$_SESSION['user_id'];
 
-// filter ng status (default: pending)
 $filter = $_GET['scope'] ?? 'pending';
 if ($filter === 'completed') {
     $statusList = "('qualified','partially_qualified','not_qualified')";
@@ -86,7 +83,6 @@ $sql .= "
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 
 function evalScopeWhere($is_admin, $user_id) {
     if ($is_admin) return ['', []];

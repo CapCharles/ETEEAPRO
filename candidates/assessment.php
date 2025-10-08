@@ -730,6 +730,44 @@ if ($application && in_array($application['application_status'], ['qualified', '
             location.reload();
         }, 30000);
         <?php endif; ?>
+        
+        function printSection(which) {
+  const secId = which === 'credited' ? 'credited-section' : 'bridging-section';
+  const section = document.getElementById(secId);
+  if (!section) { alert('Nothing to print for ' + which); return; }
+
+  // Gather header meta (Program, Applicant, Dates)
+  const program = <?php echo json_encode($application ? ($application['program_name'] ?? '') : ''); ?>;
+  const applicant = <?php echo json_encode($_SESSION['user_name'] ?? ''); ?>;
+  const today = new Date().toISOString().slice(0,19).replace('T',' ');
+
+  // Build print header + the section HTML (clone tables/alerts/headings inside)
+  const title = which === 'credited' ? 'Credited Subjects' : 'Required Bridging Courses';
+  const header = `
+    <h2 class="print-title">Assessment – ${title}</h2>
+    <div class="meta">
+      Program: <strong>${program || '—'}</strong><br>
+      Candidate: <strong>${applicant || '—'}</strong><br>
+      Generated at: ${today}
+    </div>
+  `;
+
+  // Normalize section HTML into print-friendly tables
+  // (We can reuse your existing table markup safely.)
+  const html = header + section.innerHTML;
+
+  // Inject into print area and print
+  const container = document.getElementById('print-area');
+  container.innerHTML = html;
+
+  // Optional: ensure any Bootstrap classes still look good on paper
+  // (Your @media print CSS already forces borders/colors.)
+
+  window.print();
+
+  // Clean up after print
+  setTimeout(() => { container.innerHTML = ''; }, 500);
+}
     </script>
 </body>
 </html>

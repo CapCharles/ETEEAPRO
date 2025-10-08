@@ -44,8 +44,7 @@ $sql = "
   FROM applications a
   WHERE a.application_status IN ('submitted','under_review')
 ";
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'apps');
-
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -120,8 +119,7 @@ if ($appid) {
       WHERE a.id = ?
     ";
     // important: idagdag scope DITO rin
-   $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'apps');
-
+    $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -1408,8 +1406,7 @@ $sql = "
 ";
 
 // idagdag ang evaluator scope (kung evaluator)
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'apps');
-
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -1444,30 +1441,41 @@ try {
     $applications = [];
 }
 
-// soften scope: assigned to me OR unassigned
-function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = 'a') {
+function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = null) {
     if ($is_admin) return $sql;
 
+    // 1) Subukan i-detect ang alias ng "applications"
+    if ($alias === null) {
+        if (preg_match('/\bFROM\s+applications\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i', $sql, $m)) {
+            $alias = $m[1]; // e.g. 'a'
+        } else {
+            $alias = 'applications'; // walang alias sa query
+        }
+    }
+
+    // 2) Hanap kung saan isisingit (bago ORDER BY / GROUP BY / LIMIT / OFFSET / UNION…)
     $upper = strtoupper($sql);
-    $cutPositions = [];
+    $cuts = [];
     foreach ([' ORDER BY ', ' GROUP BY ', ' LIMIT ', ' OFFSET ', ' UNION ', ' INTERSECT ', ' EXCEPT '] as $kw) {
         $pos = strpos($upper, $kw);
-        if ($pos !== false) $cutPositions[] = $pos;
+        if ($pos !== false) $cuts[] = $pos;
     }
-    $insertPos = empty($cutPositions) ? strlen($sql) : min($cutPositions);
+    $insertPos = empty($cuts) ? strlen($sql) : min($cuts);
 
     $head = substr($sql, 0, $insertPos);
     $tail = substr($sql, $insertPos);
 
-    if (stripos($head, ' WHERE ') !== false) {
-        $head .= " AND ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
-    } else {
-        $head .= " WHERE ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
-    }
+    // 3) May WHERE na ba?
+   if (stripos($head, ' WHERE ') !== false) {
+    $head .= " AND ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
+} else {
+    $head .= " WHERE ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
+}
 
     $params[] = $user_id;
     return $head . $tail;
 }
+
 
 ?>
 

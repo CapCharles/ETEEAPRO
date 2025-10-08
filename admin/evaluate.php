@@ -44,7 +44,8 @@ $sql = "
   FROM applications a
   WHERE a.application_status IN ('submitted','under_review')
 ";
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'apps');
+
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -119,7 +120,8 @@ if ($appid) {
       WHERE a.id = ?
     ";
     // important: idagdag scope DITO rin
-    $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+   $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'apps');
+
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -1406,7 +1408,8 @@ $sql = "
 ";
 
 // idagdag ang evaluator scope (kung evaluator)
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'apps');
+
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);

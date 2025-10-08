@@ -28,61 +28,7 @@ $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
 
-$filter = $_GET['scope'] ?? 'pending';
-if ($filter === 'completed') {
-    $statusList = "('qualified','partially_qualified','not_qualified')";
-} elseif ($filter === 'all') {
-    $statusList = "('submitted','under_review','qualified','partially_qualified','not_qualified')";
-} else {
-    $statusList = "('submitted','under_review')";
-}
 
-// base query: isama ang candidate info para “sino nag-submit”
-$sql = "
-  SELECT 
-      a.*,
-      p.program_code, p.program_name,
-      c.first_name  AS candidate_first_name,
-      c.last_name   AS candidate_last_name,
-      c.email       AS candidate_email
-  FROM applications a
-  JOIN programs p   ON p.id = a.program_id
-  JOIN users   c    ON c.id = a.user_id
-  WHERE a.application_status IN $statusList
-";
-$params = [];
-
-// scope rules
-if (!$is_admin) {
-    // Evaluator scope:
-    //   (1) assigned to me
-    //   OR (2) unassigned AND program belongs to my assigned programs
-    $sql .= "
-      AND (
-            a.evaluator_id = ?
-         OR (
-                a.evaluator_id IS NULL
-            AND EXISTS (
-                SELECT 1
-                FROM evaluator_programs ep
-                WHERE ep.evaluator_id = ?
-                  AND ep.program_id   = a.program_id
-            )
-         )
-      )
-    ";
-    $params[] = $user_id; // for a.evaluator_id = ?
-    $params[] = $user_id; // for ep.evaluator_id  = ?
-}
-
-$sql .= "
-  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
-  LIMIT 100
-";
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 function evalScopeWhere($is_admin, $user_id) {
     if ($is_admin) return ['', []];

@@ -37,15 +37,19 @@ function evalScopeWhere($is_admin, $user_id) {
 $sidebar_submitted_count = 0;
 list($scopeWhere, $scopeParams) = evalScopeWhere($is_admin, $user_id);
 
+$params = [];
 $sql = "
-    SELECT COUNT(*) 
-    FROM applications a
-    " . ($is_admin ? " WHERE " : $scopeWhere . " AND ") . "
-    a.application_status IN ('submitted', 'under_review')
+  SELECT COUNT(*) 
+  FROM applications a
+  WHERE a.application_status IN ('submitted','under_review')
 ";
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+
 $stmt = $pdo->prepare($sql);
-$stmt->execute($scopeParams);
+$stmt->execute($params);
 $sidebar_submitted_count = (int)$stmt->fetchColumn();
+
+
 
 // Get subjects from database for bridging recommendations
 $predefined_subjects = [];
@@ -98,6 +102,31 @@ function getPendingReviewsCount($pdo) {
     } catch (PDOException $e) {
         error_log("Error getting pending reviews count: " . $e->getMessage());
         return 0;
+    }
+}
+
+$appid = $_GET['id'] ?? null;
+$application = null;
+
+if ($appid) {
+    $params = [$appid];
+    $sql = "
+      SELECT a.*, p.program_name, p.program_code, u.first_name, u.last_name
+      FROM applications a
+      LEFT JOIN programs p ON p.id = a.program_id
+      LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.id = ?
+    ";
+    // important: idagdag scope DITO rin
+    $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $application = $stmt->fetch();
+
+    if (!$application && !$is_admin) {
+        http_response_code(403);
+        exit('Forbidden: This application is not assigned to you.');
     }
 }
 // Email configuration
@@ -1365,27 +1394,51 @@ $applications = [];
 $where_clause = "WHERE 1=1";
 $params = [];
 
-if ($filter_status) {
-    $where_clause .= " AND a.application_status = ?";
-    $params[] = $filter_status;
-}
-
-list($scopeWhere, $scopeParams) = evalScopeWhere($is_admin, $user_id);
-
 $sql = "
   SELECT a.*, p.program_code, p.program_name, u.first_name, u.last_name
   FROM applications a
   LEFT JOIN programs p ON p.id = a.program_id
   LEFT JOIN users u ON u.id = a.user_id
-  " . ($is_admin ? " WHERE " : $scopeWhere . " AND ") . "
-  a.application_status IN ('submitted','under_review')
+  WHERE a.application_status IN ('submitted','under_review')
   ORDER BY COALESCE(a.submission_date, a.created_at) DESC
   LIMIT 50
 ";
+
+// idagdag ang evaluator scope (kung evaluator)
+$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+
 $stmt = $pdo->prepare($sql);
-$stmt->execute($scopeParams);
+$stmt->execute($params);
 $rows = $stmt->fetchAll();
 
+if ($filter_status) {
+    $where_clause .= " AND a.application_status = ?";
+    $params[] = $filter_status;
+}
+
+try {
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.program_name, p.program_code,
+            CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+            u.email as candidate_email
+        FROM applications a 
+        LEFT JOIN programs p ON a.program_id = p.id 
+        LEFT JOIN users u ON a.user_id = u.id
+        $where_clause
+        ORDER BY 
+            CASE a.application_status
+                WHEN 'submitted' THEN 1
+                WHEN 'under_review' THEN 2
+                ELSE 3
+            END,
+            a.submission_date DESC,
+            a.created_at DESC
+    ");
+    $stmt->execute($params);
+    $applications = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $applications = [];
+}
 ?>
 
 <!DOCTYPE html>

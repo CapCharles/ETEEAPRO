@@ -18,16 +18,74 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
     exit();
 }
 
-$user_id = $_SESSION['user_id'];
+
 $user_type = $_SESSION['user_type'];
 $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 $filter_status = isset($_GET['status']) ? $_GET['status'] : '';
-$is_admin = ($_SESSION['user_type'] === 'admin'); // exact string match
+
 
 $errors = [];
 $success_message = '';
 $current_application = null; // <-- add this line
+$is_admin = ($_SESSION['user_type'] === 'admin');
+$user_id  = (int)$_SESSION['user_id'];
 
+// filter ng status (default: pending)
+$filter = $_GET['scope'] ?? 'pending';
+if ($filter === 'completed') {
+    $statusList = "('qualified','partially_qualified','not_qualified')";
+} elseif ($filter === 'all') {
+    $statusList = "('submitted','under_review','qualified','partially_qualified','not_qualified')";
+} else {
+    $statusList = "('submitted','under_review')";
+}
+
+// base query: isama ang candidate info para “sino nag-submit”
+$sql = "
+  SELECT 
+      a.*,
+      p.program_code, p.program_name,
+      c.first_name  AS candidate_first_name,
+      c.last_name   AS candidate_last_name,
+      c.email       AS candidate_email
+  FROM applications a
+  JOIN programs p   ON p.id = a.program_id
+  JOIN users   c    ON c.id = a.user_id
+  WHERE a.application_status IN $statusList
+";
+$params = [];
+
+// scope rules
+if (!$is_admin) {
+    // Evaluator scope:
+    //   (1) assigned to me
+    //   OR (2) unassigned AND program belongs to my assigned programs
+    $sql .= "
+      AND (
+            a.evaluator_id = ?
+         OR (
+                a.evaluator_id IS NULL
+            AND EXISTS (
+                SELECT 1
+                FROM evaluator_programs ep
+                WHERE ep.evaluator_id = ?
+                  AND ep.program_id   = a.program_id
+            )
+         )
+      )
+    ";
+    $params[] = $user_id; // for a.evaluator_id = ?
+    $params[] = $user_id; // for ep.evaluator_id  = ?
+}
+
+$sql .= "
+  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
+  LIMIT 100
+";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
+$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 function evalScopeWhere($is_admin, $user_id) {
@@ -106,30 +164,52 @@ function getPendingReviewsCount($pdo) {
     }
 }
 
-$appid = $_GET['id'] ?? null;
-$application = null;
+$appid = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-if ($appid) {
-    $params = [$appid];
+if ($appid > 0) {
     $sql = "
-      SELECT a.*, p.program_name, p.program_code, u.first_name, u.last_name
+      SELECT 
+          a.*,
+          p.program_code, p.program_name,
+          c.first_name  AS candidate_first_name,
+          c.last_name   AS candidate_last_name,
+          c.email       AS candidate_email
       FROM applications a
-      LEFT JOIN programs p ON p.id = a.program_id
-      LEFT JOIN users u ON u.id = a.user_id
+      JOIN programs p ON p.id = a.program_id
+      JOIN users   c ON c.id = a.user_id
       WHERE a.id = ?
     ";
-    // important: idagdag scope DITO rin
-    $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+    $params = [$appid];
+
+    if (!$is_admin) {
+        $sql .= "
+          AND (
+                a.evaluator_id = ?
+             OR (
+                    a.evaluator_id IS NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM evaluator_programs ep
+                    WHERE ep.evaluator_id = ?
+                      AND ep.program_id   = a.program_id
+                )
+             )
+          )
+        ";
+        $params[] = $user_id;
+        $params[] = $user_id;
+    }
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    $application = $stmt->fetch();
+    $application = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if (!$application && !$is_admin) {
+    if (!$application) {
         http_response_code(403);
-        exit('Forbidden: This application is not assigned to you.');
+        exit('Forbidden or not found.');
     }
 }
+
 // Email configuration
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -1448,7 +1528,7 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
     if ($alias === null) {
         if (preg_match('/\bFROM\s+applications\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i', $sql, $m)) {
             $alias = $m[1]; // e.g. 'a'
-        } else {
+        } else 
             $alias = 'applications'; // walang alias sa query
         }
     }

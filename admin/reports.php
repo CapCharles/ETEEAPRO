@@ -387,33 +387,234 @@ function getStatusColor($status) {
   table.table { border-collapse: collapse !important; }
   table.table th, table.table td { border: 1px solid #e5e7eb !important; }
 }
+#print-report .print-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+#print-report .print-table th,
+#print-report .print-table td {
+  border: 1px solid #e5e7eb;
+  padding: 6px 8px;
+  vertical-align: top;
+}
+#print-report .print-table thead th {
+  background: #f3f4f6;
+  font-weight: 700;
+}
+#print-report .muted { color: #6b7280; }
+
+/* Show/Hide logic for printing */
+@media print {
+  #screen-report { display: none !important; }  /* hide app UI */
+  #print-report  { display: block !important; } /* show tabular */
+  @page { size: A4 portrait; margin: 14mm; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
     </style>
 </head>
 <body>
 
 <!-- PRINT-ONLY HEADER -->
-<div id="print-header" class="d-none">
-  <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+<!-- ===================== PRINT-ONLY TABULAR REPORT ====================== -->
+<div id="print-report" class="d-none">
+  <!-- Header -->
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
     <!-- Optional logo -->
-    <!-- <img src="../assets/img/logo.png" alt="Logo" style="height:44px;"> -->
+    <!-- <img src="../assets/img/logo.png" alt="Logo" style="height:40px;"> -->
     <div>
       <h2 style="margin:0;">ETEEAP Reports &amp; Analytics</h2>
-      <div style="font-size:12px;color:#555;">
+      <div style="font-size:12px;color:#444;line-height:1.4;">
         Date Range:
-        <span id="ph-range">
-          <?php
-            $__s = $start_date ? date('m/d/Y', strtotime($start_date)) : '—';
-            $__e = $end_date   ? date('m/d/Y', strtotime($end_date))   : '—';
-            echo htmlspecialchars("$__s to $__e");
-          ?>
-        </span><br>
+        <?php
+          $pr_s = $start_date ? date('m/d/Y', strtotime($start_date)) : '—';
+          $pr_e = $end_date   ? date('m/d/Y', strtotime($end_date))   : '—';
+          echo htmlspecialchars("$pr_s to $pr_e");
+        ?><br>
         Generated at: <?php echo date('Y-m-d H:i:s'); ?><br>
         Prepared by: <?php echo htmlspecialchars($_SESSION['user_name'] ?? ''); ?>
       </div>
     </div>
   </div>
   <hr style="margin:8px 0 14px 0;">
+
+  <!-- Summary KPIs -->
+  <h4 style="margin:0 0 6px;">Summary</h4>
+  <table class="print-table">
+    <tbody>
+      <tr>
+        <th>Total Applications</th>
+        <td><?php echo (int)$stats['total_applications']; ?></td>
+        <th>In Selected Period</th>
+        <td><?php echo (int)$stats['period_applications']; ?></td>
+      </tr>
+      <tr>
+        <th>Total Candidates</th>
+        <td><?php echo (int)$stats['total_candidates']; ?></td>
+        <th>Total Documents</th>
+        <td><?php echo (int)$stats['total_documents']; ?></td>
+      </tr>
+      <tr>
+        <th>Success Rate</th>
+        <td><?php echo number_format($stats['success_rate'],1); ?>%</td>
+        <th>Avg Processing Days</th>
+        <td><?php echo number_format($stats['avg_processing_days'],1); ?></td>
+      </tr>
+      <tr>
+        <th>Average Score</th>
+        <td><?php echo number_format($stats['avg_score'],1); ?>%</td>
+        <th>Current Period</th>
+        <td><?php echo date('F Y'); ?></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Status Distribution -->
+  <h4 style="margin:16px 0 6px;">Application Status Distribution</h4>
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th style="width:40%;">Status</th>
+        <th style="width:20%;">Count</th>
+        <th style="width:40%;">% of Total</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php
+      $__total = max(1, (int)$stats['total_applications']);
+      if (!empty($status_distribution)):
+        foreach ($status_distribution as $row):
+          $cnt = (int)$row['count'];
+          $pct = round(($cnt / $__total) * 100, 1);
+    ?>
+      <tr>
+        <td><?php echo htmlspecialchars($row['status']); ?></td>
+        <td><?php echo $cnt; ?></td>
+        <td><?php echo $pct; ?>%</td>
+      </tr>
+    <?php endforeach; else: ?>
+      <tr><td colspan="3" class="muted">No data</td></tr>
+    <?php endif; ?>
+    </tbody>
+  </table>
+
+  <!-- Monthly Trends -->
+  <h4 style="margin:16px 0 6px;">Monthly Trends</h4>
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th>Month</th>
+        <th>Applications</th>
+        <th>Successful</th>
+        <th>Success Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php if (!empty($monthly_trends)): foreach ($monthly_trends as $m): ?>
+      <tr>
+        <td><?php echo htmlspecialchars($m['month']); ?></td>
+        <td><?php echo (int)$m['applications']; ?></td>
+        <td><?php echo (int)$m['successful']; ?></td>
+        <td><?php echo number_format($m['success_rate'],1); ?>%</td>
+      </tr>
+    <?php endforeach; else: ?>
+      <tr><td colspan="4" class="muted">No data (last 12 months)</td></tr>
+    <?php endif; ?>
+    </tbody>
+  </table>
+
+  <!-- Program Performance -->
+  <h4 style="margin:16px 0 6px;">Program Performance</h4>
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th>Program Code</th>
+        <th>Program Name</th>
+        <th>Applications</th>
+        <th>Avg Score</th>
+        <th>Qualified</th>
+        <th>Partial</th>
+        <th>Success Rate</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php if (!empty($program_stats)): foreach ($program_stats as $p): 
+        $apps = (int)$p['total_applications'];
+        $succ = $apps > 0 ? round((($p['qualified_count'] + $p['partial_count'])/$apps)*100, 1) : 0;
+    ?>
+      <tr>
+        <td><?php echo htmlspecialchars($p['program_code']); ?></td>
+        <td><?php echo htmlspecialchars($p['program_name']); ?></td>
+        <td><?php echo $apps; ?></td>
+        <td><?php echo $p['avg_score'] ? number_format($p['avg_score'],1).'%' : '—'; ?></td>
+        <td><?php echo (int)$p['qualified_count']; ?></td>
+        <td><?php echo (int)$p['partial_count']; ?></td>
+        <td><?php echo $succ; ?>%</td>
+      </tr>
+    <?php endforeach; else: ?>
+      <tr><td colspan="7" class="muted">No program data</td></tr>
+    <?php endif; ?>
+    </tbody>
+  </table>
+
+  <!-- Document Statistics -->
+  <h4 style="margin:16px 0 6px;">Document Upload Statistics</h4>
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th>Document Type</th>
+        <th>Count</th>
+        <th>Average Size</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php if (!empty($document_stats)): foreach ($document_stats as $d): ?>
+      <tr>
+        <td><?php echo htmlspecialchars($d['type']); ?></td>
+        <td><?php echo (int)$d['count']; ?></td>
+        <td><?php echo htmlspecialchars($d['avg_size']); ?></td>
+      </tr>
+    <?php endforeach; else: ?>
+      <tr><td colspan="3" class="muted">No document data</td></tr>
+    <?php endif; ?>
+    </tbody>
+  </table>
+
+  <!-- Evaluator Performance (admin only) -->
+  <?php if ($user_type === 'admin'): ?>
+  <h4 style="margin:16px 0 6px;">Evaluator Performance</h4>
+  <table class="print-table">
+    <thead>
+      <tr>
+        <th>Evaluator</th>
+        <th>Applications</th>
+        <th>Avg Score Given</th>
+        <th>Avg Processing Days</th>
+      </tr>
+    </thead>
+    <tbody>
+    <?php if (!empty($evaluator_stats)): foreach ($evaluator_stats as $ev): ?>
+      <tr>
+        <td><?php echo htmlspecialchars($ev['evaluator_name']); ?></td>
+        <td><?php echo (int)$ev['applications_evaluated']; ?></td>
+        <td><?php echo $ev['avg_score_given'] ? number_format($ev['avg_score_given'],1).'%' : '—'; ?></td>
+        <td><?php echo $ev['avg_processing_days'] ? number_format($ev['avg_processing_days'],1) : '—'; ?></td>
+      </tr>
+    <?php endforeach; else: ?>
+      <tr><td colspan="4" class="muted">No evaluator data</td></tr>
+    <?php endif; ?>
+    </tbody>
+  </table>
+  <?php endif; ?>
+
+  <div style="margin-top:10px;font-size:11px;color:#666;text-align:center;">
+    <hr style="margin:8px 0 6px 0;">
+    Confidential – For internal use only
+  </div>
 </div>
+<!-- =================== END PRINT-ONLY TABULAR REPORT ==================== -->
+
 
 <!-- PRINT-ONLY FOOTER -->
 <div id="print-footer" class="d-none" style="font-size:12px;color:#666;text-align:center;margin-top:10px;">

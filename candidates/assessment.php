@@ -472,19 +472,17 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     
                     <!-- Passed/Credited Subjects -->
                     <?php if (!empty($passed_subjects)): ?>
-                 <div id="credited-section" class="mb-4">
+                  <div id="credited-section" class="mb-4">
   <div class="d-flex justify-content-between align-items-center mb-2">
     <h6 class="mb-0">
       <i class="fas fa-check-circle me-2 text-success"></i>
       Credited Subjects - Prior Learning Recognition
       <span class="badge bg-success ms-2"><?php echo count($passed_subjects); ?> subjects</span>
     </h6>
-                        <div class="alert alert-success bg-opacity-10">
-                            <p class="small mb-2">
-                                <i class="fas fa-info-circle me-1"></i>
-                                The following subjects have been <strong>CREDITED</strong> based on your demonstrated competencies:
-                            </p>
-                        </div>
+    <button type="button" class="btn btn-secondary btn-sm no-print" onclick="printSection('credited')">
+      <i class="fas fa-print me-1"></i>Print Credited
+    </button>
+  </div>
                         <div class="table-responsive">
                             <table class="table table-sm table-hover">
                                 <thead class="table-success">
@@ -519,9 +517,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                                     </tr>
                                 </tfoot>
                             </table>
-                               <button type="button" class="btn btn-secondary btn-sm no-print" onclick="printSection('credited')">
-      <i class="fas fa-print me-1"></i>Print Credited
-    </button>
+                            
                         </div>
                     </div>
                     <?php endif; ?>
@@ -730,7 +726,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
             location.reload();
         }, 30000);
         <?php endif; ?>
-        
         function printSection(which) {
   const secId = which === 'credited' ? 'credited-section' : 'bridging-section';
   const section = document.getElementById(secId);

@@ -1439,6 +1439,32 @@ try {
 } catch (PDOException $e) {
     $applications = [];
 }
+
+function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = 'a') {
+    if ($is_admin) return $sql;
+
+    // Find insertion point BEFORE trailing clauses
+    $upper = strtoupper($sql);
+    $cutPositions = [];
+    foreach ([' ORDER BY ', ' GROUP BY ', ' LIMIT ', ' OFFSET ', ' UNION ', ' INTERSECT ', ' EXCEPT '] as $kw) {
+        $pos = strpos($upper, $kw);
+        if ($pos !== false) $cutPositions[] = $pos;
+    }
+    $insertPos = empty($cutPositions) ? strlen($sql) : min($cutPositions);
+
+    $head = substr($sql, 0, $insertPos);
+    $tail = substr($sql, $insertPos); // ORDER BY.../LIMIT... part (or empty)
+
+    // Does head already have WHERE?
+    if (stripos($head, ' WHERE ') !== false) {
+        $head .= " AND {$alias}.evaluator_id = ?";
+    } else {
+        $head .= " WHERE {$alias}.evaluator_id = ?";
+    }
+
+    $params[] = $user_id;
+    return $head . $tail;
+}
 ?>
 
 <!DOCTYPE html>

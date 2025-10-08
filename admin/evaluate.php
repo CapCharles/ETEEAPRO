@@ -1448,7 +1448,7 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
     if ($alias === null) {
         if (preg_match('/\bFROM\s+applications\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i', $sql, $m)) {
             $alias = $m[1]; // e.g. 'a'
-        } else 
+        } else {
             $alias = 'applications'; // walang alias sa query
         }
     }
@@ -1466,11 +1466,11 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
     $tail = substr($sql, $insertPos);
 
     // 3) May WHERE na ba?
-   if (stripos($head, ' WHERE ') !== false) {
-    $head .= " AND ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
-} else {
-    $head .= " WHERE ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
-}
+    if (stripos($head, ' WHERE ') !== false) {
+        $head .= " AND {$alias}.evaluator_id = ?";
+    } else {
+        $head .= " WHERE {$alias}.evaluator_id = ?";
+    }
 
     $params[] = $user_id;
     return $head . $tail;

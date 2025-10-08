@@ -153,24 +153,22 @@ try {
     $status_data = [];
 }
 
-// Get monthly application trends
 $monthly_data = [];
 try {
+    // raw counts from DB
     $stmt = $pdo->query("
-        SELECT 
-            DATE_FORMAT(created_at, '%Y-%m') as month,
-            COUNT(*) as count
-        FROM applications 
-        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+        SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym, COUNT(*) AS cnt
+        FROM applications
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
-        ORDER BY month ASC
     ");
-    $monthly_results = $stmt->fetchAll();
-    foreach ($monthly_results as $result) {
-        $monthly_data[] = [
-            'month' => date('M Y', strtotime($result['month'] . '-01')),
-            'count' => $result['count']
-        ];
+    $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR); // ['YYYY-MM' => count]
+
+    // build last 6 months inclusive (oldest -> newest)
+    for ($i = 5; $i >= 0; $i--) {
+        $ym = date('Y-m', strtotime("-$i months"));
+        $label = date('M Y', strtotime("$ym-01"));
+        $monthly_data[] = ['month' => $label, 'count' => isset($rows[$ym]) ? (int)$rows[$ym] : 0];
     }
 } catch (PDOException $e) {
     $monthly_data = [];
@@ -514,7 +512,7 @@ try {
                             <div class="chart-container">
                                 <h5 class="mb-3">Application Status Distribution</h5>
                                 <?php if (!empty($status_data)): ?>
-                                <div id="statusChart" style="height: 250px;"></div>
+                                <canvas id="statusChart" height="250"></canvas>
                                 <?php else: ?>
                                 <div class="text-center py-5 text-muted">
                                     <i class="fas fa-chart-pie fa-3x mb-3"></i>
@@ -531,7 +529,7 @@ try {
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">Monthly Application Trends (Last 6 Months)</h5>
-                                <div id="monthlyChart" style="height: 300px;"></div>
+                                <canvas id="monthlyChart" height="300"></canvas>
                             </div>
                         </div>
                     </div>
@@ -588,75 +586,60 @@ try {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // Status Distribution Chart
-        <?php if (!empty($status_data)): ?>
-        const statusData = <?php echo json_encode($status_data); ?>;
-        const statusLabels = [];
-        const statusCounts = [];
-        const statusColors = [];
+    <?php if (!empty($status_data)): ?>
+
+const statusData = <?php echo json_encode($status_data); ?>;
+const labels = [];
+const counts = [];
+const colors = [];
+const colorMap = {
+  draft:'#6c757d', submitted:'#0dcaf0', under_review:'#ffc107',
+  qualified:'#198754', partially_qualified:'#fd7e14', not_qualified:'#dc3545'
+};
+
+for (const [k,v] of Object.entries(statusData)) {
+  labels.push(k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()));
+  counts.push(v);
+  colors.push(colorMap[k] || '#6c757d');
+}
+
+const ctxStatus = document.getElementById('statusChart').getContext('2d');
+new Chart(ctxStatus, {
+  type: 'doughnut',
+  data: { labels, datasets:[{ data: counts, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins:{ legend:{ position:'bottom', labels:{ usePointStyle:true, padding:16 } } }
+  }
+});
+
+<?php endif; ?>
+
         
-        const colorMap = {
-            'draft': '#6c757d',
-            'submitted': '#0dcaf0',
-            'under_review': '#ffc107',
-            'qualified': '#198754',
-            'partially_qualified': '#fd7e14',
-            'not_qualified': '#dc3545'
-        };
-        
-        for (const [status, count] of Object.entries(statusData)) {
-            statusLabels.push(status.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()));
-            statusCounts.push(count);
-            statusColors.push(colorMap[status] || '#6c757d');
-        }
-        
-        new Chart(document.getElementById('statusChart'), {
-            type: 'doughnut',
-            data: {
-                labels: statusLabels,
-                datasets: [{
-                    data: statusCounts,
-                    backgroundColor: statusColors
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'bottom'
-                    }
-                }
-            }
-        });
-        <?php endif; ?>
-        
-        // Monthly Trends Chart
-        <?php if (!empty($monthly_data)): ?>
-        const monthlyData = <?php echo json_encode($monthly_data); ?>;
-        new Chart(document.getElementById('monthlyChart'), {
-            type: 'line',
-            data: {
-                labels: monthlyData.map(item => item.month),
-                datasets: [{
-                    label: 'Applications',
-                    data: monthlyData.map(item => item.count),
-                    borderColor: '#667eea',
-                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-        <?php endif; ?>
+    <?php if (!empty($monthly_data)): ?>
+
+const monthlyData = <?php echo json_encode($monthly_data); ?>;
+const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
+new Chart(ctxMonthly, {
+  type: 'line',
+  data: {
+    labels: monthlyData.map(x => x.month),
+    datasets: [{
+      label: 'Applications',
+      data: monthlyData.map(x => x.count),
+      borderColor: '#667eea',
+      backgroundColor: 'rgba(102,126,234,0.12)',
+      fill: true, tension: 0.35, pointRadius: 3
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    plugins: { legend: { display: false } }
+  }
+});
+
+<?php endif; ?>
     </script>
 </body>
 </html>

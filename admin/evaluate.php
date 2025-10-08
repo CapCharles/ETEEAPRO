@@ -1393,20 +1393,26 @@ if ($application_id) {
 // Get all applications for listing
 $applications = [];
 $where_clause = "WHERE 1=1";
-$params = [];
+$statusList = "('submitted','under_review')";
 
+$params = [];
 $sql = "
   SELECT a.*, p.program_code, p.program_name, u.first_name, u.last_name
   FROM applications a
   LEFT JOIN programs p ON p.id = a.program_id
   LEFT JOIN users u ON u.id = a.user_id
-  WHERE a.application_status IN ('submitted','under_review')
-  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
-  LIMIT 50
+  WHERE a.application_status IN $statusList
 ";
 
-// idagdag ang evaluator scope (kung evaluator)
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+// ADMIN: kita lahat
+if (!$is_admin) {
+  // Evaluator: assigned-to-me OR unassigned
+  $sql .= " AND (a.evaluator_id = ? OR a.evaluator_id IS NULL)";
+  $params[] = $user_id;
+}
+
+$sql .= " ORDER BY COALESCE(a.submission_date, a.created_at) DESC LIMIT 50";
+
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);

@@ -590,7 +590,9 @@ function getStatusColor($status) {
   Confidential – For internal use only
 </div>
 
+<div id="screen-report" class="d-print-none">
     <div class="container-fluid">
+        
          <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 sidebar">
@@ -965,6 +967,7 @@ function getStatusColor($status) {
                 </div>
             </div>
         </div>
+    </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>

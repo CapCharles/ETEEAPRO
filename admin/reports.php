@@ -418,7 +418,7 @@ function getStatusColor($status) {
 
 <!-- PRINT-ONLY HEADER -->
 <!-- ===================== PRINT-ONLY TABULAR REPORT ====================== -->
-<div id="print-report" class="d-none">
+<div id="print-report" class="d-none d-print-block">
   <!-- Header -->
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
     <!-- Optional logo -->
@@ -708,7 +708,7 @@ function getStatusColor($status) {
                         </div>
                         <div class="d-flex gap-2">
        <button class="btn btn-secondary" onclick="window.print()">
-  <i class="fas fa-table me-1"></i>Print (Tabular)
+  <i class="fas fa-table me-1"></i>Print
 </button>
                             <button class="btn btn-primary" onclick="exportData()">
                                 <i class="fas fa-download me-1"></i>Export Data

@@ -191,7 +191,7 @@ if ($_POST) {
         // Update user
         if (empty($errors)) {
             try {
-                 $pdo->beginTransaction();
+                
                 $stmt = $pdo->prepare("
                     UPDATE users 
                     SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
@@ -206,17 +206,7 @@ if ($_POST) {
                 
                 // Log activity
                 logActivity($pdo, "user_updated", $user_id, "users", $edit_user_id);
-                 // 1) burahin muna lahat ng mapping ng user na ito
-            $del = $pdo->prepare("DELETE FROM evaluator_programs WHERE evaluator_id = ?");
-            $del->execute([$edit_user_id]);
-
-            // 2) kung evaluator sya, at may napiling program, i-insert
-            if ($user_type === 'evaluator' && $program_id !== '') {
-                $ins = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
-                $ins->execute([$edit_user_id, (int)$program_id]);
-            }
-
-            $pdo->commit();
+                
                 redirectWithMessage('users.php', 'User updated successfully!', 'success');
                 
             } catch (PDOException $e) {

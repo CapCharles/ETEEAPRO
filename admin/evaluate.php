@@ -35,20 +35,41 @@ function evalScopeWhere($is_admin, $user_id) {
     return [' WHERE a.evaluator_id = ? ', [$user_id]];
 }
 
+// Sidebar submitted count with evaluator scope
 $sidebar_submitted_count = 0;
-list($scopeWhere, $scopeParams) = evalScopeWhere($is_admin, $user_id);
-
-$params = [];
-$sql = "
-  SELECT COUNT(*) 
-  FROM applications a
-  WHERE a.application_status IN ('submitted','under_review')
-";
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$sidebar_submitted_count = (int)$stmt->fetchColumn();
+try {
+    $where_sidebar = "WHERE a.application_status IN ('submitted','under_review')";
+    $params_sidebar = [];
+    
+    if (!$is_admin) {
+        // Get assigned programs
+        $stmt = $pdo->prepare("
+            SELECT program_id 
+            FROM evaluator_assignments 
+            WHERE evaluator_id = ? AND status = 'active'
+        ");
+        $stmt->execute([$user_id]);
+        $assigned_programs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($assigned_programs)) {
+            $placeholders = implode(',', array_fill(0, count($assigned_programs), '?'));
+            $where_sidebar .= " AND a.program_id IN ($placeholders)";
+            $params_sidebar = $assigned_programs;
+        } else {
+            $where_sidebar .= " AND 1=0";
+        }
+    }
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM applications a
+        $where_sidebar
+    ");
+    $stmt->execute($params_sidebar);
+    $sidebar_submitted_count = (int)$stmt->fetchColumn();
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+}
 
 
 
@@ -1304,7 +1325,49 @@ $predefined_subjects = []; // Initialize empty
 
 if ($application_id) {
     try {
-        // 1. GET APPLICATION DETAILS FIRST
+
+           $params_app = [$application_id];
+        $where_app = "WHERE a.id = ?";
+        
+        // === EVALUATOR SCOPE: Check if assigned to this program ===
+        if (!$is_admin) {
+            try {
+                // Option 1: Using evaluator_assignments table
+                $stmt = $pdo->prepare("
+                    SELECT program_id 
+                    FROM evaluator_assignments 
+                    WHERE evaluator_id = ? AND status = 'active'
+                ");
+                $stmt->execute([$user_id]);
+                $assigned_programs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+                
+                if (!empty($assigned_programs)) {
+                    $placeholders = implode(',', array_fill(0, count($assigned_programs), '?'));
+                    $where_app .= " AND a.program_id IN ($placeholders)";
+                    $params_app = array_merge($params_app, $assigned_programs);
+                } else {
+                    $where_app .= " AND 1=0"; // Force no access
+                }
+                
+                /* Option 2: Using assigned_program_id column
+                $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+                $stmt->execute([$user_id]);
+                $assigned_program = $stmt->fetchColumn();
+                
+                if ($assigned_program) {
+                    $where_app .= " AND a.program_id = ?";
+                    $params_app[] = $assigned_program;
+                } else {
+                    $where_app .= " AND 1=0";
+                }
+                */
+                
+            } catch (PDOException $e) {
+                $where_app .= " AND 1=0"; // On error, deny access
+            }
+        }
+        
+        // GET APPLICATION DETAILS
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code,
                 CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
@@ -1312,11 +1375,19 @@ if ($application_id) {
             FROM applications a 
             LEFT JOIN programs p ON a.program_id = p.id 
             LEFT JOIN users u ON a.user_id = u.id
-            WHERE a.id = ?
+            $where_app
         ");
-        $stmt->execute([$application_id]);
+        $stmt->execute($params_app);
         $current_application = $stmt->fetch();
         
+        // If evaluator tries to access unassigned application
+        if (!$current_application && !$is_admin) {
+            $_SESSION['flash_message'] = 'You do not have permission to evaluate this application.';
+            $_SESSION['flash_type'] = 'error';
+            header('Location: evaluate.php');
+            exit();
+        }
+         
         if ($current_application) {
             // 2. NOW GET SUBJECTS FOR THIS PROGRAM (from database)
             $stmt = $pdo->prepare("
@@ -1395,22 +1466,46 @@ $applications = [];
 $where_clause = "WHERE 1=1";
 $params = [];
 
-$sql = "
-  SELECT a.*, p.program_code, p.program_name, u.first_name, u.last_name
-  FROM applications a
-  LEFT JOIN programs p ON p.id = a.program_id
-  LEFT JOIN users u ON u.id = a.user_id
-  WHERE a.application_status IN ('submitted','under_review')
-  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
-  LIMIT 50
-";
-
-// idagdag ang evaluator scope (kung evaluator)
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$rows = $stmt->fetchAll();
+// === EVALUATOR SCOPE: Filter by assigned program ===
+if (!$is_admin) {
+    // Get evaluator's assigned programs
+    try {
+        // Option 1: If using evaluator_assignments table
+        $stmt = $pdo->prepare("
+            SELECT program_id 
+            FROM evaluator_assignments 
+            WHERE evaluator_id = ? AND status = 'active'
+        ");
+        $stmt->execute([$user_id]);
+        $assigned_programs = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($assigned_programs)) {
+            $placeholders = implode(',', array_fill(0, count($assigned_programs), '?'));
+            $where_clause .= " AND a.program_id IN ($placeholders)";
+            $params = array_merge($params, $assigned_programs);
+        } else {
+            // Walang assigned program = walang makikita
+            $where_clause .= " AND 1=0"; // Force empty result
+        }
+        
+        /* Option 2: If using assigned_program_id column in users table
+        $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $assigned_program = $stmt->fetchColumn();
+        
+        if ($assigned_program) {
+            $where_clause .= " AND a.program_id = ?";
+            $params[] = $assigned_program;
+        } else {
+            $where_clause .= " AND 1=0"; // Force empty result
+        }
+        */
+        
+    } catch (PDOException $e) {
+        error_log("Error fetching evaluator assignments: " . $e->getMessage());
+        $where_clause .= " AND 1=0"; // On error, show nothing
+    }
+}
 
 if ($filter_status) {
     $where_clause .= " AND a.application_status = ?";

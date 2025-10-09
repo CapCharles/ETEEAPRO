@@ -81,76 +81,96 @@ function getPendingReviewsCount($pdo) {
 
 // Handle user actions
 if ($_POST) {
-    if (isset($_POST['add_user'])) {
-        // Add new user
-        $first_name = sanitizeInput($_POST['first_name']);
-        $last_name = sanitizeInput($_POST['last_name']);
-        $middle_name = sanitizeInput($_POST['middle_name']);
-        $email = sanitizeInput($_POST['email']);
-        $phone = sanitizeInput($_POST['phone']);
-        $address = sanitizeInput($_POST['address']);
-        $user_type = $_POST['user_type'];
-        $password = $_POST['password'];
-        $status = $_POST['status'];
-        
-        // Validation
-        if (empty($first_name) || empty($last_name) || empty($email) || empty($password) || empty($user_type)) {
-            $errors[] = "All required fields must be filled";
-        }
-        
-        if (!validateEmail($email)) {
-            $errors[] = "Invalid email format";
-        }
-        
-        $password_check = checkPasswordStrength($password);
-        if (!$password_check['valid']) {
-            $errors[] = $password_check['message'];
-        }
-        
-        // Check if email exists
-        if (empty($errors)) {
-            try {
-                $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
-                $stmt->execute([$email]);
-                if ($stmt->fetch()) {
-                    $errors[] = "Email already exists";
-                }
-            } catch (PDOException $e) {
-                $errors[] = "Database error occurred";
+   if (isset($_POST['add_user'])) {
+    // Add new user
+    $first_name = sanitizeInput($_POST['first_name']);
+    $last_name = sanitizeInput($_POST['last_name']);
+    $middle_name = sanitizeInput($_POST['middle_name']);
+    $email = sanitizeInput($_POST['email']);
+    $phone = sanitizeInput($_POST['phone']);
+    $address = sanitizeInput($_POST['address']);
+    $user_type = $_POST['user_type'];
+    $password = $_POST['password'];
+    $status = $_POST['status'];
+    $program_id = isset($_POST['program_id']) && $_POST['program_id'] !== '' ? (int)$_POST['program_id'] : null;
+    
+    // Validation
+    if (empty($first_name) || empty($last_name) || empty($email) || empty($password) || empty($user_type)) {
+        $errors[] = "All required fields must be filled";
+    }
+    
+    if (!validateEmail($email)) {
+        $errors[] = "Invalid email format";
+    }
+    
+    $password_check = checkPasswordStrength($password);
+    if (!$password_check['valid']) {
+        $errors[] = $password_check['message'];
+    }
+    
+    // Validate program assignment for evaluators
+    if ($user_type === 'evaluator' && !$program_id) {
+        $errors[] = "Please assign a program for evaluator accounts";
+    }
+    
+    // Check if email exists
+    if (empty($errors)) {
+        try {
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
+            $stmt->execute([$email]);
+            if ($stmt->fetch()) {
+                $errors[] = "Email already exists";
             }
-        }
-        
-        // Create user
-        if (empty($errors)) {
-            try {
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                
-                $stmt = $pdo->prepare("
-                    INSERT INTO users (first_name, last_name, middle_name, email, phone, address, password, user_type, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-                
-                $stmt->execute([
-                    $first_name, $last_name, $middle_name, $email, $phone, 
-                    $address, $hashed_password, $user_type, $status
-                ]);
-                
-                $new_user_id = $pdo->lastInsertId();
-                
-                // Log activity
-                logActivity($pdo, "user_created", $user_id, "users", $new_user_id, null, [
-                    'email' => $email,
-                    'user_type' => $user_type,
-                    'status' => $status
-                ]);
-                
-                redirectWithMessage('users.php', 'User created successfully!', 'success');
-                
-            } catch (PDOException $e) {
-                $errors[] = "Failed to create user. Please try again.";
-            }
+        } catch (PDOException $e) {
+            $errors[] = "Database error occurred";
         }
     }
+    
+    // Create user
+    if (empty($errors)) {
+        try {
+            $pdo->beginTransaction();
+            
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            
+            $stmt = $pdo->prepare("
+                INSERT INTO users (first_name, last_name, middle_name, email, phone, address, password, user_type, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ");
+            
+            $stmt->execute([
+                $first_name, $last_name, $middle_name, $email, $phone, 
+                $address, $hashed_password, $user_type, $status
+            ]);
+            
+            $new_user_id = $pdo->lastInsertId();
+            
+            // If evaluator, assign program
+            if ($user_type === 'evaluator' && $program_id) {
+                $stmt = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
+                $stmt->execute([$new_user_id, $program_id]);
+            }
+            
+            $pdo->commit();
+            
+            // Log activity
+            logActivity($pdo, "user_created", $user_id, "users", $new_user_id, null, [
+                'email' => $email,
+                'user_type' => $user_type,
+                'status' => $status,
+                'program_id' => $program_id
+            ]);
+            
+            redirectWithMessage('users.php', 'User created successfully!', 'success');
+            
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            $errors[] = "Failed to create user: " . $e->getMessage();
+            error_log("User creation error: " . $e->getMessage());
+        }
+    }
+}
+    
     
     elseif (isset($_POST['update_user'])) {
         // Update existing user
@@ -804,99 +824,100 @@ if ($flash) {
     </div>
 
  <!-- Add User Modal -->
+<!-- Add User Modal -->
 <div class="modal fade" id="addUserModal" tabindex="-1">
-  <div class="modal-dialog modal-lg">
-    <div class="modal-content">
-      <!-- SINGLE FORM ONLY -->
-      <form id="addUserForm" method="POST" action="add_user_process.php">
-        <div class="modal-header">
-          <h5 class="modal-title">
-            <i class="fas fa-user-plus me-2"></i>Add New User
-          </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="">
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        <i class="fas fa-user-plus me-2"></i>Add New User
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label for="add_first_name" class="form-label">First Name *</label>
+                            <input type="text" class="form-control" id="add_first_name" name="first_name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="add_last_name" class="form-label">Last Name *</label>
+                            <input type="text" class="form-control" id="add_last_name" name="last_name" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="add_middle_name" class="form-label">Middle Name</label>
+                            <input type="text" class="form-control" id="add_middle_name" name="middle_name">
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <label for="add_email" class="form-label">Email Address *</label>
+                            <input type="email" class="form-control" id="add_email" name="email" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="add_phone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="add_phone" name="phone">
+                        </div>
+                        
+                        <div class="col-12">
+                            <label for="add_address" class="form-label">Address</label>
+                            <textarea class="form-control" id="add_address" name="address" rows="2"></textarea>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label for="add_user_type" class="form-label">User Role *</label>
+                            <select class="form-select" id="add_user_type" name="user_type" required>
+                                <option value="">Select Role</option>
+                                <option value="candidate">Candidate</option>
+                                <option value="evaluator">Evaluator</option>
+                                <option value="admin">Administrator</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Program Selection (for Evaluators) -->
+                        <div class="col-md-4" id="add_program_wrapper" style="display:none;">
+                            <label for="add_program_id" class="form-label">Assign Program</label>
+                            <select class="form-select" id="add_program_id" name="program_id">
+                                <option value="">-- Select Program --</option>
+                                <?php
+                                try {
+                                    $stmt = $pdo->query("SELECT id, program_code, program_name FROM programs WHERE status = 'active' ORDER BY program_code");
+                                    while ($prog = $stmt->fetch()) {
+                                        echo '<option value="'.$prog['id'].'">'.htmlspecialchars($prog['program_code'].' - '.$prog['program_name']).'</option>';
+                                    }
+                                } catch (PDOException $e) {
+                                    echo '<option value="">Error loading programs</option>';
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label for="add_status" class="form-label">Status *</label>
+                            <select class="form-select" id="add_status" name="status" required>
+                                <option value="active">Active</option>
+                                <option value="pending">Pending</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <label for="add_password" class="form-label">Password *</label>
+                            <input type="password" class="form-control" id="add_password" name="password" required>
+                            <div class="form-text">Minimum 6 characters</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" name="add_user" class="btn btn-primary">
+                        <i class="fas fa-save me-1"></i>Create User
+                    </button>
+                </div>
+            </form>
         </div>
-
-        <div class="modal-body">
-          <div class="row g-3">
-            <div class="col-md-4">
-              <label for="add_first_name" class="form-label">First Name *</label>
-              <input type="text" class="form-control" id="add_first_name" name="first_name" required>
-            </div>
-            <div class="col-md-4">
-              <label for="add_last_name" class="form-label">Last Name *</label>
-              <input type="text" class="form-control" id="add_last_name" name="last_name" required>
-            </div>
-            <div class="col-md-4">
-              <label for="add_middle_name" class="form-label">Middle Name</label>
-              <input type="text" class="form-control" id="add_middle_name" name="middle_name">
-            </div>
-
-            <div class="col-md-6">
-              <label for="add_email" class="form-label">Email Address *</label>
-              <input type="email" class="form-control" id="add_email" name="email" required>
-            </div>
-            <div class="col-md-6">
-              <label for="add_phone" class="form-label">Phone Number</label>
-              <input type="tel" class="form-control" id="add_phone" name="phone">
-            </div>
-
-            <div class="col-12">
-              <label for="add_address" class="form-label">Address</label>
-              <textarea class="form-control" id="add_address" name="address" rows="2"></textarea>
-            </div>
-
-            <div class="col-md-4">
-              <label for="add_user_type" class="form-label">User Role *</label>
-              <select class="form-select" id="add_user_type" name="user_type" required>
-                <option value="">Select Role</option>
-                <option value="candidate">Candidate</option>
-                <option value="evaluator">Evaluator</option>
-                <option value="admin">Administrator</option>
-              </select>
-            </div>
-
-            <!-- Program Dropdown (hidden by default) -->
-            <div class="col-md-8" id="programSelectWrapper" style="display:none;">
-              <label class="form-label">Assign Program</label>
-          <select name="program_id" id="program_id" class="form-select" size="1">
-  <option value="">-- Select Program --</option>
-  <?php
-    $programs = $pdo->query("SELECT id, program_name, program_code FROM programs")->fetchAll();
-    foreach ($programs as $p) {
-      echo '<option value="'.$p['id'].'">'.htmlspecialchars($p['program_code'].' - '.$p['program_name']).'</option>';
-    }
-  ?>
-</select>
-
-            </div>
-
-            <div class="col-md-4">
-              <label for="add_status" class="form-label">Status *</label>
-              <select class="form-select" id="add_status" name="status" required>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-            <div class="col-md-4">
-              <label for="add_password" class="form-label">Password *</label>
-              <input type="password" class="form-control" id="add_password" name="password" required>
-              <div class="form-text">Minimum 6 characters</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" name="add_user" class="btn btn-primary">
-            <i class="fas fa-save me-1"></i>Create User
-          </button>
-        </div>
-      </form>
     </div>
-  </div>
 </div>
-
 
     <!-- Edit User Modal -->
     <div class="modal fade" id="editUserModal" tabindex="-1">
@@ -1021,125 +1042,170 @@ if ($flash) {
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script>
-function toggleEditProgram() {
-  const roleSel = document.getElementById('edit_user_type');
-  const wrap = document.getElementById('editProgramSelectWrapper');
-  if (!roleSel || !wrap) return;
-  wrap.style.display = (roleSel.value === 'evaluator') ? 'block' : 'none';
-  if (roleSel.value !== 'evaluator') {
-    const sel = document.getElementById('edit_program_id');
-    if (sel) sel.value = '';
-  }
-}
-document.getElementById('edit_user_type').onchange = toggleEditProgram;
-
-// Get assigned program ids of a user
-async function fetchUserPrograms(userId) {
-  try {
-    const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(userId));
-    if (!res.ok) return [];
-    return await res.json(); // ["2","5",...]
-  } catch (e) {
-    return [];
-  }
-}
-
-
-// Preselect in dropdown (single-select)
-async function preselectEditProgram(userId) {
-  const select = document.getElementById('edit_program_id');
-  if (!select) return;
-  for (const opt of select.options) opt.selected = false;
-
-  const assigned = await fetchUserPrograms(userId);
-  if (assigned.length) {
-    const first = String(assigned[0]);
-    for (const opt of select.options) {
-      if (opt.value === first) { opt.selected = true; break; }
-    }
-  } else {
-    select.value = '';
-  }
-}
-
-// REPLACE your editUser with this async version
-async function editUser(user) {
-  document.getElementById('edit_user_id').value = user.id;
-  document.getElementById('edit_first_name').value = user.first_name || '';
-  document.getElementById('edit_last_name').value = user.last_name || '';
-  document.getElementById('edit_middle_name').value = user.middle_name || '';
-  document.getElementById('edit_email').value = user.email || '';
-  document.getElementById('edit_phone').value = user.phone || '';
-  document.getElementById('edit_address').value = user.address || '';
-  document.getElementById('edit_user_type').value = user.user_type || '';
-  document.getElementById('edit_status').value = user.status || '';
-
-  toggleEditProgram();                               // show/hide based on role
-  document.getElementById('edit_user_type').onchange = toggleEditProgram;
-
-  if (document.getElementById('edit_user_type').value === 'evaluator') {
-    await preselectEditProgram(user.id);            // preselect current assignment
-  }
-
-  new bootstrap.Modal(document.getElementById('editUserModal')).show();
-}
-        function resetPassword(userId, userName) {
-            document.getElementById('reset_user_id').value = userId;
-            document.getElementById('reset_user_name').textContent = userName;
-            document.getElementById('new_password').value = '';
-            
-            new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
-        }
-
-
-function toggleProgramSelect() {
-  const roleSelect = document.getElementById('add_user_type');
-  const programWrapper = document.getElementById('programSelectWrapper');
-  if (!roleSelect || !programWrapper) return;
-  programWrapper.style.display = (roleSelect.value === 'evaluator') ? 'block' : 'none';
-}
-
-document.addEventListener('DOMContentLoaded', function () {
-  // initial
-  toggleProgramSelect();
-
-  // on change
-  const roleSelect = document.getElementById('add_user_type');
-  roleSelect && roleSelect.addEventListener('change', toggleProgramSelect);
-
-  // when modal opens, recheck (in case default value changes)
-  const addUserModalEl = document.getElementById('addUserModal');
-  if (addUserModalEl) {
-    addUserModalEl.addEventListener('shown.bs.modal', toggleProgramSelect);
-  }
-
-  // Generate password buttons (kept from your code)
-  const addPasswordField = document.getElementById('add_password');
-  if (addPasswordField && !document.getElementById('genPassBtnAdd')) {
-    const generateBtnAdd = document.createElement('button');
-    generateBtnAdd.id = 'genPassBtnAdd';
-    generateBtnAdd.type = 'button';
-    generateBtnAdd.className = 'btn btn-outline-secondary btn-sm mt-1';
-    generateBtnAdd.innerHTML = '<i class="fas fa-random me-1"></i>Generate';
-    generateBtnAdd.onclick = function() {
-      addPasswordField.value = generatePassword();
-    };
-    addPasswordField.parentNode.appendChild(generateBtnAdd);
-  }
-});
-
-function generatePassword() {
-  const length = 8;
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-}
-
+ <script>
+// Show/hide program dropdown when adding user
+function toggleAddProgramSelect() {
+    const roleSelect = document.getElementById('add_user_type');
+    const programWrapper = document.getElementById('add_program_wrapper');
+    const programSelect = document.getElementById('add_program_id');
     
-    </script>
+    if (roleSelect && programWrapper) {
+        if (roleSelect.value === 'evaluator') {
+            programWrapper.style.display = 'block';
+            programSelect.required = true;
+        } else {
+            programWrapper.style.display = 'none';
+            programSelect.required = false;
+            programSelect.value = '';
+        }
+    }
+}
+
+// Show/hide program dropdown when editing user
+function toggleEditProgram() {
+    const roleSel = document.getElementById('edit_user_type');
+    const wrap = document.getElementById('editProgramSelectWrapper');
+    const programSelect = document.getElementById('edit_program_id');
+    
+    if (!roleSel || !wrap) return;
+    
+    if (roleSel.value === 'evaluator') {
+        wrap.style.display = 'block';
+        programSelect.required = true;
+    } else {
+        wrap.style.display = 'none';
+        programSelect.required = false;
+        programSelect.value = '';
+    }
+}
+
+// Fetch user's assigned programs
+async function fetchUserPrograms(userId) {
+    try {
+        const res = await fetch('get_user_programs.php?user_id=' + encodeURIComponent(userId));
+        if (!res.ok) return [];
+        return await res.json();
+    } catch (e) {
+        console.error('Error fetching user programs:', e);
+        return [];
+    }
+}
+
+// Preselect program in edit modal
+async function preselectEditProgram(userId) {
+    const select = document.getElementById('edit_program_id');
+    if (!select) return;
+    
+    // Clear all selections
+    for (const opt of select.options) opt.selected = false;
+
+    const assigned = await fetchUserPrograms(userId);
+    if (assigned.length) {
+        const first = String(assigned[0]);
+        for (const opt of select.options) {
+            if (opt.value === first) {
+                opt.selected = true;
+                break;
+            }
+        }
+    } else {
+        select.value = '';
+    }
+}
+
+// Edit user function
+async function editUser(user) {
+    document.getElementById('edit_user_id').value = user.id;
+    document.getElementById('edit_first_name').value = user.first_name || '';
+    document.getElementById('edit_last_name').value = user.last_name || '';
+    document.getElementById('edit_middle_name').value = user.middle_name || '';
+    document.getElementById('edit_email').value = user.email || '';
+    document.getElementById('edit_phone').value = user.phone || '';
+    document.getElementById('edit_address').value = user.address || '';
+    document.getElementById('edit_user_type').value = user.user_type || '';
+    document.getElementById('edit_status').value = user.status || '';
+
+    toggleEditProgram();
+    
+    if (user.user_type === 'evaluator') {
+        await preselectEditProgram(user.id);
+    }
+
+    new bootstrap.Modal(document.getElementById('editUserModal')).show();
+}
+
+// Reset password function
+function resetPassword(userId, userName) {
+    document.getElementById('reset_user_id').value = userId;
+    document.getElementById('reset_user_name').textContent = userName;
+    document.getElementById('new_password').value = '';
+    
+    new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
+}
+
+// Generate password
+function generatePassword() {
+    const length = 8;
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    let password = "";
+    for (let i = 0; i < length; i++) {
+        password += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    return password;
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Add user role change listener
+    const addRoleSelect = document.getElementById('add_user_type');
+    if (addRoleSelect) {
+        addRoleSelect.addEventListener('change', toggleAddProgramSelect);
+        toggleAddProgramSelect(); // Initial check
+    }
+    
+    // Edit user role change listener
+    const editRoleSelect = document.getElementById('edit_user_type');
+    if (editRoleSelect) {
+        editRoleSelect.addEventListener('change', toggleEditProgram);
+    }
+    
+    // Reset form when add modal opens
+    const addModal = document.getElementById('addUserModal');
+    if (addModal) {
+        addModal.addEventListener('show.bs.modal', function() {
+            document.getElementById('add_user_type').value = '';
+            document.getElementById('add_program_id').value = '';
+            toggleAddProgramSelect();
+        });
+    }
+    
+    // Generate password buttons
+    const addPasswordField = document.getElementById('add_password');
+    if (addPasswordField && !document.getElementById('genPassBtnAdd')) {
+        const generateBtnAdd = document.createElement('button');
+        generateBtnAdd.id = 'genPassBtnAdd';
+        generateBtnAdd.type = 'button';
+        generateBtnAdd.className = 'btn btn-outline-secondary btn-sm mt-1';
+        generateBtnAdd.innerHTML = '<i class="fas fa-random me-1"></i>Generate';
+        generateBtnAdd.onclick = function() {
+            addPasswordField.value = generatePassword();
+        };
+        addPasswordField.parentNode.appendChild(generateBtnAdd);
+    }
+    
+    const resetPasswordField = document.getElementById('new_password');
+    if (resetPasswordField && !document.getElementById('genPassBtnReset')) {
+        const generateBtnReset = document.createElement('button');
+        generateBtnReset.id = 'genPassBtnReset';
+        generateBtnReset.type = 'button';
+        generateBtnReset.className = 'btn btn-outline-secondary btn-sm mt-1';
+        generateBtnReset.innerHTML = '<i class="fas fa-random me-1"></i>Generate';
+        generateBtnReset.onclick = function() {
+            resetPasswordField.value = generatePassword();
+        };
+        resetPasswordField.parentNode.appendChild(generateBtnReset);
+    }
+});
+</script>
 </body>
 </html>

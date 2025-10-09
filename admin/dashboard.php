@@ -13,102 +13,66 @@ if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 
 $user_id = $_SESSION['user_id'];
 $user_type = $_SESSION['user_type'];
 
-$evaluator_program_id = null;
-if ($user_type === 'evaluator') {
-    try {
-        $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
-        $result = $stmt->fetch();
-        $evaluator_program_id = $result['assigned_program_id'] ?? null;
-    } catch (PDOException $e) {
-        error_log("Error fetching evaluator program: " . $e->getMessage());
-    }
-}
-
-// Sidebar: Submitted Applications Count (filtered by program for evaluators)
 $sidebar_submitted_count = 0;
 try {
-    if ($user_type === 'admin') {
-        // Admin sees all submitted applications
-        $stmt = $pdo->query("
-            SELECT COUNT(*) as total 
-            FROM applications 
-            WHERE application_status IN ('submitted', 'under_review')
-        ");
-    } else {
-        // Evaluator sees only their program's applications
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) as total 
-            FROM applications 
-            WHERE application_status IN ('submitted', 'under_review')
-            AND program_id = ?
-        ");
-        $stmt->execute([$evaluator_program_id]);
-    }
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as total 
+        FROM applications 
+        WHERE application_status IN ('submitted', 'under_review')
+    ");
     $sidebar_submitted_count = $stmt->fetch()['total'];
 } catch (PDOException $e) {
-    error_log("Error getting submitted count: " . $e->getMessage());
     $sidebar_submitted_count = 0;
 }
 
-// Sidebar: Pending Application Reviews Count (filtered by program for evaluators)
+// Get subjects from database for bridging recommendations
+$predefined_subjects = [];
+if (!empty($current_application['program_id'])) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 
+                subject_code as code, 
+                subject_name as name, 
+                units,
+                year_level,
+                semester,
+                1 as priority
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Error fetching subjects: " . $e->getMessage());
+        $predefined_subjects = [];
+    }
+}
+
+
 $sidebar_pending_count = 0;
 try {
-    if ($user_type === 'admin') {
-        // Admin sees all pending reviews
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT u.id) as total 
+        FROM users u
+        INNER JOIN application_forms af ON u.id = af.user_id
+        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' OR u.application_form_status NOT IN ('approved', 'rejected'))
+    ");
+    $sidebar_pending_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_pending_count = 0;
+}
+
+function getPendingReviewsCount($pdo) {
+    try {
         $stmt = $pdo->query("
             SELECT COUNT(DISTINCT u.id) as total 
             FROM users u
             INNER JOIN application_forms af ON u.id = af.user_id
-            WHERE (u.application_form_status IS NULL 
-                   OR u.application_form_status = 'pending' 
+            WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
                    OR u.application_form_status NOT IN ('approved', 'rejected'))
         ");
-    } else {
-        // Evaluator sees only their program's pending reviews
-        $stmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT u.id) as total 
-            FROM users u
-            INNER JOIN application_forms af ON u.id = af.user_id
-            WHERE (u.application_form_status IS NULL 
-                   OR u.application_form_status = 'pending' 
-                   OR u.application_form_status NOT IN ('approved', 'rejected'))
-            AND af.program_id = ?
-        ");
-        $stmt->execute([$evaluator_program_id]);
-    }
-    $sidebar_pending_count = $stmt->fetch()['total'];
-} catch (PDOException $e) {
-    error_log("Error getting pending reviews count: " . $e->getMessage());
-    $sidebar_pending_count = 0;
-}
-
-// Helper function for other pages that might need it
-function getPendingReviewsCount($pdo, $user_type, $evaluator_program_id = null) {
-    try {
-        if ($user_type === 'admin') {
-            $stmt = $pdo->query("
-                SELECT COUNT(DISTINCT u.id) as total 
-                FROM users u
-                INNER JOIN application_forms af ON u.id = af.user_id
-                WHERE (u.application_form_status IS NULL 
-                       OR u.application_form_status = 'pending' 
-                       OR u.application_form_status NOT IN ('approved', 'rejected'))
-            ");
-            return (int)$stmt->fetch()['total'];
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT COUNT(DISTINCT u.id) as total 
-                FROM users u
-                INNER JOIN application_forms af ON u.id = af.user_id
-                WHERE (u.application_form_status IS NULL 
-                       OR u.application_form_status = 'pending' 
-                       OR u.application_form_status NOT IN ('approved', 'rejected'))
-                AND af.program_id = ?
-            ");
-            $stmt->execute([$evaluator_program_id]);
-            return (int)$stmt->fetch()['total'];
-        }
+        return (int)$stmt->fetch()['total'];
     } catch (PDOException $e) {
         error_log("Error getting pending reviews count: " . $e->getMessage());
         return 0;

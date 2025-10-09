@@ -126,26 +126,26 @@ if ($_POST) {
         }
     }
     
-    // Create user
-    if (empty($errors)) {
+     if (empty($errors)) {
         try {
             $pdo->beginTransaction();
             
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             
             $stmt = $pdo->prepare("
-                INSERT INTO users (first_name, last_name, middle_name, email, phone, address, password, user_type, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (first_name, last_name, middle_name, email, phone, address, password, user_type, status, assigned_program_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
             
             $stmt->execute([
                 $first_name, $last_name, $middle_name, $email, $phone, 
-                $address, $hashed_password, $user_type, $status
+                $address, $hashed_password, $user_type, $status,
+                ($user_type === 'evaluator' && $program_id) ? $program_id : null
             ]);
             
             $new_user_id = $pdo->lastInsertId();
             
-            // If evaluator, assign program
+            // If evaluator, also add to evaluator_programs table
             if ($user_type === 'evaluator' && $program_id) {
                 $stmt = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
                 $stmt->execute([$new_user_id, $program_id]);
@@ -153,7 +153,6 @@ if ($_POST) {
             
             $pdo->commit();
             
-            // Log activity
             logActivity($pdo, "user_created", $user_id, "users", $new_user_id, null, [
                 'email' => $email,
                 'user_type' => $user_type,
@@ -169,6 +168,7 @@ if ($_POST) {
             error_log("User creation error: " . $e->getMessage());
         }
     }
+ 
 }
     
     
@@ -208,39 +208,44 @@ if ($_POST) {
             }
         }
         
-       if (empty($errors)) {
-    try {
-        $pdo->beginTransaction();
+      if (empty($errors)) {
+        try {
+            $pdo->beginTransaction();
 
-        $stmt = $pdo->prepare("
-            UPDATE users 
-               SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
-                   phone = ?, address = ?, user_type = ?, status = ?
-             WHERE id = ?
-        ");
-        $stmt->execute([
-            $first_name, $last_name, $middle_name, $email,
-            $phone, $address, $user_type, $status, $edit_user_id
-        ]);
+            // Update users table including assigned_program_id
+            $stmt = $pdo->prepare("
+                UPDATE users 
+                SET first_name = ?, last_name = ?, middle_name = ?, email = ?, 
+                    phone = ?, address = ?, user_type = ?, status = ?,
+                    assigned_program_id = ?
+                WHERE id = ?
+            ");
+            $stmt->execute([
+                $first_name, $last_name, $middle_name, $email,
+                $phone, $address, $user_type, $status,
+                ($user_type === 'evaluator' && $program_id !== '') ? (int)$program_id : null,
+                $edit_user_id
+            ]);
 
-        // sync evaluator_programs
-        $del = $pdo->prepare("DELETE FROM evaluator_programs WHERE evaluator_id = ?");
-        $del->execute([$edit_user_id]);
+            // Sync evaluator_programs table
+            $del = $pdo->prepare("DELETE FROM evaluator_programs WHERE evaluator_id = ?");
+            $del->execute([$edit_user_id]);
 
-        if ($user_type === 'evaluator' && $program_id !== '') {
-            $ins = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
-            $ins->execute([$edit_user_id, (int)$program_id]);
+            if ($user_type === 'evaluator' && $program_id !== '') {
+                $ins = $pdo->prepare("INSERT INTO evaluator_programs (evaluator_id, program_id) VALUES (?, ?)");
+                $ins->execute([$edit_user_id, (int)$program_id]);
+            }
+
+            $pdo->commit();
+
+            logActivity($pdo, "user_updated", $user_id, "users", $edit_user_id);
+            redirectWithMessage('users.php', 'User updated successfully!', 'success');
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            $errors[] = "Failed to update user: " . $e->getMessage();
+            error_log("User update error: " . $e->getMessage());
         }
-
-        $pdo->commit();
-
-        logActivity($pdo, "user_updated", $user_id, "users", $edit_user_id);
-        redirectWithMessage('users.php', 'User updated successfully!', 'success');
-    } catch (PDOException $e) {
-        $pdo->rollBack();
-        $errors[] = "Failed to update user. Please try again.";
     }
-}
 
     }
     

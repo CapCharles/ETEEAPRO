@@ -36,20 +36,38 @@ function evalScopeWhere($is_admin, $user_id) {
 }
 
 $sidebar_submitted_count = 0;
-list($scopeWhere, $scopeParams) = evalScopeWhere($is_admin, $user_id);
-
-$params = [];
-$sql = "
-  SELECT COUNT(*) 
-  FROM applications a
-  WHERE a.application_status IN ('submitted','under_review')
-";
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$sidebar_submitted_count = (int)$stmt->fetchColumn();
-
+try {
+    $count_where = ["a.application_status IN ('submitted','under_review')"];
+    $count_params = [];
+    
+    // Add evaluator scope
+    if (!$is_admin) {
+        $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $evaluator_data = $stmt->fetch();
+        $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+        
+        if ($assigned_program_id) {
+            $count_where[] = "a.program_id = ?";
+            $count_params[] = $assigned_program_id;
+        } else {
+            $count_where[] = "1=0";
+        }
+    }
+    
+    $count_where_clause = implode(" AND ", $count_where);
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM applications a
+        WHERE $count_where_clause
+    ");
+    $stmt->execute($count_params);
+    $sidebar_submitted_count = (int)$stmt->fetchColumn();
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+    error_log("Error getting submitted count: " . $e->getMessage());
+}
 
 
 // Get subjects from database for bridging recommendations
@@ -1304,6 +1322,46 @@ $predefined_subjects = []; // Initialize empty
 
 if ($application_id) {
     try {
+        // Build query with evaluator scope
+        $app_where = ["a.id = ?"];
+        $app_params = [$application_id];
+        
+        // Add evaluator scope for non-admins
+        if (!$is_admin) {
+            $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            $evaluator_data = $stmt->fetch();
+            $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+            
+            if ($assigned_program_id) {
+                $app_where[] = "a.program_id = ?";
+                $app_params[] = $assigned_program_id;
+            } else {
+                $app_where[] = "1=0"; // Block access if no assigned program
+            }
+        }
+        
+        $app_where_clause = "WHERE " . implode(" AND ", $app_where);
+        
+        // 1. GET APPLICATION DETAILS WITH SCOPE
+        $stmt = $pdo->prepare("
+            SELECT a.*, p.program_name, p.program_code,
+                CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+                u.email as candidate_email, u.phone, u.address
+            FROM applications a 
+            LEFT JOIN programs p ON a.program_id = p.id 
+            LEFT JOIN users u ON a.user_id = u.id
+            $app_where_clause
+        ");
+        $stmt->execute($app_params);
+        $current_application = $stmt->fetch();
+        
+        // If evaluator tries to access application outside their scope
+        if (!$current_application && !$is_admin) {
+            $_SESSION['error_message'] = "Access denied: This application is not assigned to your program.";
+            header('Location: evaluate.php');
+            exit();
+        }
         // 1. GET APPLICATION DETAILS FIRST
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code,
@@ -1392,30 +1450,33 @@ if ($application_id) {
 
 // Get all applications for listing
 $applications = [];
-$where_clause = "WHERE 1=1";
+$where_conditions = ["1=1"];
 $params = [];
 
-$sql = "
-  SELECT a.*, p.program_code, p.program_name, u.first_name, u.last_name
-  FROM applications a
-  LEFT JOIN programs p ON p.id = a.program_id
-  LEFT JOIN users u ON u.id = a.user_id
-  WHERE a.application_status IN ('submitted','under_review')
-  ORDER BY COALESCE(a.submission_date, a.created_at) DESC
-  LIMIT 50
-";
-
-// idagdag ang evaluator scope (kung evaluator)
-$sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute($params);
-$rows = $stmt->fetchAll();
-
+// Add status filter if provided
 if ($filter_status) {
-    $where_clause .= " AND a.application_status = ?";
+    $where_conditions[] = "a.application_status = ?";
     $params[] = $filter_status;
 }
+
+// CRITICAL: Add evaluator scope - only show applications for their assigned program
+if (!$is_admin) {
+    // Get evaluator's assigned program
+    $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $evaluator_data = $stmt->fetch();
+    $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+    
+    if ($assigned_program_id) {
+        $where_conditions[] = "a.program_id = ?";
+        $params[] = $assigned_program_id;
+    } else {
+        // If evaluator has no assigned program, show nothing
+        $where_conditions[] = "1=0";
+    }
+}
+
+$where_clause = "WHERE " . implode(" AND ", $where_conditions);
 
 try {
     $stmt = $pdo->prepare("
@@ -1439,6 +1500,7 @@ try {
     $applications = $stmt->fetchAll();
 } catch (PDOException $e) {
     $applications = [];
+    error_log("Error fetching applications: " . $e->getMessage());
 }
 
 function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = null) {

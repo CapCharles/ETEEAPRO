@@ -88,7 +88,6 @@ if ($application) {
         $documents = [];
     }
 }
-
 // Get curriculum and bridging data
 $curriculum_subjects = [];
 $bridging_requirements = [];
@@ -114,11 +113,30 @@ if ($application && in_array($application['application_status'], ['qualified', '
         $stmt->execute([$application['id']]);
         $bridging_requirements = $stmt->fetchAll();
         
-        $required_subject_names = array_column($bridging_requirements, 'subject_name');
-        
-        foreach ($curriculum_subjects as $subject) {
-            if (!in_array($subject['subject_name'], $required_subject_names)) {
-                $passed_subjects[] = $subject;
+        // For "Not Qualified" status, ALL subjects should be in bridging requirements
+        // For "Qualified" or "Partially Qualified", subjects NOT in bridging are credited
+        if ($application['application_status'] === 'not_qualified') {
+            // If no bridging requirements exist, create them from all curriculum subjects
+            if (empty($bridging_requirements)) {
+                foreach ($curriculum_subjects as $subject) {
+                    $bridging_requirements[] = [
+                        'subject_name' => $subject['subject_name'],
+                        'subject_code' => $subject['subject_code'],
+                        'units' => $subject['units'],
+                        'priority' => 1 // High priority since not qualified
+                    ];
+                }
+            }
+            // All subjects are required, none are passed
+            $passed_subjects = [];
+        } else {
+            // For qualified or partially qualified, subjects NOT in bridging are credited
+            $required_subject_names = array_column($bridging_requirements, 'subject_name');
+            
+            foreach ($curriculum_subjects as $subject) {
+                if (!in_array($subject['subject_name'], $required_subject_names)) {
+                    $passed_subjects[] = $subject;
+                }
             }
         }
         

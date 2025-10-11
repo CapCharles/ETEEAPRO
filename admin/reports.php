@@ -12,9 +12,22 @@ $user_type = $_SESSION['user_type'];
 // Date range for reports (default to last 30 days)
 
 // ============= GET FILTERS =============
-$start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
+// Optional: siguraduhin ang tamang timezone
+date_default_timezone_set('Asia/Manila');
 
-$end_date   = $_GET['end_date']   ?? date('Y-m-d');
+$today = date('Y-m-d');
+
+// Use empty() instead of ??
+$start_date = !empty($_GET['start_date']) ? $_GET['start_date'] : date('Y-m-d', strtotime('-30 days'));
+$end_date   = !empty($_GET['end_date'])   ? $_GET['end_date']   : $today;
+
+// sanitize format (YYYY-MM-DD) at cap sa today
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)) $start_date = date('Y-m-d', strtotime('-30 days'));
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $end_date))   $end_date   = $today;
+
+if ($end_date > $today) $end_date = $today;                      // wag lampas today
+if ($start_date > $end_date) $start_date = date('Y-m-d', strtotime("$end_date -30 days")); // safety
+
 $program_filter = $_GET['program'] ?? '';
 
 // ============= BUILD WHERE CLAUSE FOR FILTERS =============
@@ -840,8 +853,9 @@ function getStatusColor($status) {
                             </div>
                             <div class="col-md-3">
                                 <label for="end_date" class="form-label">End Date</label>
-                              <input type="date" class="form-control" id="end_date" name="end_date" 
-       value="<?php echo htmlspecialchars($end_date); ?>">
+                              <input type="date" class="form-control" id="end_date" name="end_date"
+       value="<?php echo htmlspecialchars($end_date); ?>"
+       max="<?php echo $today; ?>">
 
                             </div>
                             <div class="col-md-3">

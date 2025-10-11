@@ -194,7 +194,7 @@ try {
     $program_stats = [];
 }
 
-// ============= MONTHLY TRENDS (FILTERED) =============
+
 // ============= MONTHLY TRENDS (FILTERED, 6 months default) =============
 $monthly_trends = [];
 try {
@@ -886,6 +886,14 @@ function getStatusColor($status) {
 
                     <!-- Stats Cards -->
                <div class="row g-4 mb-4 align-items-stretch">
+                  <div class="col-12 col-sm-6 col-lg-3 d-flex">
+    <div class="stat-card h-100 w-100">
+      <div class="stat-icon"><i class="fas fa-users fa-2x text-success"></i></div>
+      <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
+      <div class="stat-label">Candidates</div>
+    </div>
+  </div>
+
   <div class="col-12 col-sm-6 col-lg-3 d-flex">
     <div class="stat-card h-100 w-100">
       <div class="stat-icon"><i class="fas fa-file-alt fa-2x text-primary"></i></div>
@@ -894,13 +902,6 @@ function getStatusColor($status) {
     </div>
   </div>
 
-  <div class="col-12 col-sm-6 col-lg-3 d-flex">
-    <div class="stat-card h-100 w-100">
-      <div class="stat-icon"><i class="fas fa-users fa-2x text-success"></i></div>
-      <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
-      <div class="stat-label">Candidates</div>
-    </div>
-  </div>
 
   <div class="col-12 col-sm-6 col-lg-3 d-flex">
     <div class="stat-card h-100 w-100">

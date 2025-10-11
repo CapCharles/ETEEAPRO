@@ -921,36 +921,39 @@ function getStatusColor($status) {
 </div>
                     
 
-                    <div class="row g-4 mb-4">
-                        <!-- Status Distribution Chart -->
-                        <div class="col-lg-6">
-                            <div class="chart-container">
-                                <h5 class="mb-3">Application Status Distribution</h5>
-                                <?php if (!empty($status_distribution)): ?>
-                                <canvas id="statusChart" height="300"></canvas>
-                                <?php else: ?>
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-chart-pie fa-3x mb-3"></i>
-                                    <p>No data available</p>
-                                </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
+                   <div class="row g-4 mt-2">
+    <!-- Application Status Chart -->
+    <div class="col-lg-4">
+        <div class="chart-container">
+            <h5 class="mb-3">Application Status Distribution</h5>
+            <?php if (!empty($status_data)): ?>
+                <canvas id="statusChart" height="250"></canvas>
+            <?php else: ?>
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                    <p>No data available</p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
 
-                        <!-- Monthly Trends -->
-                        <div class="col-lg-6">
-                            <div class="chart-container">
-                                <h5 class="mb-3">Application Trends (Last 12 Months)</h5>
-                                <?php if (!empty($monthly_trends)): ?>
-                                <canvas id="trendsChart" height="300"></canvas>
-                                <?php else: ?>
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-chart-line fa-3x mb-3"></i>
-                                    <p>No data available</p>
-                                </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
+    <!-- Monthly Application Trends -->
+    <div class="col-lg-8">
+        <div class="chart-container">
+            <h5 class="mb-3">Monthly Application Trends (Last 6 Months)</h5>
+            <?php if (!empty($monthly_data)): ?>
+                <canvas id="monthlyChart" height="250"></canvas>
+            <?php else: ?>
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                    <p>No data available</p>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+
                     </div>
 
                     <!-- Program Statistics -->

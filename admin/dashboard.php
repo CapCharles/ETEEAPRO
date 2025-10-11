@@ -474,76 +474,76 @@ try {
 
                     </div>
 
-                    <div class="row g-4">
-                        <!-- Recent Applications -->
-                        <div class="col-lg-8">
-                            <div class="table-container">
-                                <div class="p-3 border-bottom">
-                                    <div class="d-flex justify-content-between align-items-center">
-                                        <h5 class="mb-0">Recent Applications</h5>
-                                        <a href="evaluate.php" class="btn btn-outline-primary btn-sm">
-                                            <i class="fas fa-eye me-1"></i>View All
-                                        </a>
-                                    </div>
-                                </div>
-                                <div class="table-responsive">
-                                    <table class="table table-hover mb-0">
-                                        <thead class="bg-light">
-                                            <tr>
-                                                <th>Candidate</th>
-                                                <th>Program</th>
-                                                <th>Applied</th>
-                                                <th>Status</th>
-                                                <th>Score</th>
-                                                <th>Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php if (empty($recent_applications)): ?>
-                                            <tr>
-                                                <td colspan="6" class="text-center py-4 text-muted">
-                                                    <i class="fas fa-inbox fa-2x mb-2"></i><br>
-                                                    No applications found
-                                                </td>
-                                            </tr>
-                                            <?php else: ?>
-                                            <?php foreach ($recent_applications as $app): ?>
-                                            <tr>
-                                                <td>
-                                                    <div class="fw-semibold"><?php echo htmlspecialchars($app['candidate_name']); ?></div>
-                                                    <small class="text-muted"><?php echo htmlspecialchars($app['candidate_email']); ?></small>
-                                                </td>
-                                                <td>
-                                                    <div class="fw-semibold"><?php echo htmlspecialchars($app['program_code']); ?></div>
-                                                    <small class="text-muted"><?php echo htmlspecialchars($app['program_name']); ?></small>
-                                                </td>
-                                                <td><?php echo date('M j, Y', strtotime($app['created_at'])); ?></td>
-                                                <td>
-                                                    <span class="status-badge status-<?php echo $app['application_status']; ?>">
-                                                        <?php echo ucfirst(str_replace('_', ' ', $app['application_status'])); ?>
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <?php if ($app['total_score'] > 0): ?>
-                                                        <span class="fw-bold text-primary"><?php echo $app['total_score']; ?>%</span>
-                                                    <?php else: ?>
-                                                        <span class="text-muted">—</span>
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <a href="evaluate.php?id=<?php echo $app['id']; ?>" class="btn btn-sm btn-outline-primary">
-                                                        <i class="fas fa-eye me-1"></i>View
-                                                    </a>
-                                                </td>
-                                            </tr>
-                                            <?php endforeach; ?>
-                                            <?php endif; ?>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
+                  <!-- Recent Applications Row -->
+<div class="row g-4 mt-2">
+    <div class="col-12">
+        <div class="table-container">
+            <div class="p-3 border-bottom">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Applications</h5>
+                    <a href="evaluate.php" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-eye me-1"></i>View All
+                    </a>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th>Candidate</th>
+                            <th>Program</th>
+                            <th>Applied</th>
+                            <th>Status</th>
+                            <th>Score</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($recent_applications)): ?>
+                        <tr>
+                            <td colspan="6" class="text-center py-4 text-muted">
+                                <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                                No applications found
+                            </td>
+                        </tr>
+                        <?php else: ?>
+                        <?php foreach ($recent_applications as $app): ?>
+                        <tr>
+                            <td>
+                                <div class="fw-semibold"><?php echo htmlspecialchars($app['candidate_name']); ?></div>
+                                <small class="text-muted"><?php echo htmlspecialchars($app['candidate_email']); ?></small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold"><?php echo htmlspecialchars($app['program_code']); ?></div>
+                                <small class="text-muted"><?php echo htmlspecialchars($app['program_name']); ?></small>
+                            </td>
+                            <td><?php echo date('M j, Y', strtotime($app['created_at'])); ?></td>
+                            <td>
+                                <span class="status-badge status-<?php echo $app['application_status']; ?>">
+                                    <?php echo ucfirst(str_replace('_', ' ', $app['application_status'])); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php if ($app['total_score'] > 0): ?>
+                                    <span class="fw-bold text-primary"><?php echo $app['total_score']; ?>%</span>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <a href="evaluate.php?id=<?php echo $app['id']; ?>" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-eye me-1"></i>View
+                                </a>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
                    
                     <!-- Quick Actions -->
                     <div class="row g-4 mt-2">

@@ -377,6 +377,7 @@ function getStatusColor($status) {
     padding: 40px 10px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     transition: transform 0.2s ease;
+     width: 100%;
 }
 .stat-card:hover {
     transform: translateY(-5px);
@@ -388,6 +389,7 @@ function getStatusColor($status) {
 .stat-label {
     font-size: 0.9rem;
     font-weight: 500;
+    
 }
 
 

@@ -147,23 +147,31 @@ try {
     ], 0);
 }
 
+
 // ============= STATUS DISTRIBUTION (FILTERED) =============
 $status_distribution = [];
 try {
     $stmt = $pdo->prepare("
-        SELECT a.application_status, COUNT(*) as count
+        SELECT 
+            CASE 
+                WHEN a.application_status IS NULL OR a.application_status = '' THEN 'draft'
+                ELSE LOWER(TRIM(a.application_status))
+            END AS status_key,
+            COUNT(*) AS count
         FROM applications a
         LEFT JOIN programs p ON a.program_id = p.id
         $where_clause
-        GROUP BY a.application_status
+        GROUP BY status_key
         ORDER BY count DESC
     ");
     $stmt->execute($filter_params);
+
     while ($row = $stmt->fetch()) {
+        $key = $row['status_key']; // e.g. 'qualified', 'partially_qualified'
         $status_distribution[] = [
-            'status' => getStatusDisplayName($row['application_status']),
-            'count' => (int)$row['count'],
-            'color' => getStatusColor($row['application_status'])
+            'status' => getStatusDisplayName($key),   // gumamit ng normalized key
+            'count'  => (int)$row['count'],
+            'color'  => getStatusColor($key)          // gumamit din ng normalized key
         ];
     }
 } catch (PDOException $e) {
@@ -219,17 +227,22 @@ try {
     $monthly_where = "WHERE " . implode(" AND ", $monthly_where_conditions);
 
     // Raw rows per month
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE_FORMAT(a.created_at, '%Y-%m') AS ym,
-            COUNT(*) AS applications,
-            COUNT(CASE WHEN a.application_status IN ('qualified','partially_qualified') THEN 1 END) AS successful
-        FROM applications a
-        LEFT JOIN programs p ON a.program_id = p.id
-        $monthly_where
-        GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
-        ORDER BY ym ASC
-    ");
+$stmt = $pdo->prepare("
+    SELECT 
+        DATE_FORMAT(a.created_at, '%Y-%m') AS ym,
+        COUNT(*) AS applications,
+        COUNT(
+          CASE 
+            WHEN LOWER(TRIM(a.application_status)) IN ('qualified','partially_qualified') THEN 1 
+          END
+        ) AS successful
+    FROM applications a
+    LEFT JOIN programs p ON a.program_id = p.id
+    $monthly_where
+    GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
+    ORDER BY ym ASC
+");
+
     $stmt->execute($monthly_params);
     $rows = $stmt->fetchAll(PDO::FETCH_UNIQUE); // ['YYYY-MM' => ['applications'=>x,'successful'=>y]]
 

@@ -13,7 +13,8 @@ $user_type = $_SESSION['user_type'];
 
 // ============= GET FILTERS =============
 $start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
-$end_date = $_GET['end_date'] ?? date('Y-m-d');
+
+$end_date   = $_GET['end_date']   ?? date('Y-m-d');
 $program_filter = $_GET['program'] ?? '';
 
 // ============= BUILD WHERE CLAUSE FOR FILTERS =============
@@ -839,8 +840,9 @@ function getStatusColor($status) {
                             </div>
                             <div class="col-md-3">
                                 <label for="end_date" class="form-label">End Date</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date" 
-                                       value="<?php echo htmlspecialchars($end_date); ?>">
+                              <input type="date" class="form-control" id="end_date" name="end_date" 
+       value="<?php echo htmlspecialchars($end_date); ?>">
+
                             </div>
                             <div class="col-md-3">
                                 <label for="program" class="form-label">Program</label>

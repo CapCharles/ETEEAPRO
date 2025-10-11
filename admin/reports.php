@@ -290,6 +290,37 @@ if ($user_type === 'admin') {
     }
 }
 
+// Total candidates (conditional by program)
+try {
+    if (empty($program_filter)) {
+        // ALL PROGRAMS: bilangin lahat ng candidates ayon sa date ng pag-register
+        $stmt = $pdo->prepare("
+            SELECT COUNT(*) AS total
+            FROM users u
+            WHERE u.user_type = 'candidate'
+              AND DATE(u.created_at) BETWEEN ? AND ?
+        ");
+        $stmt->execute([$start_date, $end_date]);
+    } else {
+        // SPECIFIC PROGRAM: bilangin yung candidates na may application sa program na 'yan
+        $stmt = $pdo->prepare("
+            SELECT COUNT(DISTINCT u.id) AS total
+            FROM users u
+            INNER JOIN applications a ON a.user_id = u.id
+            INNER JOIN programs p ON p.id = a.program_id
+            WHERE u.user_type = 'candidate'
+              AND DATE(a.created_at) BETWEEN ? AND ?
+              AND p.program_code = ?
+        ");
+        $stmt->execute([$start_date, $end_date, $program_filter]);
+    }
+
+    $stats['total_candidates'] = (int)$stmt->fetchColumn();
+} catch (PDOException $e) {
+    $stats['total_candidates'] = 0;
+}
+
+
 // Helper function for status colors
 function getStatusColor($status) {
     $colors = [

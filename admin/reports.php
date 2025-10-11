@@ -170,43 +170,6 @@ try {
     $status_distribution = [];
 }
 
-// Get applications by status for chart
-$status_data = [];
-try {
-    $stmt = $pdo->query("
-        SELECT application_status, COUNT(*) as count 
-        FROM applications 
-        GROUP BY application_status
-    ");
-    $status_results = $stmt->fetchAll();
-    foreach ($status_results as $result) {
-        $status_data[$result['application_status']] = $result['count'];
-    }
-} catch (PDOException $e) {
-    $status_data = [];
-}
-
-$monthly_data = [];
-try {
-    // raw counts from DB
-    $stmt = $pdo->query("
-        SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym, COUNT(*) AS cnt
-        FROM applications
-        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
-        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
-    ");
-    $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR); // ['YYYY-MM' => count]
-
-    // build last 6 months inclusive (oldest -> newest)
-    for ($i = 5; $i >= 0; $i--) {
-        $ym = date('Y-m', strtotime("-$i months"));
-        $label = date('M Y', strtotime("$ym-01"));
-        $monthly_data[] = ['month' => $label, 'count' => isset($rows[$ym]) ? (int)$rows[$ym] : 0];
-    }
-} catch (PDOException $e) {
-    $monthly_data = [];
-}
-
 // ============= PROGRAM STATISTICS (FILTERED) =============
 $program_stats = [];
 try {

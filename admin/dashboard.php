@@ -417,7 +417,7 @@ try {
                                 <div class="stat-label">Documents Uploaded</div>
                             </div>
                         </div> -->
-                        <div class="col-md-6 col-lg-3">
+                        <!-- <div class="col-md-6 col-lg-3">
                             <div class="stat-card">
                                 <i class="fas fa-percentage fa-2x text-success mb-2"></i>
                                 <div class="stat-number text-success"><?php echo $stats['avg_score']; ?>%</div>
@@ -437,7 +437,7 @@ try {
                                 <div class="stat-number text-warning">Live</div>
                                 <div class="stat-label">System Status</div>
                             </div>
-                        </div>
+                        </div> -->
                     </div>
 
                     <div class="row g-4">

@@ -765,6 +765,7 @@ function getStatusColor($status) {
                             </div>
                         </div>
                     </div>
+                    </div>
 
                     <!-- Secondary Metrics -->
                    

@@ -863,13 +863,7 @@ function getStatusColor($status) {
                                 <div class="stat-label">Avg Score</div>
                             </div>
                         </div>
-                        <div class="col-md-2">
-                            <div class="stat-card">
-                                <i class="fas fa-clock fa-2x text-secondary mb-2"></i>
-                                <div class="stat-number text-secondary"><?php echo $stats['avg_processing_days']; ?></div>
-                                <div class="stat-label">Avg Days</div>
-                            </div>
-                        </div>
+                     
                     
 
                     <div class="row g-4 mb-4">

@@ -870,75 +870,7 @@ function getStatusColor($status) {
                                 <div class="stat-label">Avg Days</div>
                             </div>
                         </div>
-                        <div class="col-md-2">
-                            <div class="stat-card">
-                                <i class="fas fa-folder fa-2x text-primary mb-2"></i>
-                                <div class="stat-number text-primary"><?php echo $stats['total_documents']; ?></div>
-                                <div class="stat-label">Documents</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Charts -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-lg-6">
-                            <div class="chart-container">
-                                <h5 class="mb-3">Status Distribution</h5>
-                                <?php if (!empty($status_distribution)): ?>
-                                <canvas id="statusChart"></canvas>
-                                <?php else: ?>
-                                <p class="text-center text-muted">No data</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                        <div class="col-lg-6">
-                            <div class="chart-container">
-                                <h5 class="mb-3">Monthly Trends</h5>
-                                <?php if (!empty($monthly_trends)): ?>
-                                <canvas id="trendsChart"></canvas>
-                                <?php else: ?>
-                                <p class="text-center text-muted">No data</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Program Table -->
-                    <?php if (!empty($program_stats)): ?>
-                    <div class="report-card p-4 mb-4">
-                        <h5 class="mb-3">Program Performance</h5>
-                        <table class="table table-hover">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th>Program</th>
-                                    <th>Applications</th>
-                                    <th>Avg Score</th>
-                                    <th>Qualified</th>
-                                    <th>Success Rate</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($program_stats as $prog): 
-                                    $succ_rate = $prog['total_applications'] > 0 ? 
-                                        round((($prog['qualified_count'] + $prog['partial_count']) / $prog['total_applications']) * 100, 1) : 0;
-                                ?>
-                                <tr>
-                                    <td><strong><?php echo htmlspecialchars($prog['program_code']); ?></strong></td>
-                                    <td><?php echo $prog['total_applications']; ?></td>
-                                    <td><?php echo $prog['avg_score'] ? round($prog['avg_score'], 1) . '%' : '—'; ?></td>
-                                    <td><?php echo $prog['qualified_count']; ?></td>
-                                    <td><?php echo $succ_rate; ?>%</td>
-                                </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <?php endif; ?>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+                    
 
                     <div class="row g-4 mb-4">
                         <!-- Status Distribution Chart -->

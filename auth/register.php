@@ -663,6 +663,18 @@ notifyAdminNewRegistration($first_name . ' ' . $last_name, $email);
                             
                             <!-- Document Templates Download Section -->
                             <div class="alert alert-info">
+                                     <div class="requirements-list">
+                                        <h6 class="mb-2"><i class="fas fa-exclamation-triangle me-2"></i>Important Requirements:</h6>
+                                        <ul class="small mb-0">
+                                            <li>You must be at least 25 years old</li>
+                                            <li>Must have at least 5 years of work experience in your field</li>
+                                            <li>Must have a high school diploma or equivalent</li>
+                                            <li>Must be proficient in your chosen field of study</li>
+                                            <li>All information in the documents must be complete and accurate</li>
+                                            <li>Documents can be uploaded in PDF, DOC, or DOCX format</li>
+                                            <li>Use the provided DOCX templates as guide for content structure</li>
+                                        </ul>
+                                    </div>
                                 <h6 class="mb-2"><i class="fas fa-download me-2"></i>Download Required Document Templates</h6>
                                 <p class="mb-3">Before registering, download, complete, and upload ALL required documents.</p>
                                 <div class="download-links">
@@ -845,18 +857,7 @@ notifyAdminNewRegistration($first_name . ' ' . $last_name, $email);
                                         </div>
                                     </div>
                                     
-                                    <div class="requirements-list">
-                                        <h6 class="mb-2"><i class="fas fa-exclamation-triangle me-2"></i>Important Requirements:</h6>
-                                        <ul class="small mb-0">
-                                            <li>You must be at least 25 years old</li>
-                                            <li>Must have at least 5 years of work experience in your field</li>
-                                            <li>Must have a high school diploma or equivalent</li>
-                                            <li>Must be proficient in your chosen field of study</li>
-                                            <li>All information in the documents must be complete and accurate</li>
-                                            <li>Documents can be uploaded in PDF, DOC, or DOCX format</li>
-                                            <li>Use the provided DOCX templates as guide for content structure</li>
-                                        </ul>
-                                    </div>
+                               
                                 </div>
                                 
                                 <div class="form-check mt-4">

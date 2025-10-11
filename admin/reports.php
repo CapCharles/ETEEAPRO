@@ -234,6 +234,42 @@ function getStatusColor($status) {
     return $colors[$status] ?? '#6c757d';
 }
 
+// Date range for reports (default to last 30 days)
+$start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
+$end_date = $_GET['end_date'] ?? date('Y-m-d');
+$program_filter = $_GET['program'] ?? '';
+
+// Build WHERE clause for filters
+$where_conditions = ["1=1"];
+$filter_params = [];
+
+// Add date filter
+if (!empty($start_date) && !empty($end_date)) {
+    $where_conditions[] = "DATE(a.created_at) BETWEEN ? AND ?";
+    $filter_params[] = $start_date;
+    $filter_params[] = $end_date;
+}
+
+// Add program filter
+if (!empty($program_filter)) {
+    $where_conditions[] = "p.program_code = ?";
+    $filter_params[] = $program_filter;
+}
+
+$where_clause = "WHERE " . implode(" AND ", $where_conditions);
+
+$sidebar_submitted_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(*) as total 
+        FROM applications 
+        WHERE application_status IN ('submitted', 'under_review')
+    ");
+    $sidebar_submitted_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+}
+
 
 ?>
 

@@ -662,8 +662,7 @@ notifyAdminNewRegistration($first_name . ' ' . $last_name, $email);
                             <?php else: ?>
                             
                             <!-- Document Templates Download Section -->
-                            <div class="alert alert-info">
-                                     <div class="requirements-list">
+                                <div class="requirements-list">
                                         <h6 class="mb-2"><i class="fas fa-exclamation-triangle me-2"></i>Important Requirements:</h6>
                                         <ul class="small mb-0">
                                             <li>You must be at least 25 years old</li>
@@ -675,6 +674,8 @@ notifyAdminNewRegistration($first_name . ' ' . $last_name, $email);
                                             <li>Use the provided DOCX templates as guide for content structure</li>
                                         </ul>
                                     </div>
+                            <div class="alert alert-info">
+                                  
                                 <h6 class="mb-2"><i class="fas fa-download me-2"></i>Download Required Document Templates</h6>
                                 <p class="mb-3">Before registering, download, complete, and upload ALL required documents.</p>
                                 <div class="download-links">

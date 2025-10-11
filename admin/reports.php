@@ -856,7 +856,7 @@ function getStatusColor($status) {
                                 <div class="stat-label">Success Rate</div>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-2 width=200px">
                             <div class="stat-card">
                                 <i class="fas fa-star fa-2x text-warning mb-2"></i>
                                 <div class="stat-number text-warning"><?php echo $stats['avg_score']; ?>%</div>

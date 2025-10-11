@@ -195,74 +195,47 @@ try {
 }
 
 // ============= MONTHLY TRENDS (FILTERED) =============
-$// ============= MONTHLY TRENDS (FILTERED, 6 months default) =============
 $monthly_trends = [];
 try {
-    $monthly_where_conditions = [];
+    $monthly_where_conditions = ["a.created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)"];
     $monthly_params = [];
-
+    
     if (!empty($start_date) && !empty($end_date)) {
-        // STRICTLY gamitin lang ang user range
         $monthly_where_conditions[] = "DATE(a.created_at) BETWEEN ? AND ?";
         $monthly_params[] = $start_date;
         $monthly_params[] = $end_date;
-    } else {
-        // Default: last 6 months (inclusive ng current month)
-        $monthly_where_conditions[] = "a.created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)";
     }
-
+    
     if (!empty($program_filter)) {
         $monthly_where_conditions[] = "p.program_code = ?";
         $monthly_params[] = $program_filter;
     }
-
+    
     $monthly_where = "WHERE " . implode(" AND ", $monthly_where_conditions);
-
-    // Raw rows per month
+    
     $stmt = $pdo->prepare("
         SELECT 
-            DATE_FORMAT(a.created_at, '%Y-%m') AS ym,
-            COUNT(*) AS applications,
-            COUNT(CASE WHEN a.application_status IN ('qualified','partially_qualified') THEN 1 END) AS successful
+            DATE_FORMAT(a.created_at, '%Y-%m') as month,
+            COUNT(*) as applications,
+            COUNT(CASE WHEN a.application_status IN ('qualified', 'partially_qualified') THEN 1 END) as successful
         FROM applications a
         LEFT JOIN programs p ON a.program_id = p.id
         $monthly_where
         GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
-        ORDER BY ym ASC
+        ORDER BY month ASC
     ");
     $stmt->execute($monthly_params);
-    $rows = $stmt->fetchAll(PDO::FETCH_UNIQUE); // ['YYYY-MM' => ['applications'=>x,'successful'=>y]]
-
-    // Build month range
-    if (!empty($start_date) && !empty($end_date)) {
-        $startYm = date('Y-m', strtotime($start_date));
-        $endYm   = date('Y-m', strtotime($end_date));
-    } else {
-        $startYm = date('Y-m', strtotime('-5 months'));
-        $endYm   = date('Y-m'); // current month
-    }
-
-    $start = new DateTime($startYm . '-01');
-    $end   = new DateTime($endYm . '-01');
-
-    while ($start <= $end) {
-        $ym    = $start->format('Y-m');
-        $label = $start->format('M Y');
-        $apps  = isset($rows[$ym]['applications']) ? (int)$rows[$ym]['applications'] : 0;
-        $succ  = isset($rows[$ym]['successful'])   ? (int)$rows[$ym]['successful']   : 0;
-
+    while ($row = $stmt->fetch()) {
         $monthly_trends[] = [
-            'month'        => $label,
-            'applications' => $apps,
-            'successful'   => $succ,
-            'success_rate' => $apps > 0 ? round(($succ / $apps) * 100, 1) : 0
+            'month' => date('M Y', strtotime($row['month'] . '-01')),
+            'applications' => $row['applications'],
+            'successful' => $row['successful'],
+            'success_rate' => $row['applications'] > 0 ? round(($row['successful'] / $row['applications']) * 100, 1) : 0
         ];
-        $start->modify('+1 month');
     }
 } catch (PDOException $e) {
     $monthly_trends = [];
 }
-
 
 // ============= DOCUMENT STATISTICS (FILTERED) =============
 $document_stats = [];

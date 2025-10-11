@@ -744,14 +744,7 @@ function getStatusColor($status) {
                                 <small class="text-muted">Qualified + Partially Qualified</small>
                             </div>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="stat-card">
-                                <i class="fas fa-clock fa-2x text-warning mb-3"></i>
-                                <div class="stat-number text-warning"><?php echo $stats['avg_processing_days']; ?></div>
-                                <div class="stat-label">Avg Processing Days</div>
-                                <small class="text-muted">From submission to evaluation</small>
-                            </div>
-                        </div>
+                
                     </div>
 
                     <!-- Secondary Metrics -->

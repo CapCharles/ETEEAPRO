@@ -1201,6 +1201,14 @@ function getStatusColor($status) {
         });
         <?php endif; ?>
 
+
+
+        document.addEventListener("DOMContentLoaded", function() {
+  const endInput = document.getElementById("end_date");
+  if (endInput && !endInput.value) {
+    endInput.value = new Date().toISOString().split('T')[0];
+  }
+});
         // Export Data Function
         function exportData() {
             const exportData = {

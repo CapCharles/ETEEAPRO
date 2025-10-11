@@ -374,10 +374,10 @@ function getStatusColor($status) {
 .stat-card {
     background: #fff;
     border-radius: 10px;
-    padding: 120px 10px;
+    padding: 100px 10px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.08);
     transition: transform 0.2s ease;
-    
+     width: 100%;
 }
 .stat-card:hover {
     transform: translateY(-5px);

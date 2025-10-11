@@ -371,36 +371,39 @@ function getStatusColor($status) {
 }
 #print-report .muted { color: #6b7280; }
 
-.stat-card {
-    background: #fff;
-    border-radius: 12px;
-    padding: 40px 20px; /* 🔹 mas wide spacing */
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    min-height: 200px; /* 🔹 mas mataas ang box */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-}
 
 .stat-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
 
+.stat-card {
+    background: #fff !important;
+    border-radius: 12px !important;
+    padding: 40px 20px !important;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    min-height: 200px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+}
+
 .stat-number {
-    font-size: 2.2rem; /* 🔹 mas malaking number */
-    font-weight: 700;
-    line-height: 1.2;
+    font-size: 2.2rem !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
 }
 
 .stat-label {
-    font-size: 1rem; /* 🔹 bahagyang mas malaki sa dati */
-    font-weight: 600;
-    margin-top: 6px;
-    color: #444;
+    font-size: 1rem !important;
+    font-weight: 600 !important;
+    margin-top: 6px !important;
+    color: #444 !important;
 }
+
+
 
 .stat-card small {
     font-size: 0.9rem;

@@ -769,14 +769,7 @@ function getStatusColor($status) {
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <i class="fas fa-folder fa-2x text-info mb-3"></i>
-                                <div class="stat-number text-info"><?php echo formatNumberShort($stats['total_documents']); ?></div>
-                                <div class="stat-label">Documents Uploaded</div>
-                                <small class="text-muted">All file submissions</small>
-                            </div>
-                        </div>
+                    
                         <div class="col-md-4">
                             <div class="stat-card">
                                 <i class="fas fa-calendar fa-2x text-primary mb-3"></i>

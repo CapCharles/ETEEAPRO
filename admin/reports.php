@@ -13,12 +13,18 @@ $user_type = $_SESSION['user_type'];
 
 // ============= GET FILTERS =============
 $start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
-$end_date = $_GET['end_date'] ?? date('Y-m-d');
-$program_filter = $_GET['program'] ?? '';
+$end_date   = $_GET['end_date']   ?? date('Y-m-d');
 
-// ============= BUILD WHERE CLAUSE FOR FILTERS =============
+// para inclusive: gamitin < (end_date + 1 araw)
 $where_conditions = ["1=1"];
 $filter_params = [];
+
+if (!empty($start_date) && !empty($end_date)) {
+    $where_conditions[] = "a.created_at >= ? AND a.created_at < DATE_ADD(?, INTERVAL 1 DAY)";
+    $filter_params[] = $start_date;
+    $filter_params[] = $end_date;
+}
+
 
 // Add date filter
 if (!empty($start_date) && !empty($end_date)) {

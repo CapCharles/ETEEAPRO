@@ -371,6 +371,25 @@ function getStatusColor($status) {
 }
 #print-report .muted { color: #6b7280; }
 
+.stat-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease;
+}
+.stat-card:hover {
+    transform: translateY(-5px);
+}
+.stat-number {
+    font-size: 1.8rem;
+    font-weight: 600;
+}
+.stat-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
 
 
 @media print {
@@ -716,62 +735,70 @@ function getStatusColor($status) {
                         </form>
                     </div>
 
-                    <!-- Key Metrics -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-6 col-lg-3">
-                            <div class="stat-card">
-                                <i class="fas fa-file-alt fa-2x text-primary mb-3"></i>
-                                <div class="stat-number text-primary"><?php echo formatNumberShort($stats['total_applications']); ?></div>
-                                <div class="stat-label">Total Applications</div>
-                                <small class="text-muted">
-                                    <?php echo $stats['period_applications']; ?> in selected period
-                                </small>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="stat-card">
-                                <i class="fas fa-users fa-2x text-success mb-3"></i>
-                                <div class="stat-number text-success"><?php echo formatNumberShort($stats['total_candidates']); ?></div>
-                                <div class="stat-label">Total Candidates</div>
-                                <small class="text-muted">Registered users</small>
-                            </div>
-                        </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="stat-card">
-                                <i class="fas fa-percentage fa-2x text-info mb-3"></i>
-                                <div class="stat-number text-info"><?php echo $stats['success_rate']; ?>%</div>
-                                <div class="stat-label">Success Rate</div>
-                                <small class="text-muted">Qualified + Partially Qualified</small>
-                            </div>
-                        </div>
-                                        
-                    </div>
+              <!-- Key Metrics (One Line Layout) -->
+<div class="row g-4 mb-4 justify-content-center text-center">
+    <div class="col-md-2 col-sm-4">
+        <div class="stat-card">
+            <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
+            <div class="stat-number text-primary">
+                <?php echo formatNumberShort($stats['total_applications']); ?>
+            </div>
+            <div class="stat-label">Total Applications</div>
+            <small class="text-muted">
+                <?php echo $stats['period_applications']; ?> in selected period
+            </small>
+        </div>
+    </div>
 
-                    <!-- Secondary Metrics -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <i class="fas fa-star fa-2x text-success mb-3"></i>
-                                <div class="stat-number text-success"><?php echo $stats['avg_score']; ?>%</div>
-                                <div class="stat-label">Average Score</div>
-                                <div class="mt-2">
-                                    <?php 
-                                    $grade = getScoreGrade($stats['avg_score']);
-                                    echo '<span class="badge bg-' . $grade['class'] . '">' . $grade['text'] . '</span>';
-                                    ?>
-                                </div>
-                            </div>
-                        </div>
-                    
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <i class="fas fa-calendar fa-2x text-primary mb-3"></i>
-                                <div class="stat-number text-primary"><?php echo date('j'); ?></div>
-                                <div class="stat-label"><?php echo date('F Y'); ?></div>
-                                <small class="text-muted">Current Period</small>
-                            </div>
-                        </div>
-                    </div>
+    <div class="col-md-2 col-sm-4">
+        <div class="stat-card">
+            <i class="fas fa-users fa-2x text-success mb-2"></i>
+            <div class="stat-number text-success">
+                <?php echo formatNumberShort($stats['total_candidates']); ?>
+            </div>
+            <div class="stat-label">Total Candidates</div>
+            <small class="text-muted">Registered users</small>
+        </div>
+    </div>
+
+    <div class="col-md-2 col-sm-4">
+        <div class="stat-card">
+            <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+            <div class="stat-number text-info">
+                <?php echo $stats['success_rate']; ?>%
+            </div>
+            <div class="stat-label">Success Rate</div>
+            <small class="text-muted">Qualified + Partially Qualified</small>
+        </div>
+    </div>
+
+    <div class="col-md-2 col-sm-4">
+        <div class="stat-card">
+            <i class="fas fa-star fa-2x text-success mb-2"></i>
+            <div class="stat-number text-success">
+                <?php echo $stats['avg_score']; ?>%
+            </div>
+            <div class="stat-label">Average Score</div>
+            <div class="mt-2">
+                <?php 
+                $grade = getScoreGrade($stats['avg_score']);
+                echo '<span class="badge bg-' . $grade['class'] . '">' . $grade['text'] . '</span>';
+                ?>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-2 col-sm-4">
+        <div class="stat-card">
+            <i class="fas fa-calendar fa-2x text-primary mb-2"></i>
+            <div class="stat-number text-primary">
+                <?php echo date('j'); ?>
+            </div>
+            <div class="stat-label"><?php echo date('F Y'); ?></div>
+            <small class="text-muted">Current Period</small>
+        </div>
+    </div>
+</div>
 
                     <div class="row g-4 mb-4">
                         <!-- Status Distribution Chart -->

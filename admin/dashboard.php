@@ -438,20 +438,7 @@ try {
                                 <div class="stat-label">System Status</div>
                             </div>
                         </div> -->
-                    </div> 
-                     <div class="col-lg-4">
-                            <div class="chart-container">
-                                <h5 class="mb-3">Application Status Distribution</h5>
-                                <?php if (!empty($status_data)): ?>
-                                <canvas id="statusChart" height="250"></canvas>
-                                <?php else: ?>
-                                <div class="text-center py-5 text-muted">
-                                    <i class="fas fa-chart-pie fa-3x mb-3"></i>
-                                    <p>No data available</p>
-                                </div>
-                                <?php endif; ?>
-                            </div>
-                        </div>
+                    </div>
 
                     <div class="row g-4">
                         <!-- Recent Applications -->
@@ -524,11 +511,21 @@ try {
                         </div>
 
                         <!-- Application Status Chart -->
-                      
-                    </div>
+                        <div class="col-lg-4">
+                            <div class="chart-container">
+                                <h5 class="mb-3">Application Status Distribution</h5>
+                                <?php if (!empty($status_data)): ?>
+                                <canvas id="statusChart" height="250"></canvas>
+                                <?php else: ?>
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                                    <p>No data available</p>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
 
-                    <!-- Monthly Trends -->
-                    <?php if (!empty($monthly_data)): ?>
+                         <?php if (!empty($monthly_data)): ?>
                     <div class="row g-4 mt-2">
                         <div class="col-12">
                             <div class="chart-container">
@@ -538,6 +535,10 @@ try {
                         </div>
                     </div>
                     <?php endif; ?>
+                    </div>
+
+                    <!-- Monthly Trends -->
+                   
 
                     <!-- Quick Actions -->
                     <div class="row g-4 mt-2">

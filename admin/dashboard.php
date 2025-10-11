@@ -461,7 +461,7 @@ try {
                         <div class="col-12">
                             <div class="chart-container">
                                 <h5 class="mb-3">Monthly Application Trends (Last 6 Months)</h5>
-                                <canvas id="monthlyChart" height="300"></canvas>
+                                <canvas id="monthlyChart" height="300" width="300"></canvas>
                             </div>
                         </div>
                     </div>

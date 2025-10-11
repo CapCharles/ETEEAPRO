@@ -744,7 +744,12 @@ function getStatusColor($status) {
                                 <small class="text-muted">Qualified + Partially Qualified</small>
                             </div>
                         </div>
-                                   <div class="col-md-6 col-lg-3">
+                                        
+                    </div>
+
+                    <!-- Secondary Metrics -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-4">
                             <div class="stat-card">
                                 <i class="fas fa-star fa-2x text-success mb-3"></i>
                                 <div class="stat-number text-success"><?php echo $stats['avg_score']; ?>%</div>
@@ -755,8 +760,10 @@ function getStatusColor($status) {
                                     echo '<span class="badge bg-' . $grade['class'] . '">' . $grade['text'] . '</span>';
                                     ?>
                                 </div>
-                            </div>    
-                            <div class="col-md-6 col-lg-3">
+                            </div>
+                        </div>
+                    
+                        <div class="col-md-4">
                             <div class="stat-card">
                                 <i class="fas fa-calendar fa-2x text-primary mb-3"></i>
                                 <div class="stat-number text-primary"><?php echo date('j'); ?></div>
@@ -765,11 +772,6 @@ function getStatusColor($status) {
                             </div>
                         </div>
                     </div>
-                    </div>
-
-                    <!-- Secondary Metrics -->
-                   
-                 
 
                     <div class="row g-4 mb-4">
                         <!-- Status Distribution Chart -->

@@ -10,236 +10,13 @@ requireAuth(['admin', 'evaluator']);
 $user_type = $_SESSION['user_type'];
 
 // Date range for reports (default to last 30 days)
-$start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
-$end_date = $_GET['end_date'] ?? date('Y-m-d');
-$program_filter = $_GET['program'] ?? '';
-$sidebar_submitted_count = 0;
-try {
-    $stmt = $pdo->query("
-        SELECT COUNT(*) as total 
-        FROM applications 
-        WHERE application_status IN ('submitted', 'under_review')
-    ");
-    $sidebar_submitted_count = $stmt->fetch()['total'];
-} catch (PDOException $e) {
-    $sidebar_submitted_count = 0;
-}
 
-
-
-$sidebar_pending_count = 0;
-try {
-    $stmt = $pdo->query("
-        SELECT COUNT(DISTINCT u.id) as total 
-        FROM users u
-        INNER JOIN application_forms af ON u.id = af.user_id
-        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' OR u.application_form_status NOT IN ('approved', 'rejected'))
-    ");
-    $sidebar_pending_count = $stmt->fetch()['total'];
-} catch (PDOException $e) {
-    $sidebar_pending_count = 0;
-}
-
-function getPendingReviewsCount($pdo) {
-    try {
-        $stmt = $pdo->query("
-            SELECT COUNT(DISTINCT u.id) as total 
-            FROM users u
-            INNER JOIN application_forms af ON u.id = af.user_id
-            WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
-                   OR u.application_form_status NOT IN ('approved', 'rejected'))
-        ");
-        return (int)$stmt->fetch()['total'];
-    } catch (PDOException $e) {
-        error_log("Error getting pending reviews count: " . $e->getMessage());
-        return 0;
-    }
-}
-// Get comprehensive statistics
-$stats = [];
-try {
-    // Basic counts
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM applications");
-    $stats['total_applications'] = $stmt->fetch()['total'];
-    
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM users WHERE user_type = 'candidate'");
-    $stats['total_candidates'] = $stmt->fetch()['total'];
-    
-    $stmt = $pdo->query("SELECT COUNT(*) as total FROM documents");
-    $stats['total_documents'] = $stmt->fetch()['total'];
-    
-    // Applications in date range
-    $stmt = $pdo->prepare("
-        SELECT COUNT(*) as total FROM applications 
-        WHERE DATE(created_at) BETWEEN ? AND ?
-    ");
-    $stmt->execute([$start_date, $end_date]);
-    $stats['period_applications'] = $stmt->fetch()['total'];
-    
-    // Average processing time (from submission to evaluation)
-    $stmt = $pdo->query("
-        SELECT AVG(DATEDIFF(evaluation_date, submission_date)) as avg_days
-        FROM applications 
-        WHERE submission_date IS NOT NULL AND evaluation_date IS NOT NULL
-    ");
-    $avg_processing = $stmt->fetch()['avg_days'];
-    $stats['avg_processing_days'] = $avg_processing ? round($avg_processing, 1) : 0;
-    
-    // Success rate
-    $stmt = $pdo->query("
-        SELECT 
-            COUNT(*) as total_evaluated,
-            SUM(CASE WHEN application_status IN ('qualified', 'partially_qualified') THEN 1 ELSE 0 END) as successful
-        FROM applications 
-        WHERE application_status IN ('qualified', 'partially_qualified', 'not_qualified')
-    ");
-    $success_data = $stmt->fetch();
-    $stats['success_rate'] = $success_data['total_evaluated'] > 0 ? 
-        round(($success_data['successful'] / $success_data['total_evaluated']) * 100, 1) : 0;
-    
-    // Average score
-    $stmt = $pdo->query("SELECT AVG(total_score) as avg_score FROM applications WHERE total_score > 0");
-    $avg_score = $stmt->fetch()['avg_score'];
-    $stats['avg_score'] = $avg_score ? round($avg_score, 1) : 0;
-    
-} catch (PDOException $e) {
-    $stats = array_fill_keys([
-        'total_applications', 'total_candidates', 'total_documents', 
-        'period_applications', 'avg_processing_days', 'success_rate', 'avg_score'
-    ], 0);
-}
-
-// Get status distribution
-$status_distribution = [];
-try {
-    $stmt = $pdo->query("
-        SELECT application_status, COUNT(*) as count
-        FROM applications 
-        GROUP BY application_status
-        ORDER BY count DESC
-    ");
-    while ($row = $stmt->fetch()) {
-        $status_distribution[] = [
-            'status' => getStatusDisplayName($row['application_status']),
-            'count' => $row['count'],
-            'color' => getStatusColor($row['application_status'])
-        ];
-    }
-} catch (PDOException $e) {
-    $status_distribution = [];
-}
-
-// Get program statistics
-$program_stats = [];
-try {
-    $stmt = $pdo->query("
-        SELECT 
-            p.program_name,
-            p.program_code,
-            COUNT(a.id) as total_applications,
-            AVG(CASE WHEN a.total_score > 0 THEN a.total_score END) as avg_score,
-            COUNT(CASE WHEN a.application_status = 'qualified' THEN 1 END) as qualified_count,
-            COUNT(CASE WHEN a.application_status = 'partially_qualified' THEN 1 END) as partial_count
-        FROM programs p
-        LEFT JOIN applications a ON p.id = a.program_id
-        GROUP BY p.id, p.program_name, p.program_code
-        ORDER BY total_applications DESC
-    ");
-    $program_stats = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $program_stats = [];
-}
-
-// Get monthly trends (last 12 months)
-$monthly_trends = [];
-try {
-    $stmt = $pdo->query("
-        SELECT 
-            DATE_FORMAT(created_at, '%Y-%m') as month,
-            COUNT(*) as applications,
-            COUNT(CASE WHEN application_status IN ('qualified', 'partially_qualified') THEN 1 END) as successful
-        FROM applications 
-        WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
-        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
-        ORDER BY month ASC
-    ");
-    while ($row = $stmt->fetch()) {
-        $monthly_trends[] = [
-            'month' => date('M Y', strtotime($row['month'] . '-01')),
-            'applications' => $row['applications'],
-            'successful' => $row['successful'],
-            'success_rate' => $row['applications'] > 0 ? round(($row['successful'] / $row['applications']) * 100, 1) : 0
-        ];
-    }
-} catch (PDOException $e) {
-    $monthly_trends = [];
-}
-
-// Get top documents by type
-$document_stats = [];
-try {
-    $stmt = $pdo->query("
-        SELECT 
-            document_type,
-            COUNT(*) as count,
-            AVG(file_size) as avg_size
-        FROM documents 
-        GROUP BY document_type
-        ORDER BY count DESC
-    ");
-    while ($row = $stmt->fetch()) {
-        $document_stats[] = [
-            'type' => getDocumentTypeDisplayName($row['document_type']),
-            'count' => $row['count'],
-            'avg_size' => formatFileSize($row['avg_size'])
-        ];
-    }
-} catch (PDOException $e) {
-    $document_stats = [];
-}
-
-// Get evaluator performance (for admins only)
-$evaluator_stats = [];
-if ($user_type === 'admin') {
-    try {
-        $stmt = $pdo->query("
-            SELECT 
-                CONCAT(u.first_name, ' ', u.last_name) as evaluator_name,
-                COUNT(a.id) as applications_evaluated,
-                AVG(a.total_score) as avg_score_given,
-                AVG(DATEDIFF(a.evaluation_date, a.submission_date)) as avg_processing_days
-            FROM users u
-            LEFT JOIN applications a ON u.id = a.evaluator_id
-            WHERE u.user_type IN ('admin', 'evaluator')
-            GROUP BY u.id, u.first_name, u.last_name
-            HAVING applications_evaluated > 0
-            ORDER BY applications_evaluated DESC
-        ");
-        $evaluator_stats = $stmt->fetchAll();
-    } catch (PDOException $e) {
-        $evaluator_stats = [];
-    }
-}
-
-// Helper function for status colors
-function getStatusColor($status) {
-    $colors = [
-        'draft' => '#6c757d',
-        'submitted' => '#0dcaf0',
-        'under_review' => '#ffc107',
-        'qualified' => '#198754',
-        'partially_qualified' => '#fd7e14',
-        'not_qualified' => '#dc3545'
-    ];
-    return $colors[$status] ?? '#6c757d';
-}
-
-// Date range for reports (default to last 30 days)
+// ============= GET FILTERS =============
 $start_date = $_GET['start_date'] ?? date('Y-m-d', strtotime('-30 days'));
 $end_date = $_GET['end_date'] ?? date('Y-m-d');
 $program_filter = $_GET['program'] ?? '';
 
-// Build WHERE clause for filters
+// ============= BUILD WHERE CLAUSE FOR FILTERS =============
 $where_conditions = ["1=1"];
 $filter_params = [];
 
@@ -258,6 +35,7 @@ if (!empty($program_filter)) {
 
 $where_clause = "WHERE " . implode(" AND ", $where_conditions);
 
+// ============= SIDEBAR COUNTS (UNFILTERED) =============
 $sidebar_submitted_count = 0;
 try {
     $stmt = $pdo->query("
@@ -270,6 +48,260 @@ try {
     $sidebar_submitted_count = 0;
 }
 
+$sidebar_pending_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT u.id) as total 
+        FROM users u
+        INNER JOIN application_forms af ON u.id = af.user_id
+        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
+               OR u.application_form_status NOT IN ('approved', 'rejected'))
+    ");
+    $sidebar_pending_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_pending_count = 0;
+}
+
+// ============= GET FILTERED STATISTICS =============
+$stats = [];
+try {
+    // Total applications (FILTERED)
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total 
+        FROM applications a 
+        LEFT JOIN programs p ON a.program_id = p.id 
+        $where_clause
+    ");
+    $stmt->execute($filter_params);
+    $stats['total_applications'] = $stmt->fetch()['total'];
+    
+    // Total candidates (filtered by date only)
+    $candidate_where = "WHERE u.user_type = 'candidate'";
+    $candidate_params = [];
+    if (!empty($start_date) && !empty($end_date)) {
+        $candidate_where .= " AND DATE(u.created_at) BETWEEN ? AND ?";
+        $candidate_params = [$start_date, $end_date];
+    }
+    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM users u $candidate_where");
+    $stmt->execute($candidate_params);
+    $stats['total_candidates'] = $stmt->fetch()['total'];
+    
+    // Documents (FILTERED)
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) as total 
+        FROM documents d
+        INNER JOIN applications a ON d.application_id = a.id
+        LEFT JOIN programs p ON a.program_id = p.id
+        $where_clause
+    ");
+    $stmt->execute($filter_params);
+    $stats['total_documents'] = $stmt->fetch()['total'];
+    
+    // Applications in date range (already filtered)
+    $stats['period_applications'] = $stats['total_applications'];
+    
+    // Average processing time (FILTERED)
+    $stmt = $pdo->prepare("
+        SELECT AVG(DATEDIFF(a.evaluation_date, a.submission_date)) as avg_days
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        $where_clause
+        AND a.submission_date IS NOT NULL 
+        AND a.evaluation_date IS NOT NULL
+    ");
+    $stmt->execute($filter_params);
+    $avg_processing = $stmt->fetch()['avg_days'];
+    $stats['avg_processing_days'] = $avg_processing ? round($avg_processing, 1) : 0;
+    
+    // Success rate (FILTERED)
+    $stmt = $pdo->prepare("
+        SELECT 
+            COUNT(*) as total_evaluated,
+            SUM(CASE WHEN a.application_status IN ('qualified', 'partially_qualified') THEN 1 ELSE 0 END) as successful
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        $where_clause
+        AND a.application_status IN ('qualified', 'partially_qualified', 'not_qualified')
+    ");
+    $stmt->execute($filter_params);
+    $success_data = $stmt->fetch();
+    $stats['success_rate'] = $success_data['total_evaluated'] > 0 ? 
+        round(($success_data['successful'] / $success_data['total_evaluated']) * 100, 1) : 0;
+    
+    // Average score (FILTERED)
+    $stmt = $pdo->prepare("
+        SELECT AVG(a.total_score) as avg_score 
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        $where_clause
+        AND a.total_score > 0
+    ");
+    $stmt->execute($filter_params);
+    $avg_score = $stmt->fetch()['avg_score'];
+    $stats['avg_score'] = $avg_score ? round($avg_score, 1) : 0;
+    
+} catch (PDOException $e) {
+    $stats = array_fill_keys([
+        'total_applications', 'total_candidates', 'total_documents', 
+        'period_applications', 'avg_processing_days', 'success_rate', 'avg_score'
+    ], 0);
+}
+
+// ============= STATUS DISTRIBUTION (FILTERED) =============
+$status_distribution = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT a.application_status, COUNT(*) as count
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        $where_clause
+        GROUP BY a.application_status
+        ORDER BY count DESC
+    ");
+    $stmt->execute($filter_params);
+    while ($row = $stmt->fetch()) {
+        $status_distribution[] = [
+            'status' => getStatusDisplayName($row['application_status']),
+            'count' => $row['count'],
+            'color' => getStatusColor($row['application_status'])
+        ];
+    }
+} catch (PDOException $e) {
+    $status_distribution = [];
+}
+
+// ============= PROGRAM STATISTICS (FILTERED) =============
+$program_stats = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT 
+            p.program_name,
+            p.program_code,
+            COUNT(a.id) as total_applications,
+            AVG(CASE WHEN a.total_score > 0 THEN a.total_score END) as avg_score,
+            COUNT(CASE WHEN a.application_status = 'qualified' THEN 1 END) as qualified_count,
+            COUNT(CASE WHEN a.application_status = 'partially_qualified' THEN 1 END) as partial_count
+        FROM programs p
+        LEFT JOIN applications a ON p.id = a.program_id
+        $where_clause
+        GROUP BY p.id, p.program_name, p.program_code
+        HAVING total_applications > 0
+        ORDER BY total_applications DESC
+    ");
+    $stmt->execute($filter_params);
+    $program_stats = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $program_stats = [];
+}
+
+// ============= MONTHLY TRENDS (FILTERED) =============
+$monthly_trends = [];
+try {
+    $monthly_where_conditions = ["a.created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)"];
+    $monthly_params = [];
+    
+    if (!empty($start_date) && !empty($end_date)) {
+        $monthly_where_conditions[] = "DATE(a.created_at) BETWEEN ? AND ?";
+        $monthly_params[] = $start_date;
+        $monthly_params[] = $end_date;
+    }
+    
+    if (!empty($program_filter)) {
+        $monthly_where_conditions[] = "p.program_code = ?";
+        $monthly_params[] = $program_filter;
+    }
+    
+    $monthly_where = "WHERE " . implode(" AND ", $monthly_where_conditions);
+    
+    $stmt = $pdo->prepare("
+        SELECT 
+            DATE_FORMAT(a.created_at, '%Y-%m') as month,
+            COUNT(*) as applications,
+            COUNT(CASE WHEN a.application_status IN ('qualified', 'partially_qualified') THEN 1 END) as successful
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        $monthly_where
+        GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
+        ORDER BY month ASC
+    ");
+    $stmt->execute($monthly_params);
+    while ($row = $stmt->fetch()) {
+        $monthly_trends[] = [
+            'month' => date('M Y', strtotime($row['month'] . '-01')),
+            'applications' => $row['applications'],
+            'successful' => $row['successful'],
+            'success_rate' => $row['applications'] > 0 ? round(($row['successful'] / $row['applications']) * 100, 1) : 0
+        ];
+    }
+} catch (PDOException $e) {
+    $monthly_trends = [];
+}
+
+// ============= DOCUMENT STATISTICS (FILTERED) =============
+$document_stats = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT 
+            d.document_type,
+            COUNT(*) as count,
+            AVG(d.file_size) as avg_size
+        FROM documents d
+        INNER JOIN applications a ON d.application_id = a.id
+        LEFT JOIN programs p ON a.program_id = p.id
+        $where_clause
+        GROUP BY d.document_type
+        ORDER BY count DESC
+    ");
+    $stmt->execute($filter_params);
+    while ($row = $stmt->fetch()) {
+        $document_stats[] = [
+            'type' => getDocumentTypeDisplayName($row['document_type']),
+            'count' => $row['count'],
+            'avg_size' => formatFileSize($row['avg_size'])
+        ];
+    }
+} catch (PDOException $e) {
+    $document_stats = [];
+}
+
+// ============= EVALUATOR PERFORMANCE (FILTERED, ADMIN ONLY) =============
+$evaluator_stats = [];
+if ($user_type === 'admin') {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 
+                CONCAT(u.first_name, ' ', u.last_name) as evaluator_name,
+                COUNT(a.id) as applications_evaluated,
+                AVG(a.total_score) as avg_score_given,
+                AVG(DATEDIFF(a.evaluation_date, a.submission_date)) as avg_processing_days
+            FROM users u
+            LEFT JOIN applications a ON u.id = a.evaluator_id
+            LEFT JOIN programs p ON a.program_id = p.id
+            $where_clause
+            AND u.user_type IN ('admin', 'evaluator')
+            GROUP BY u.id, u.first_name, u.last_name
+            HAVING applications_evaluated > 0
+            ORDER BY applications_evaluated DESC
+        ");
+        $stmt->execute($filter_params);
+        $evaluator_stats = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        $evaluator_stats = [];
+    }
+}
+
+// Helper function for status colors
+function getStatusColor($status) {
+    $colors = [
+        'draft' => '#6c757d',
+        'submitted' => '#0dcaf0',
+        'under_review' => '#ffc107',
+        'qualified' => '#198754',
+        'partially_qualified' => '#fd7e14',
+        'not_qualified' => '#dc3545'
+    ];
+    return $colors[$status] ?? '#6c757d';
+}
 
 ?>
 
@@ -406,58 +438,38 @@ try {
   font-weight: 700;
 }
 #print-report .muted { color: #6b7280; }
-.stat-card {
-    background: #fff;
-    border-radius: 15px;
-    padding: 40px 20px;
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-    transition: all 0.3s ease;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    min-height: 200px; /* pantay ang height */
-    width: 100%;
-}
-
-.stat-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
-}
-
-.stat-number {
-    font-size: 2.3rem;
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.stat-label {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #444;
-    margin-top: 6px;
-}
-
-.stat-card small {
-    font-size: 0.9rem;
-    color: #777;
-}
-
-@media (max-width: 992px) {
-    .stat-card {
-        min-height: 180px;
-        margin-bottom: 10px;
-    }
-}
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .stat-number { font-size: 2rem; font-weight: 700; }
+        .stat-label { color: #6c757d; font-size: 0.875rem; }
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        .chart-container canvas { height: 320px !important; max-height: 360px; }
+        .filter-card {
+            background: white;
+            border-radius: 15px;
+            padding: 1.5rem;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+        @media print {
+            #screen-report { display: none !important; }
+            #print-report { display: block !important; }
+        }
 
 
 
 
-@media print {
-  /* hard override to be absolutely sure */
-  #screen-report { display: none !important; visibility: hidden !important; }
-  #print-report  { display: block !important; visibility: visible !important; }
-}
+
     </style>
 </head>
 <body>
@@ -747,7 +759,7 @@ try {
                 </div>
             </div>
 
-            <!-- Main Content -->
+        <!-- Main Content -->
             <div class="col-md-9 col-lg-10">
                 <div class="p-4">
                     <!-- Header -->
@@ -757,11 +769,11 @@ try {
                             <p class="text-muted mb-0">Comprehensive insights into ETEEAP system performance</p>
                         </div>
                         <div class="d-flex gap-2">
-       <button class="btn btn-secondary" onclick="window.print()">
-  <i class="fas fa-table me-1"></i>Print
-</button>
+                            <button class="btn btn-secondary" onclick="window.print()">
+                                <i class="fas fa-print me-1"></i>Print
+                            </button>
                             <button class="btn btn-primary" onclick="exportData()">
-                                <i class="fas fa-download me-1"></i>Export Data
+                                <i class="fas fa-download me-1"></i>Export
                             </button>
                         </div>
                     </div>
@@ -771,21 +783,29 @@ try {
                         <form method="GET" class="row g-3 align-items-end">
                             <div class="col-md-3">
                                 <label for="start_date" class="form-label">Start Date</label>
-                                <input type="date" class="form-control" id="start_date" name="start_date" value="<?php echo $start_date; ?>">
+                                <input type="date" class="form-control" id="start_date" name="start_date" 
+                                       value="<?php echo htmlspecialchars($start_date); ?>">
                             </div>
                             <div class="col-md-3">
                                 <label for="end_date" class="form-label">End Date</label>
-                                <input type="date" class="form-control" id="end_date" name="end_date" value="<?php echo $end_date; ?>">
+                                <input type="date" class="form-control" id="end_date" name="end_date" 
+                                       value="<?php echo htmlspecialchars($end_date); ?>">
                             </div>
-                            <div class="col-md-4">
-                                <label for="program" class="form-label">Program Filter</label>
+                            <div class="col-md-3">
+                                <label for="program" class="form-label">Program</label>
                                 <select class="form-select" id="program" name="program">
                                     <option value="">All Programs</option>
-                                    <?php foreach ($program_stats as $program): ?>
-                                    <option value="<?php echo $program['program_code']; ?>" <?php echo $program_filter === $program['program_code'] ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($program['program_name']); ?>
+                                    <?php 
+                                    // Get all programs for dropdown
+                                    try {
+                                        $all_programs = $pdo->query("SELECT DISTINCT program_code, program_name FROM programs ORDER BY program_name");
+                                        while ($prog = $all_programs->fetch()):
+                                    ?>
+                                    <option value="<?php echo htmlspecialchars($prog['program_code']); ?>" 
+                                            <?php echo $program_filter === $prog['program_code'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($prog['program_name']); ?>
                                     </option>
-                                    <?php endforeach; ?>
+                                    <?php endwhile; } catch (PDOException $e) {} ?>
                                 </select>
                             </div>
                             <div class="col-md-2">
@@ -793,75 +813,132 @@ try {
                                     <i class="fas fa-filter me-1"></i>Filter
                                 </button>
                             </div>
+                            <div class="col-md-1">
+                                <a href="reports.php" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-times"></i>
+                                </a>
+                            </div>
                         </form>
+                        
+                        <?php if (!empty($program_filter) || $start_date !== date('Y-m-d', strtotime('-30 days'))): ?>
+                        <div class="mt-3">
+                            <span class="badge bg-info"><i class="fas fa-info-circle me-1"></i>Filtered Results</span>
+                            <?php if (!empty($program_filter)): ?>
+                            <span class="badge bg-primary">Program: <?php echo htmlspecialchars($program_filter); ?></span>
+                            <?php endif; ?>
+                            <span class="badge bg-secondary">
+                                <?php echo date('M j, Y', strtotime($start_date)); ?> - <?php echo date('M j, Y', strtotime($end_date)); ?>
+                            </span>
+                        </div>
+                        <?php endif; ?>
                     </div>
 
-              <!-- Key Metrics (One Line Layout) -->
-<!-- Key Metrics (One Line Layout) -->
-<div class="row g-4 mb-4 justify-content-center text-center align-items-stretch">
-    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
-        <div class="stat-card flex-fill">
-            <i class="fas fa-file-alt fa-2x text-primary mb-3"></i>
-            <div class="stat-number text-primary">
-                <?php echo formatNumberShort($stats['total_applications']); ?>
-            </div>
-            <div class="stat-label">Total Applications</div>
-            <small class="text-muted">
-                <?php echo $stats['period_applications']; ?> in selected period
-            </small>
-        </div>
-    </div>
+                    <!-- Stats Cards -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
+                                <div class="stat-number text-primary"><?php echo $stats['total_applications']; ?></div>
+                                <div class="stat-label">Applications</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-users fa-2x text-success mb-2"></i>
+                                <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
+                                <div class="stat-label">Candidates</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+                                <div class="stat-number text-info"><?php echo $stats['success_rate']; ?>%</div>
+                                <div class="stat-label">Success Rate</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-star fa-2x text-warning mb-2"></i>
+                                <div class="stat-number text-warning"><?php echo $stats['avg_score']; ?>%</div>
+                                <div class="stat-label">Avg Score</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-clock fa-2x text-secondary mb-2"></i>
+                                <div class="stat-number text-secondary"><?php echo $stats['avg_processing_days']; ?></div>
+                                <div class="stat-label">Avg Days</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-folder fa-2x text-primary mb-2"></i>
+                                <div class="stat-number text-primary"><?php echo $stats['total_documents']; ?></div>
+                                <div class="stat-label">Documents</div>
+                            </div>
+                        </div>
+                    </div>
 
-    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
-        <div class="stat-card flex-fill">
-            <i class="fas fa-users fa-2x text-success mb-3"></i>
-            <div class="stat-number text-success">
-                <?php echo formatNumberShort($stats['total_candidates']); ?>
-            </div>
-            <div class="stat-label">Total Candidates</div>
-            <small class="text-muted">Registered users</small>
-        </div>
-    </div>
+                    <!-- Charts -->
+                    <div class="row g-4 mb-4">
+                        <div class="col-lg-6">
+                            <div class="chart-container">
+                                <h5 class="mb-3">Status Distribution</h5>
+                                <?php if (!empty($status_distribution)): ?>
+                                <canvas id="statusChart"></canvas>
+                                <?php else: ?>
+                                <p class="text-center text-muted">No data</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="chart-container">
+                                <h5 class="mb-3">Monthly Trends</h5>
+                                <?php if (!empty($monthly_trends)): ?>
+                                <canvas id="trendsChart"></canvas>
+                                <?php else: ?>
+                                <p class="text-center text-muted">No data</p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
 
-    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
-        <div class="stat-card flex-fill">
-            <i class="fas fa-percentage fa-2x text-info mb-3"></i>
-            <div class="stat-number text-info">
-                <?php echo $stats['success_rate']; ?>%
+                    <!-- Program Table -->
+                    <?php if (!empty($program_stats)): ?>
+                    <div class="report-card p-4 mb-4">
+                        <h5 class="mb-3">Program Performance</h5>
+                        <table class="table table-hover">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th>Program</th>
+                                    <th>Applications</th>
+                                    <th>Avg Score</th>
+                                    <th>Qualified</th>
+                                    <th>Success Rate</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($program_stats as $prog): 
+                                    $succ_rate = $prog['total_applications'] > 0 ? 
+                                        round((($prog['qualified_count'] + $prog['partial_count']) / $prog['total_applications']) * 100, 1) : 0;
+                                ?>
+                                <tr>
+                                    <td><strong><?php echo htmlspecialchars($prog['program_code']); ?></strong></td>
+                                    <td><?php echo $prog['total_applications']; ?></td>
+                                    <td><?php echo $prog['avg_score'] ? round($prog['avg_score'], 1) . '%' : '—'; ?></td>
+                                    <td><?php echo $prog['qualified_count']; ?></td>
+                                    <td><?php echo $succ_rate; ?>%</td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <?php endif; ?>
+                </div>
             </div>
-            <div class="stat-label">Success Rate</div>
-            <small class="text-muted">Qualified + Partially Qualified</small>
-        </div>
-    </div>
-
-    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
-        <div class="stat-card flex-fill">
-            <i class="fas fa-star fa-2x text-success mb-3"></i>
-            <div class="stat-number text-success">
-                <?php echo $stats['avg_score']; ?>%
-            </div>
-            <div class="stat-label">Average Score</div>
-            <div class="mt-2">
-                <?php 
-                $grade = getScoreGrade($stats['avg_score']);
-                echo '<span class="badge bg-' . $grade['class'] . '">' . $grade['text'] . '</span>';
-                ?>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
-        <div class="stat-card flex-fill">
-            <i class="fas fa-calendar fa-2x text-primary mb-3"></i>
-            <div class="stat-number text-primary">
-                <?php echo date('j'); ?>
-            </div>
-            <div class="stat-label"><?php echo date('F Y'); ?></div>
-            <small class="text-muted">Current Period</small>
         </div>
     </div>
 </div>
-
 
                     <div class="row g-4 mb-4">
                         <!-- Status Distribution Chart -->

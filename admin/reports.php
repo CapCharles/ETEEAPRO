@@ -290,37 +290,6 @@ if ($user_type === 'admin') {
     }
 }
 
-// Total candidates (conditional by program)
-try {
-    if (empty($program_filter)) {
-        // ALL PROGRAMS: bilangin lahat ng candidates ayon sa date ng pag-register
-        $stmt = $pdo->prepare("
-            SELECT COUNT(*) AS total
-            FROM users u
-            WHERE u.user_type = 'candidate'
-              AND DATE(u.created_at) BETWEEN ? AND ?
-        ");
-        $stmt->execute([$start_date, $end_date]);
-    } else {
-        // SPECIFIC PROGRAM: bilangin yung candidates na may application sa program na 'yan
-        $stmt = $pdo->prepare("
-            SELECT COUNT(DISTINCT u.id) AS total
-            FROM users u
-            INNER JOIN applications a ON a.user_id = u.id
-            INNER JOIN programs p ON p.id = a.program_id
-            WHERE u.user_type = 'candidate'
-              AND DATE(a.created_at) BETWEEN ? AND ?
-              AND p.program_code = ?
-        ");
-        $stmt->execute([$start_date, $end_date, $program_filter]);
-    }
-
-    $stats['total_candidates'] = (int)$stmt->fetchColumn();
-} catch (PDOException $e) {
-    $stats['total_candidates'] = 0;
-}
-
-
 // Helper function for status colors
 function getStatusColor($status) {
     $colors = [
@@ -498,27 +467,6 @@ function getStatusColor($status) {
         }
 
 
-.stat-card {
-  background:#fff;
-  border-radius:14px;
-  padding:28px 20px;
-  box-shadow:0 3px 10px rgba(0,0,0,.08);
-  transition:transform .2s ease, box-shadow .2s ease;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  min-height:180px; /* pare-pareho ang height */
-}
-
-.stat-card:hover { transform:translateY(-4px); box-shadow:0 6px 16px rgba(0,0,0,.15); }
-
-.stat-icon { height:38px; display:flex; align-items:center; margin-bottom:10px; } /* para pantay ang puwesto ng icon */
-
-.stat-number { font-size:2.1rem; font-weight:700; line-height:1.1; }
-.stat-label  { font-size:0.95rem; font-weight:600; color:#495057; margin-top:6px; }
-
-/* optional: bawas lapad ng card sa maliit na screen para hindi dikit-dikit */
-@media (max-width: 576px){
-  .stat-card { min-height:160px; padding:24px 16px; }
-}
 
 
 
@@ -886,74 +834,68 @@ function getStatusColor($status) {
                     </div>
 
                     <!-- Stats Cards -->
-               <div class="row g-4 mb-4 align-items-stretch">
-  <div class="col-12 col-sm-6 col-lg-3 d-flex">
-    <div class="stat-card h-100 w-100">
-      <div class="stat-icon"><i class="fas fa-file-alt fa-2x text-primary"></i></div>
-      <div class="stat-number text-primary"><?php echo $stats['total_applications']; ?></div>
-      <div class="stat-label">Applications</div>
-    </div>
-  </div>
-
-  <div class="col-12 col-sm-6 col-lg-3 d-flex">
-    <div class="stat-card h-100 w-100">
-      <div class="stat-icon"><i class="fas fa-users fa-2x text-success"></i></div>
-      <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
-      <div class="stat-label">Candidates</div>
-    </div>
-  </div>
-
-  <div class="col-12 col-sm-6 col-lg-3 d-flex">
-    <div class="stat-card h-100 w-100">
-      <div class="stat-icon"><i class="fas fa-percentage fa-2x text-info"></i></div>
-      <div class="stat-number text-info"><?php echo $stats['success_rate']; ?>%</div>
-      <div class="stat-label">Success Rate</div>
-    </div>
-  </div>
-
-  <div class="col-12 col-sm-6 col-lg-3 d-flex">
-    <div class="stat-card h-100 w-100">
-      <div class="stat-icon"><i class="fas fa-star fa-2x text-warning"></i></div>
-      <div class="stat-number text-warning"><?php echo $stats['avg_score']; ?>%</div>
-      <div class="stat-label">Avg Score</div>
-    </div>
-  </div>
-</div>
+                    <div class="row g-4 mb-4">
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
+                                <div class="stat-number text-primary"><?php echo $stats['total_applications']; ?></div>
+                                <div class="stat-label">Applications</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-users fa-2x text-success mb-2"></i>
+                                <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
+                                <div class="stat-label">Candidates</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="stat-card">
+                                <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+                                <div class="stat-number text-info"><?php echo $stats['success_rate']; ?>%</div>
+                                <div class="stat-label">Success Rate</div>
+                            </div>
+                        </div>
+                        <div class="col-md-2 ">
+                            <div class="stat-card">
+                                <i class="fas fa-star fa-2x text-warning mb-2"></i>
+                                <div class="stat-number text-warning"><?php echo $stats['avg_score']; ?>%</div>
+                                <div class="stat-label">Avg Score</div>
+                            </div>
+                        </div>
+                     
                     
 
-                   <div class="row g-4 mt-2">
-    <!-- Application Status Chart -->
-    <div class="col-lg-4">
-        <div class="chart-container">
-            <h5 class="mb-3">Application Status Distribution</h5>
-            <?php if (!empty($status_data)): ?>
-                <canvas id="statusChart" height="250"></canvas>
-            <?php else: ?>
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-chart-pie fa-3x mb-3"></i>
-                    <p>No data available</p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
+                    <div class="row g-4 mb-4">
+                        <!-- Status Distribution Chart -->
+                        <div class="col-lg-6">
+                            <div class="chart-container">
+                                <h5 class="mb-3">Application Status Distribution</h5>
+                                <?php if (!empty($status_distribution)): ?>
+                                <canvas id="statusChart" height="300"></canvas>
+                                <?php else: ?>
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-chart-pie fa-3x mb-3"></i>
+                                    <p>No data available</p>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
 
-    <!-- Monthly Application Trends -->
-    <div class="col-lg-8">
-        <div class="chart-container">
-            <h5 class="mb-3">Monthly Application Trends (Last 6 Months)</h5>
-            <?php if (!empty($monthly_data)): ?>
-                <canvas id="monthlyChart" height="250"></canvas>
-            <?php else: ?>
-                <div class="text-center py-5 text-muted">
-                    <i class="fas fa-chart-line fa-3x mb-3"></i>
-                    <p>No data available</p>
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
-
-
+                        <!-- Monthly Trends -->
+                        <div class="col-lg-6">
+                            <div class="chart-container">
+                                <h5 class="mb-3">Application Trends (Last 12 Months)</h5>
+                                <?php if (!empty($monthly_trends)): ?>
+                                <canvas id="trendsChart" height="300"></canvas>
+                                <?php else: ?>
+                                <div class="text-center py-5 text-muted">
+                                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                    <p>No data available</p>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Program Statistics -->

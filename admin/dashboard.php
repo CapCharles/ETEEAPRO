@@ -407,13 +407,13 @@ try {
 
                     <!-- Secondary Stats -->
                     <div class="row g-4 mb-4">
-                        <div class="col-md-6 col-lg-3">
+                        <!-- <div class="col-md-6 col-lg-3">
                             <div class="stat-card">
                                 <i class="fas fa-folder fa-2x text-secondary mb-2"></i>
                                 <div class="stat-number text-secondary"><?php echo number_format($stats['total_documents']); ?></div>
                                 <div class="stat-label">Documents Uploaded</div>
                             </div>
-                        </div>
+                        </div> -->
                         <div class="col-md-6 col-lg-3">
                             <div class="stat-card">
                                 <i class="fas fa-percentage fa-2x text-success mb-2"></i>

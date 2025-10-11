@@ -374,6 +374,15 @@ try {
                     </div>
 
                     <!-- Statistics Cards -->
+
+                      <div class="col-md-6 col-lg-3">
+                            <div class="stat-card">
+                                <i class="fas fa-users fa-2x text-info mb-2"></i>
+                                <div class="stat-number text-info"><?php echo number_format($stats['total_candidates']); ?></div>
+                                <div class="stat-label">Total Candidates</div>
+                            </div>
+                        </div>
+                        
                     <div class="row g-4 mb-4">
                         <div class="col-md-6 col-lg-3">
                             <div class="stat-card">
@@ -396,13 +405,7 @@ try {
                                 <div class="stat-label">Completed</div>
                             </div>
                         </div>
-                        <div class="col-md-6 col-lg-3">
-                            <div class="stat-card">
-                                <i class="fas fa-users fa-2x text-info mb-2"></i>
-                                <div class="stat-number text-info"><?php echo number_format($stats['total_candidates']); ?></div>
-                                <div class="stat-label">Total Candidates</div>
-                            </div>
-                        </div>
+                      
                     </div>
 
                     <!-- Secondary Stats -->

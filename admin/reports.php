@@ -373,40 +373,22 @@ function getStatusColor($status) {
 
 .stat-card {
     background: #fff;
-    border-radius: 12px;
-    padding: 40px 20px; /* 🔹 mas wide spacing */
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    min-height: 200px; /* 🔹 mas mataas ang box */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
+    border-radius: 10px;
+    padding: 40px 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+    transition: transform 0.2s ease;
 }
-
 .stat-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
-
 .stat-number {
-    font-size: 2.2rem; /* 🔹 mas malaking number */
-    font-weight: 700;
-    line-height: 1.2;
-}
-
-.stat-label {
-    font-size: 1rem; /* 🔹 bahagyang mas malaki sa dati */
+    font-size: 1.8rem;
     font-weight: 600;
-    margin-top: 6px;
-    color: #444;
 }
-
-.stat-card small {
+.stat-label {
     font-size: 0.9rem;
-    color: #777;
+    font-weight: 500;
 }
-
 
 
 

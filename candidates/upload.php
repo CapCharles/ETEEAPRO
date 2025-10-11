@@ -1014,31 +1014,30 @@ $is_hierarchical = (
         <div class="form-check">
             <input type="radio" class="form-check-input" name="experience_role" id="admin_<?php echo $criteria['id']; ?>" value="administrator" required>
             <label class="form-check-label" for="admin_<?php echo $criteria['id']; ?>">
-                <i class="fas fa-user-tie me-2 text-primary"></i>School/Learning Center Administrator (5 pts)
-            </label>
+                <i class="fas fa-user-tie me-2 text-primary"></i>School/Learning Center Administrator 
         </div>
         <div class="form-check">
             <input type="radio" class="form-check-input" name="experience_role" id="supervisor_<?php echo $criteria['id']; ?>" value="supervisor" required>
             <label class="form-check-label" for="supervisor_<?php echo $criteria['id']; ?>">
-                <i class="fas fa-users me-2 text-info"></i>Training Supervisor (3 pts)
+                <i class="fas fa-users me-2 text-info"></i>Training Supervisor 
             </label>
         </div>
         <div class="form-check">
             <input type="radio" class="form-check-input" name="experience_role" id="trainer_<?php echo $criteria['id']; ?>" value="trainer" required>
             <label class="form-check-label" for="trainer_<?php echo $criteria['id']; ?>">
-                <i class="fas fa-chalkboard-teacher me-2 text-success"></i>Trainer/Lecturer/Preacher (2 pts)
+                <i class="fas fa-chalkboard-teacher me-2 text-success"></i>Trainer/Lecturer/Preacher
             </label>
         </div>
         <div class="form-check">
             <input type="radio" class="form-check-input" name="experience_role" id="sunday_<?php echo $criteria['id']; ?>" value="sunday_school" required>
             <label class="form-check-label" for="sunday_<?php echo $criteria['id']; ?>">
-                <i class="fas fa-pray me-2 text-warning"></i>Sunday School Tutor (1 pt)
+                <i class="fas fa-pray me-2 text-warning"></i>Sunday School Tutor
             </label>
         </div>
         <div class="form-check">
             <input type="radio" class="form-check-input" name="experience_role" id="daycare_<?php echo $criteria['id']; ?>" value="daycare" required>
             <label class="form-check-label" for="daycare_<?php echo $criteria['id']; ?>">
-                <i class="fas fa-baby me-2 text-danger"></i>Day Care Tutor (1 pt)
+                <i class="fas fa-baby me-2 text-danger"></i>Day Care Tutor 
             </label>
         </div>
     </div>
@@ -1054,7 +1053,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="coordination_level" id="coord_local_<?php echo $criteria['id']; ?>" value="local" required>
                 <label class="form-check-label" for="coord_local_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-map-marker-alt me-2 text-primary"></i>Local Level (6 pts)
+                    <i class="fas fa-map-marker-alt me-2 text-primary"></i>Local Level 
                 </label>
             </div>
         </div>
@@ -1062,15 +1061,14 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="coordination_level" id="coord_national_<?php echo $criteria['id']; ?>" value="national" required>
                 <label class="form-check-label" for="coord_national_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-flag me-2 text-info"></i>National Level (8 pts)
-                </label>
+                    <i class="fas fa-flag me-2 text-info"></i>National Level 
             </div>
         </div>
         <div class="col-md-4">
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="coordination_level" id="coord_intl_<?php echo $criteria['id']; ?>" value="international" required>
                 <label class="form-check-label" for="coord_intl_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-globe me-2 text-success"></i>International Level (10 pts)
+                    <i class="fas fa-globe me-2 text-success"></i>International Level 
                 </label>
             </div>
         </div>
@@ -1085,7 +1083,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="participation_level" id="part_local_<?php echo $criteria['id']; ?>" value="local" required>
                 <label class="form-check-label" for="part_local_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-map-marker-alt me-2 text-primary"></i>Local Level (3 pts)
+                    <i class="fas fa-map-marker-alt me-2 text-primary"></i>Local Level
                 </label>
             </div>
         </div>
@@ -1093,7 +1091,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="participation_level" id="part_national_<?php echo $criteria['id']; ?>" value="national" required>
                 <label class="form-check-label" for="part_national_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-flag me-2 text-info"></i>National Level (4 pts)
+                    <i class="fas fa-flag me-2 text-info"></i>National Level 
                 </label>
             </div>
         </div>
@@ -1101,7 +1099,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="participation_level" id="part_intl_<?php echo $criteria['id']; ?>" value="international" required>
                 <label class="form-check-label" for="part_intl_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-globe me-2 text-success"></i>International Level (5 pts)
+                    <i class="fas fa-globe me-2 text-success"></i>International Level 
                 </label>
             </div>
         </div>
@@ -1116,7 +1114,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="membership_level" id="memb_local_<?php echo $criteria['id']; ?>" value="local" required>
                 <label class="form-check-label" for="memb_local_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-users me-2 text-primary"></i>Local Organization (3 pts)
+                    <i class="fas fa-users me-2 text-primary"></i>Local Organization 
                 </label>
             </div>
         </div>
@@ -1124,7 +1122,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="membership_level" id="memb_national_<?php echo $criteria['id']; ?>" value="national" required>
                 <label class="form-check-label" for="memb_national_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-flag me-2 text-info"></i>National Organization (4 pts)
+                    <i class="fas fa-flag me-2 text-info"></i>National Organization 
                 </label>
             </div>
         </div>
@@ -1132,8 +1130,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="membership_level" id="memb_intl_<?php echo $criteria['id']; ?>" value="international" required>
                 <label class="form-check-label" for="memb_intl_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-globe me-2 text-success"></i>International Organization (5 pts)
-                </label>
+                    <i class="fas fa-globe me-2 text-success"></i>International Organization
             </div>
         </div>
     </div>
@@ -1197,7 +1194,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="recognition_level" id="recog_local_<?php echo $criteria['id']; ?>" value="local" required>
                 <label class="form-check-label" for="recog_local_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-trophy me-2 text-warning"></i>Local Recognition (6 pts)
+                    <i class="fas fa-trophy me-2 text-warning"></i>Local Recognition 
                 </label>
             </div>
         </div>
@@ -1205,7 +1202,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="recognition_level" id="recog_national_<?php echo $criteria['id']; ?>" value="national" required>
                 <label class="form-check-label" for="recog_national_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-medal me-2 text-success"></i>National Recognition (8 pts)
+                    <i class="fas fa-medal me-2 text-success"></i>National Recognition 
                 </label>
             </div>
         </div>
@@ -1220,7 +1217,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="eligibility_type" id="cs_sub_<?php echo $criteria['id']; ?>" value="cs_sub_professional" required>
                 <label class="form-check-label" for="cs_sub_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-certificate me-2 text-primary"></i>CS Sub-Professional (3 pts)
+                    <i class="fas fa-certificate me-2 text-primary"></i>CS Sub-Professional 
                 </label>
             </div>
         </div>
@@ -1228,7 +1225,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="eligibility_type" id="cs_prof_<?php echo $criteria['id']; ?>" value="cs_professional" required>
                 <label class="form-check-label" for="cs_prof_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-award me-2 text-info"></i>CS Professional (4 pts)
+                    <i class="fas fa-award me-2 text-info"></i>CS Professional 
                 </label>
             </div>
         </div>
@@ -1236,7 +1233,7 @@ $is_hierarchical = (
             <div class="form-check">
                 <input type="radio" class="form-check-input" name="eligibility_type" id="prc_<?php echo $criteria['id']; ?>" value="prc" required>
                 <label class="form-check-label" for="prc_<?php echo $criteria['id']; ?>">
-                    <i class="fas fa-star me-2 text-success"></i>PRC (5 pts)
+                    <i class="fas fa-star me-2 text-success"></i>PRC 
                 </label>
             </div>
         </div>

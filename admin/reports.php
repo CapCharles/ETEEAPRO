@@ -467,6 +467,27 @@ function getStatusColor($status) {
         }
 
 
+.stat-card {
+  background:#fff;
+  border-radius:14px;
+  padding:28px 20px;
+  box-shadow:0 3px 10px rgba(0,0,0,.08);
+  transition:transform .2s ease, box-shadow .2s ease;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:180px; /* pare-pareho ang height */
+}
+
+.stat-card:hover { transform:translateY(-4px); box-shadow:0 6px 16px rgba(0,0,0,.15); }
+
+.stat-icon { height:38px; display:flex; align-items:center; margin-bottom:10px; } /* para pantay ang puwesto ng icon */
+
+.stat-number { font-size:2.1rem; font-weight:700; line-height:1.1; }
+.stat-label  { font-size:0.95rem; font-weight:600; color:#495057; margin-top:6px; }
+
+/* optional: bawas lapad ng card sa maliit na screen para hindi dikit-dikit */
+@media (max-width: 576px){
+  .stat-card { min-height:160px; padding:24px 16px; }
+}
 
 
 
@@ -834,36 +855,39 @@ function getStatusColor($status) {
                     </div>
 
                     <!-- Stats Cards -->
-                    <div class="row g-4 mb-4">
-                        <div class="col-md-2">
-                            <div class="stat-card">
-                                <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
-                                <div class="stat-number text-primary"><?php echo $stats['total_applications']; ?></div>
-                                <div class="stat-label">Applications</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <div class="stat-card">
-                                <i class="fas fa-users fa-2x text-success mb-2"></i>
-                                <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
-                                <div class="stat-label">Candidates</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2">
-                            <div class="stat-card">
-                                <i class="fas fa-percentage fa-2x text-info mb-2"></i>
-                                <div class="stat-number text-info"><?php echo $stats['success_rate']; ?>%</div>
-                                <div class="stat-label">Success Rate</div>
-                            </div>
-                        </div>
-                        <div class="col-md-2 width=200px">
-                            <div class="stat-card">
-                                <i class="fas fa-star fa-2x text-warning mb-2"></i>
-                                <div class="stat-number text-warning"><?php echo $stats['avg_score']; ?>%</div>
-                                <div class="stat-label">Avg Score</div>
-                            </div>
-                        </div>
-                     
+               <div class="row g-4 mb-4 align-items-stretch">
+  <div class="col-12 col-sm-6 col-lg-3 d-flex">
+    <div class="stat-card h-100 w-100">
+      <div class="stat-icon"><i class="fas fa-file-alt fa-2x text-primary"></i></div>
+      <div class="stat-number text-primary"><?php echo $stats['total_applications']; ?></div>
+      <div class="stat-label">Applications</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-lg-3 d-flex">
+    <div class="stat-card h-100 w-100">
+      <div class="stat-icon"><i class="fas fa-users fa-2x text-success"></i></div>
+      <div class="stat-number text-success"><?php echo $stats['total_candidates']; ?></div>
+      <div class="stat-label">Candidates</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-lg-3 d-flex">
+    <div class="stat-card h-100 w-100">
+      <div class="stat-icon"><i class="fas fa-percentage fa-2x text-info"></i></div>
+      <div class="stat-number text-info"><?php echo $stats['success_rate']; ?>%</div>
+      <div class="stat-label">Success Rate</div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-lg-3 d-flex">
+    <div class="stat-card h-100 w-100">
+      <div class="stat-icon"><i class="fas fa-star fa-2x text-warning"></i></div>
+      <div class="stat-number text-warning"><?php echo $stats['avg_score']; ?>%</div>
+      <div class="stat-label">Avg Score</div>
+    </div>
+  </div>
+</div>
                     
 
                     <div class="row g-4 mb-4">

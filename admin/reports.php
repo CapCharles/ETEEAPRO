@@ -147,95 +147,101 @@ try {
     ], 0);
 }
 
-// ============= STATUS DISTRIBUTION (FILTERED) =============
-$status_distribution = [];
+// ============= STATUS COUNTS (FILTERED) =============
+$status_data = [];
 try {
-    $stmt = $pdo->prepare("
-        SELECT a.application_status, COUNT(*) as count
-        FROM applications a
-        LEFT JOIN programs p ON a.program_id = p.id
-        $where_clause
-        GROUP BY a.application_status
-        ORDER BY count DESC
-    ");
-    $stmt->execute($filter_params);
-    while ($row = $stmt->fetch()) {
-        $status_distribution[] = [
-            'status' => getStatusDisplayName($row['application_status']),
-            'count' => $row['count'],
-            'color' => getStatusColor($row['application_status'])
-        ];
-    }
-} catch (PDOException $e) {
-    $status_distribution = [];
-}
+    $status_where = ["1=1"];
+    $status_params = [];
 
-// ============= PROGRAM STATISTICS (FILTERED) =============
-$program_stats = [];
-try {
-    $stmt = $pdo->prepare("
-        SELECT 
-            p.program_name,
-            p.program_code,
-            COUNT(a.id) as total_applications,
-            AVG(CASE WHEN a.total_score > 0 THEN a.total_score END) as avg_score,
-            COUNT(CASE WHEN a.application_status = 'qualified' THEN 1 END) as qualified_count,
-            COUNT(CASE WHEN a.application_status = 'partially_qualified' THEN 1 END) as partial_count
-        FROM programs p
-        LEFT JOIN applications a ON p.id = a.program_id
-        $where_clause
-        GROUP BY p.id, p.program_name, p.program_code
-        HAVING total_applications > 0
-        ORDER BY total_applications DESC
-    ");
-    $stmt->execute($filter_params);
-    $program_stats = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $program_stats = [];
-}
-
-// ============= MONTHLY TRENDS (FILTERED) =============
-$monthly_trends = [];
-try {
-    $monthly_where_conditions = ["a.created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)"];
-    $monthly_params = [];
-    
     if (!empty($start_date) && !empty($end_date)) {
-        $monthly_where_conditions[] = "DATE(a.created_at) BETWEEN ? AND ?";
-        $monthly_params[] = $start_date;
-        $monthly_params[] = $end_date;
+        $status_where[] = "DATE(a.created_at) BETWEEN ? AND ?";
+        $status_params[] = $start_date;
+        $status_params[] = $end_date;
     }
-    
     if (!empty($program_filter)) {
-        $monthly_where_conditions[] = "p.program_code = ?";
-        $monthly_params[] = $program_filter;
+        $status_where[] = "p.program_code = ?";
+        $status_params[] = $program_filter;
     }
-    
-    $monthly_where = "WHERE " . implode(" AND ", $monthly_where_conditions);
-    
-    $stmt = $pdo->prepare("
-        SELECT 
-            DATE_FORMAT(a.created_at, '%Y-%m') as month,
-            COUNT(*) as applications,
-            COUNT(CASE WHEN a.application_status IN ('qualified', 'partially_qualified') THEN 1 END) as successful
+
+    $sql = "
+        SELECT a.application_status, COUNT(*) AS count
         FROM applications a
         LEFT JOIN programs p ON a.program_id = p.id
-        $monthly_where
-        GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
-        ORDER BY month ASC
-    ");
-    $stmt->execute($monthly_params);
-    while ($row = $stmt->fetch()) {
-        $monthly_trends[] = [
-            'month' => date('M Y', strtotime($row['month'] . '-01')),
-            'applications' => $row['applications'],
-            'successful' => $row['successful'],
-            'success_rate' => $row['applications'] > 0 ? round(($row['successful'] / $row['applications']) * 100, 1) : 0
-        ];
+        WHERE " . implode(" AND ", $status_where) . "
+        GROUP BY a.application_status
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($status_params);
+    $status_results = $stmt->fetchAll();
+
+    foreach ($status_results as $result) {
+        $status_data[$result['application_status']] = (int)$result['count'];
     }
 } catch (PDOException $e) {
-    $monthly_trends = [];
+    $status_data = [];
 }
+
+// ============= MONTHLY DATA (FILTERED) =============
+$monthly_data = [];
+try {
+    $m_where = ["1=1"];
+    $m_params = [];
+
+    if (!empty($start_date) && !empty($end_date)) {
+        $m_where[] = "DATE(a.created_at) BETWEEN ? AND ?";
+        $m_params[] = $start_date;
+        $m_params[] = $end_date;
+    } else {
+        // default: last 6 months (inclusive)
+        $m_where[] = "a.created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)";
+    }
+
+    if (!empty($program_filter)) {
+        $m_where[] = "p.program_code = ?";
+        $m_params[] = $program_filter;
+    }
+
+    $sql = "
+        SELECT DATE_FORMAT(a.created_at, '%Y-%m') AS ym, COUNT(*) AS cnt
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        WHERE " . implode(" AND ", $m_where) . "
+        GROUP BY DATE_FORMAT(a.created_at, '%Y-%m')
+        ORDER BY ym ASC
+    ";
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($m_params);
+    $rows = $stmt->fetchAll(PDO::FETCH_KEY_PAIR); // ['YYYY-MM' => count]
+
+    // Tukuyin ang simula at dulo ng serye ng buwan (para kompleto ang zero months)
+    if (!empty($start_date) && !empty($end_date)) {
+        $startYm = date('Y-m', strtotime($start_date));
+        $endYm   = date('Y-m', strtotime($end_date));
+    } else {
+        $startYm = date('Y-m', strtotime('-5 months'));
+        $endYm   = date('Y-m'); // current month
+    }
+
+    $start = new DateTime($startYm . '-01');
+    $end   = new DateTime($endYm . '-01');
+
+    // iterate inclusive months
+    while ($start <= $end) {
+        $ym    = $start->format('Y-m');
+        $label = $start->format('M Y');
+        $monthly_data[] = [
+            'month' => $label,
+            'count' => isset($rows[$ym]) ? (int)$rows[$ym] : 0
+        ];
+        $start->modify('+1 month');
+    }
+} catch (PDOException $e) {
+    $monthly_data = [];
+}
+
+
 
 // ============= DOCUMENT STATISTICS (FILTERED) =============
 $document_stats = [];

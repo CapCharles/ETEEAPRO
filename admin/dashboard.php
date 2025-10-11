@@ -384,14 +384,6 @@ try {
                                 <div class="stat-label">Total Candidates</div>
                             </div>
                         </div>
-                        
-                        <div class="col-md-6 col-lg-3">
-                            <div class="stat-card">
-                                <i class="fas fa-clock fa-2x text-warning mb-2"></i>
-                                <div class="stat-number text-warning"><?php echo number_format($stats['pending_applications']); ?></div>
-                                <div class="stat-label">Pending Review</div>
-                            </div>
-                        </div>
                         <div class="col-md-6 col-lg-3">
                             <div class="stat-card">
                                 <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
@@ -399,7 +391,13 @@ try {
                                 <div class="stat-label">Total Applications</div>
                             </div>
                         </div>
-                        
+                        <div class="col-md-6 col-lg-3">
+                            <div class="stat-card">
+                                <i class="fas fa-clock fa-2x text-warning mb-2"></i>
+                                <div class="stat-number text-warning"><?php echo number_format($stats['pending_applications']); ?></div>
+                                <div class="stat-label">Pending Review</div>
+                            </div>
+                        </div>
                         <div class="col-md-6 col-lg-3">
                             <div class="stat-card">
                                 <i class="fas fa-check-circle fa-2x text-success mb-2"></i>

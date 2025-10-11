@@ -406,27 +406,50 @@ try {
   font-weight: 700;
 }
 #print-report .muted { color: #6b7280; }
-
 .stat-card {
     background: #fff;
-    border-radius: 10px;
-    padding: 100px 10px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    transition: transform 0.2s ease;
-     width: 100%;
+    border-radius: 15px;
+    padding: 40px 20px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px; /* pantay ang height */
+    width: 100%;
 }
+
 .stat-card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
 }
+
 .stat-number {
-    font-size: 1.8rem;
-    font-weight: 600;
+    font-size: 2.3rem;
+    font-weight: 700;
+    line-height: 1.2;
 }
+
 .stat-label {
-    font-size: 0.9rem;
-    font-weight: 500;
-    
+    font-size: 1rem;
+    font-weight: 600;
+    color: #444;
+    margin-top: 6px;
 }
+
+.stat-card small {
+    font-size: 0.9rem;
+    color: #777;
+}
+
+@media (max-width: 992px) {
+    .stat-card {
+        min-height: 180px;
+        margin-bottom: 10px;
+    }
+}
+
 
 
 
@@ -774,10 +797,11 @@ try {
                     </div>
 
               <!-- Key Metrics (One Line Layout) -->
-<div class="row g-4 mb-4 justify-content-center text-center">
-    <div class="col-md-2 col-sm-4">
-        <div class="stat-card">
-            <i class="fas fa-file-alt fa-2x text-primary mb-2"></i>
+<!-- Key Metrics (One Line Layout) -->
+<div class="row g-4 mb-4 justify-content-center text-center align-items-stretch">
+    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
+        <div class="stat-card flex-fill">
+            <i class="fas fa-file-alt fa-2x text-primary mb-3"></i>
             <div class="stat-number text-primary">
                 <?php echo formatNumberShort($stats['total_applications']); ?>
             </div>
@@ -788,9 +812,9 @@ try {
         </div>
     </div>
 
-    <div class="col-md-2 col-sm-4">
-        <div class="stat-card">
-            <i class="fas fa-users fa-2x text-success mb-2"></i>
+    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
+        <div class="stat-card flex-fill">
+            <i class="fas fa-users fa-2x text-success mb-3"></i>
             <div class="stat-number text-success">
                 <?php echo formatNumberShort($stats['total_candidates']); ?>
             </div>
@@ -799,9 +823,9 @@ try {
         </div>
     </div>
 
-    <div class="col-md-2 col-sm-4">
-        <div class="stat-card">
-            <i class="fas fa-percentage fa-2x text-info mb-2"></i>
+    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
+        <div class="stat-card flex-fill">
+            <i class="fas fa-percentage fa-2x text-info mb-3"></i>
             <div class="stat-number text-info">
                 <?php echo $stats['success_rate']; ?>%
             </div>
@@ -810,9 +834,9 @@ try {
         </div>
     </div>
 
-    <div class="col-md-2 col-sm-4">
-        <div class="stat-card">
-            <i class="fas fa-star fa-2x text-success mb-2"></i>
+    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
+        <div class="stat-card flex-fill">
+            <i class="fas fa-star fa-2x text-success mb-3"></i>
             <div class="stat-number text-success">
                 <?php echo $stats['avg_score']; ?>%
             </div>
@@ -826,9 +850,9 @@ try {
         </div>
     </div>
 
-    <div class="col-md-2 col-sm-4">
-        <div class="stat-card">
-            <i class="fas fa-calendar fa-2x text-primary mb-2"></i>
+    <div class="col-lg-2 col-md-4 col-sm-6 d-flex">
+        <div class="stat-card flex-fill">
+            <i class="fas fa-calendar fa-2x text-primary mb-3"></i>
             <div class="stat-number text-primary">
                 <?php echo date('j'); ?>
             </div>
@@ -837,6 +861,7 @@ try {
         </div>
     </div>
 </div>
+
 
                     <div class="row g-4 mb-4">
                         <!-- Status Distribution Chart -->

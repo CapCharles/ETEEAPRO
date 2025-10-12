@@ -817,7 +817,7 @@ if ($user['application_form_status'] === 'approved') {
             <div class="row align-items-center">
                 <div class="col-md-8">
                     <h5><i class="fas fa-check-circle me-2"></i>Application Approved!</h5>
-                    <p class="mb-0">Congratulations! Your application has been approved. You now have full access to the ETEEAP system.</p>
+                    <p class="mb-0">Congratulations! Your application has been approved. You now have full access to the ETEEAPRO system.</p>
                     <?php if ($user['approval_date']): ?>
                     <small>Approved on <?php echo date('F j, Y', strtotime($user['approval_date'])); ?></small>
                     <?php endif; ?>

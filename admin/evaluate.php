@@ -566,7 +566,7 @@ foreach ($subjectPlan['subjects'] as $index => $subject) {
             $recommendations[] = "**Option 2: Professional Development Track**";
             $recommendations[] = "• Targeted skill-building program";
             $recommendations[] = "• Industry certifications";
-            $recommendations[] = "• Re-apply for ETEEAP after 1-2 years";
+            $recommendations[] = "• Re-apply for ETEEAP ";
             
             if (!empty($criteriaMissing)) {
                 $recommendations[] = "";

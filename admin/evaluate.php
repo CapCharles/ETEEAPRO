@@ -1546,7 +1546,7 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enhanced Evaluation System - ETEEAP</title>
+    <title> Evaluation System - ETEEAP</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -1835,7 +1835,7 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
                     <!-- Application Listing -->
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <h2 class="mb-1">Enhanced Evaluation System</h2>
+                            <h2 class="mb-1">Evaluation System</h2>
                             <p class="text-muted mb-0">Smart evaluation with automatic bridging unit calculation</p>
                         </div>
                         

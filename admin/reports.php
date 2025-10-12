@@ -184,6 +184,7 @@ try {
     $status_distribution = [];
 }
 
+
 // ============= PROGRAM STATISTICS (FILTERED) =============
 $program_stats = [];
 try {
@@ -191,10 +192,11 @@ try {
         SELECT 
             p.program_name,
             p.program_code,
-            COUNT(a.id) as total_applications,
-            AVG(CASE WHEN a.total_score > 0 THEN a.total_score END) as avg_score,
-            COUNT(CASE WHEN a.application_status = 'qualified' THEN 1 END) as qualified_count,
-            COUNT(CASE WHEN a.application_status = 'partially_qualified' THEN 1 END) as partial_count
+            COUNT(a.id) AS total_applications,
+            AVG(CASE WHEN a.total_score > 0 THEN a.total_score END) AS avg_score,
+            COUNT(CASE WHEN a.application_status = 'qualified' THEN 1 END) AS qualified_count,
+            COUNT(CASE WHEN a.application_status = 'partially_qualified' THEN 1 END) AS partial_count, -- keep for Success Rate (optional)
+            COUNT(CASE WHEN a.application_status = 'not_qualified' THEN 1 END) AS not_qualified_count
         FROM programs p
         LEFT JOIN applications a ON p.id = a.program_id
         $where_clause
@@ -207,6 +209,7 @@ try {
 } catch (PDOException $e) {
     $program_stats = [];
 }
+
 
 
 // ============= MONTHLY TRENDS (FILTERED, 6 months default) =============
@@ -982,16 +985,16 @@ function getStatusColor($status) {
                                 <div class="table-responsive">
                                     <table class="table table-hover">
                                         <thead class="bg-light">
-                                            <tr>
-                                                <th>Program</th>
-                                                <th>Applications</th>
-                                                <th>Avg Score</th>
-                                                <th>Qualified</th>
-                                                <th>Partial</th>
-                                                <th>Success Rate</th>
-                                                <th>Performance</th>
-                                            </tr>
-                                        </thead>
+  <tr>
+    <th>Program</th>
+    <th>Applications</th>
+    <th>Avg Score</th>
+    <th>Qualified</th>
+    <th>Not Qualified</th>   <!-- was: Partial -->
+    <th>Success Rate</th>
+    <th>Performance</th>
+  </tr>
+</thead>
                                         <tbody>
                                             <?php foreach ($program_stats as $program): ?>
                                             <tr>
@@ -1012,9 +1015,9 @@ function getStatusColor($status) {
                                                 <td>
                                                     <span class="badge bg-success"><?php echo $program['qualified_count']; ?></span>
                                                 </td>
-                                                <td>
-                                                    <span class="badge bg-warning"><?php echo $program['partial_count']; ?></span>
-                                                </td>
+                                               <td>
+  <span class="badge bg-danger"><?php echo $program['not_qualified_count']; ?></span> <!-- was: partial_count + bg-warning -->
+</td>   
                                                 <td>
                                                     <?php 
                                                     $success_rate = $program['total_applications'] > 0 ? 

@@ -45,42 +45,45 @@ function getPendingReviewsCount($pdo) {
         return 0;
     }
 }
+function evalScopeWhere($is_admin, $user_id) {
+    if ($is_admin) return ['', []];
+    return [' WHERE a.evaluator_id = ? ', [$user_id]];
+}
 
 $sidebar_submitted_count = 0;
 try {
-    $stmt = $pdo->query("
-        SELECT COUNT(*) as total 
-        FROM applications 
-        WHERE application_status IN ('submitted', 'under_review')
+    $count_where = ["a.application_status IN ('submitted','under_review')"];
+    $count_params = [];
+    
+    // Add evaluator scope
+    if (!$is_admin) {
+        $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $evaluator_data = $stmt->fetch();
+        $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+        
+        if ($assigned_program_id) {
+            $count_where[] = "a.program_id = ?";
+            $count_params[] = $assigned_program_id;
+        } else {
+            $count_where[] = "1=0";
+        }
+    }
+    
+    $count_where_clause = implode(" AND ", $count_where);
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM applications a
+        WHERE $count_where_clause
     ");
-    $sidebar_submitted_count = $stmt->fetch()['total'];
+    $stmt->execute($count_params);
+    $sidebar_submitted_count = (int)$stmt->fetchColumn();
 } catch (PDOException $e) {
     $sidebar_submitted_count = 0;
+    error_log("Error getting submitted count: " . $e->getMessage());
 }
 
-// Get subjects from database for bridging recommendations
-$predefined_subjects = [];
-if (!empty($current_application['program_id'])) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT 
-                subject_code as code, 
-                subject_name as name, 
-                units,
-                year_level,
-                semester,
-                1 as priority
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level DESC, semester DESC, subject_name
-        ");
-        $stmt->execute([$current_application['program_id']]);
-        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("Error fetching subjects: " . $e->getMessage());
-        $predefined_subjects = [];
-    }
-}
 
 
 // Handle individual document actions

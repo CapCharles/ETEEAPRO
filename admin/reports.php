@@ -50,30 +50,43 @@ if (!empty($program_filter)) {
 $where_clause = "WHERE " . implode(" AND ", $where_conditions);
 
 // ============= SIDEBAR COUNTS (UNFILTERED) =============
-$sidebar_submitted_count = 0;
-try {
-    $stmt = $pdo->query("
-        SELECT COUNT(*) as total 
-        FROM applications 
-        WHERE application_status IN ('submitted', 'under_review')
-    ");
-    $sidebar_submitted_count = $stmt->fetch()['total'];
-} catch (PDOException $e) {
-    $sidebar_submitted_count = 0;
+function evalScopeWhere($is_admin, $user_id) {
+    if ($is_admin) return ['', []];
+    return [' WHERE a.evaluator_id = ? ', [$user_id]];
 }
 
-$sidebar_pending_count = 0;
+$sidebar_submitted_count = 0;
 try {
-    $stmt = $pdo->query("
-        SELECT COUNT(DISTINCT u.id) as total 
-        FROM users u
-        INNER JOIN application_forms af ON u.id = af.user_id
-        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
-               OR u.application_form_status NOT IN ('approved', 'rejected'))
+    $count_where = ["a.application_status IN ('submitted','under_review')"];
+    $count_params = [];
+    
+    // Add evaluator scope
+    if (!$is_admin) {
+        $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $evaluator_data = $stmt->fetch();
+        $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+        
+        if ($assigned_program_id) {
+            $count_where[] = "a.program_id = ?";
+            $count_params[] = $assigned_program_id;
+        } else {
+            $count_where[] = "1=0";
+        }
+    }
+    
+    $count_where_clause = implode(" AND ", $count_where);
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM applications a
+        WHERE $count_where_clause
     ");
-    $sidebar_pending_count = $stmt->fetch()['total'];
+    $stmt->execute($count_params);
+    $sidebar_submitted_count = (int)$stmt->fetchColumn();
 } catch (PDOException $e) {
-    $sidebar_pending_count = 0;
+    $sidebar_submitted_count = 0;
+    error_log("Error getting submitted count: " . $e->getMessage());
 }
 
 // ============= GET FILTERED STATISTICS =============

@@ -1847,7 +1847,7 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
                             <ul class="dropdown-menu">
                                 <li><a class="dropdown-item" href="evaluate.php">All Applications</a></li>
                                 <li><a class="dropdown-item" href="evaluate.php?status=submitted">Submitted</a></li>
-                                <li><a class="dropdown-item" href="evaluate.php?status=under_review">Under Review</a></li>
+                               
                                 <li><a class="dropdown-item" href="evaluate.php?status=qualified">Qualified</a></li>
                              
                                 <li><a class="dropdown-item" href="evaluate.php?status=not_qualified">Not Qualified</a></li>
@@ -2647,9 +2647,7 @@ function getSubjectRecommendations(programCode, requiredUnits) {
     return 0;
 }
 
-
-
-     function calculateSmartScore() {
+   function calculateSmartScore() {
     const scoreInputs = document.querySelectorAll('.smart-score-input');
     let totalWeightedScore = 0;
     let totalWeight = 0;

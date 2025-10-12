@@ -903,7 +903,7 @@
         <div class="container">
             <a class="navbar-brand" href="#">
                 <i class="fas fa-graduation-cap"></i>
-                ETEEAP
+                ETEEAPRO
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

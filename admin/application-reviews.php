@@ -911,15 +911,12 @@ if ($flash) {
         <i class="fas fa-tachometer-alt me-2"></i> Dashboard
     </a>
 
-    <?php if ($user_type === 'admin'): ?>
-  <a class="nav-link" href="application-reviews.php">
-        <i class="fas fa-file-signature me-2"></i>
-        Application Reviews
-            <?php if ($sidebar_pending_count > 0): ?>
+    <a class="nav-link" href="application-reviews.php">
+        <i class="fas fa-file-signature me-2"></i> Application Reviews
+           <?php if ($sidebar_pending_count > 0): ?>
         <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
         <?php endif; ?>
     </a>
-    <?php endif; ?>
   <a class="nav-link" href="evaluate.php">
         <i class="fas fa-clipboard-check me-2"></i>
         Evaluate Applications

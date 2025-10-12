@@ -397,7 +397,7 @@ $remembered_email = isset($_COOKIE['remember_email']) ? $_COOKIE['remember_email
                         <div class="auth-header">
                             <i class="fas fa-graduation-cap"></i>
                             <h1 class="mb-2">Welcome Back</h1>
-                            <p class="mb-0">Sign in to continue your ETEEAP journey</p>
+                            <p class="mb-0">Sign in to continue your ETEEAPRO journey</p>
                         </div>
                         
                         <div class="card-body">

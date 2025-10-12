@@ -170,8 +170,6 @@ function makeMailer(): PHPMailer {
 }
 
 
-
-
 function getSubmittedApplicationsCount($pdo) {
     try {
         $stmt = $pdo->query("
@@ -185,6 +183,7 @@ function getSubmittedApplicationsCount($pdo) {
         return 0;
     }
 }
+
 function calculateBridgingUnits($finalScore) {
     if ($finalScore >= 95) return 3;
     if ($finalScore >= 91) return 6;
@@ -813,9 +812,9 @@ function score_one_doc(array $criteria, array $hier): array {
 if ($section === 1) {
     $eduPts = [
         'high_school' => 10,
-        'vocational' => 12,      // Could be 11-14 based on additional criteria
-        'technical' => 16,       // Could be 15-17 based on additional criteria
-        'undergraduate' => 19,   // Could be 18-20 based on completion %
+        'vocational' => 11-14,      // Could be 11-14 based on additional criteria
+        'technical' => 15-17,       // Could be 15-17 based on additional criteria
+        'undergraduate' => 18-20,   // Could be 18-20 based on completion %
         'non_education' => 20
     ];
     
@@ -827,7 +826,6 @@ if ($section === 1) {
     
     
 }
-
 // --- Sec 2: Work Experience (30pts max) ---
 if ($section === 2) {
     $rolePts = [

@@ -415,7 +415,7 @@ if ($application) {
 
          
 
-            <!-- Sidebar -->
+              <!-- Sidebar (Right Side - 4 columns) -->
             <div class="col-lg-4">
                 <!-- Application Timeline -->
                 <div class="assessment-card p-4 mb-4">

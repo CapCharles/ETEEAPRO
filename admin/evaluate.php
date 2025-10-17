@@ -1,6 +1,6 @@
 <?php
 session_start();
-include_once '../includes/email_notifications.php';
+
 // top of evaluate.php
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
 
@@ -12,6 +12,8 @@ require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
 require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
 require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
 
+
+include_once '../includes/email_notifications.php';
 // Check authentication
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
     header('Location: ../auth/login.php');

@@ -1,6 +1,6 @@
 <?php
 session_start();
-
+include_once '../includes/email_notifications.php';
 // top of evaluate.php
 define('BASE_DIR', __DIR__); // folder ng evaluate.php
 
@@ -147,26 +147,6 @@ if ($appid) {
         http_response_code(403);
         exit('Forbidden: This application is not assigned to you.');
     }
-}
-// Email configuration
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
-
-
-
-function makeMailer(): PHPMailer {
-    $mail = new PHPMailer(true);
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = 'cspbank911@gmail.com';
-    $mail->Password = 'uzhtbqmdqigquyqq';
-    $mail->SMTPSecure = 'ssl';
-    $mail->Port = 465;
-    $mail->setFrom('cspbank911@gmail.com', 'ETEEAP System');
-    $mail->isHTML(true);
-    return $mail;
 }
 
 
@@ -1220,14 +1200,38 @@ $auto_recommendation = generateEnhancedRecommendation(
                 ]);
             }
         }
-
-        $pdo->commit();
+$pdo->commit();
 
         $bridgingUnits = calculateBridgingUnits($final_score);
-        $success_message = "Evaluation completed! Final Score: {$final_score}% | Status: " . ucfirst($final_status);
+        $success_message = "✅ Evaluation completed successfully!<br>";
+        $success_message .= "📊 Final Score: <strong>{$final_score}%</strong><br>";
+        $success_message .= "📋 Status: <strong>" . ucfirst(str_replace('_', ' ', $final_status)) . "</strong>";
+        
         if ($final_score >= $passing_threshold && $bridgingUnits > 0) {
-            $success_message .= " | Bridging Units Required: {$bridgingUnits}";
+            $success_message .= "<br>🎓 Bridging Units Required: <strong>{$bridgingUnits} units</strong>";
         }
+        
+        // 🔥 SEND EMAIL NOTIFICATION AUTOMATICALLY
+        try {
+            $emailSent = sendEvaluationResultEmail(
+                $current_application,
+                $final_score,
+                $final_status,
+                $full_recommendation,
+                $bridgingUnits
+            );
+            
+            if ($emailSent) {
+                $success_message .= "<br>✉️ <strong>Email notification sent successfully</strong> to " . htmlspecialchars($current_application['candidate_email']);
+            } else {
+                $success_message .= "<br>⚠️ <strong>Warning:</strong> Evaluation saved but email notification failed. Please notify the candidate manually.";
+                error_log("[EVALUATE] Email failed for application ID: {$app_id}, Candidate: {$current_application['candidate_email']}");
+            }
+        } catch (Exception $emailError) {
+            $success_message .= "<br>⚠️ <strong>Warning:</strong> Email error - " . htmlspecialchars($emailError->getMessage());
+            error_log("[EVALUATE] Email exception for application ID: {$app_id} - " . $emailError->getMessage());
+        }
+        
     } catch (Exception $e) {
         $pdo->rollBack();
         $errors[] = "Failed to save evaluation: " . $e->getMessage();

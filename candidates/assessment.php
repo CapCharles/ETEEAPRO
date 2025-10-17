@@ -412,6 +412,31 @@ if ($application) {
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
+                    <?php if ($application['application_status'] === 'partially_qualified' || $application['application_status'] === 'not_qualified'): ?>
+                <div class="assessment-card p-4 mb-4">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="mb-2">
+                                <i class="fas fa-redo me-2"></i>
+                                Ready to Reapply?
+                            </h5>
+                            <p class="text-muted mb-0">
+                                <?php if ($application['application_status'] === 'partially_qualified'): ?>
+                                    You can reapply for this program to improve your qualifications and scores.
+                                <?php else: ?>
+                                    Review the evaluator's feedback and consider reapplying when you're ready with improved documentation.
+                                <?php endif; ?>
+                            </p>
+                        </div>
+                        <div class="col-md-4 text-md-end">
+                            <a href="reapply.php?program_id=<?php echo $application['program_id']; ?>&previous_app=<?php echo $application['id']; ?>" 
+                               class="btn btn-primary">
+                                <i class="fas fa-redo me-2"></i>Reapply Now
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                <?php endif; ?>
      </div>
          
 

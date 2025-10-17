@@ -2,6 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
+// require_once 'includes/functions.php';
 
 // Check if user is logged in and is a candidate
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'candidate') {
@@ -15,6 +16,7 @@ $application_id = isset($_GET['id']) ? $_GET['id'] : null;
 // Get user's applications
 try {
     if ($application_id) {
+        // Get specific application
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code, 
                    u.first_name as evaluator_first_name, u.last_name as evaluator_last_name
@@ -31,6 +33,7 @@ try {
             exit();
         }
     } else {
+        // Get latest application
         $stmt = $pdo->prepare("
             SELECT a.*, p.program_name, p.program_code,
                    u.first_name as evaluator_first_name, u.last_name as evaluator_last_name
@@ -45,6 +48,7 @@ try {
         $application = $stmt->fetch();
     }
     
+    // Get all user applications for sidebar
     $stmt = $pdo->prepare("
         SELECT a.*, p.program_name, p.program_code 
         FROM applications a 
@@ -60,11 +64,12 @@ try {
     $all_applications = [];
 }
 
-// Get assessment criteria and evaluations
+// Get assessment criteria and evaluations if application exists
 $criteria_evaluations = [];
 $documents = [];
 if ($application) {
     try {
+        // Get assessment criteria with evaluations
         $stmt = $pdo->prepare("
             SELECT ac.*, e.score, e.max_score, e.comments, e.evaluation_date
             FROM assessment_criteria ac
@@ -75,6 +80,7 @@ if ($application) {
         $stmt->execute([$application['id'], $application['program_id']]);
         $criteria_evaluations = $stmt->fetchAll();
         
+        // Get uploaded documents
         $stmt = $pdo->prepare("
             SELECT * FROM documents 
             WHERE application_id = ? 
@@ -86,62 +92,6 @@ if ($application) {
     } catch (PDOException $e) {
         $criteria_evaluations = [];
         $documents = [];
-    }
-}
-// Get curriculum and bridging data
-// $curriculum_subjects = [];
-$bridging_requirements = [];
-// $passed_subjects = [];
-
-if ($application && in_array($application['application_status'], ['qualified', 'partially_qualified', 'not_qualified'])) {
-    try {
-        $stmt = $pdo->prepare("
-            SELECT subject_name, subject_code, units, year_level, semester
-            FROM subjects 
-            WHERE program_id = ? AND status = 'active'
-            ORDER BY year_level, semester, subject_name
-        ");
-        $stmt->execute([$application['program_id']]);
-        $curriculum_subjects = $stmt->fetchAll();
-        
-        $stmt = $pdo->prepare("
-            SELECT subject_name, subject_code, units, priority
-            FROM bridging_requirements
-            WHERE application_id = ?
-            ORDER BY priority ASC, subject_name ASC
-        ");
-        $stmt->execute([$application['id']]);
-        $bridging_requirements = $stmt->fetchAll();
-        
-        // For "Not Qualified" status, ALL subjects should be in bridging requirements
-        // For "Qualified" or "Partially Qualified", subjects NOT in bridging are credited
-        if ($application['application_status'] === 'not_qualified') {
-            // If no bridging requirements exist, create them from all curriculum subjects
-            if (empty($bridging_requirements)) {
-                foreach ($curriculum_subjects as $subject) {
-                    $bridging_requirements[] = [
-                        'subject_name' => $subject['subject_name'],
-                        'subject_code' => $subject['subject_code'],
-                        'units' => $subject['units'],
-                        'priority' => 1 // High priority since not qualified
-                    ];
-                }
-            }
-            // All subjects are required, none are passed
-            $passed_subjects = [];
-        } else {
-            // For qualified or partially qualified, subjects NOT in bridging are credited
-            $required_subject_names = array_column($bridging_requirements, 'subject_name');
-            
-            foreach ($curriculum_subjects as $subject) {
-                if (!in_array($subject['subject_name'], $required_subject_names)) {
-                    $passed_subjects[] = $subject;
-                }
-            }
-        }
-        
-    } catch (PDOException $e) {
-        error_log("Error fetching curriculum data: " . $e->getMessage());
     }
 }
 ?>
@@ -158,9 +108,8 @@ if ($application && in_array($application['application_status'], ['qualified', '
     <style>
         body {
             background-color: #f8f9fa;
-            margin: 0;
-            padding-top: 0 !important;
         }
+             body { margin: 0; padding-top: 0 !important; }
         .assessment-card {
             background: white;
             border-radius: 15px;
@@ -257,37 +206,14 @@ if ($application && in_array($application['application_status'], ['qualified', '
         .document-preview:hover {
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
-
-        #print-area { display: none; }
-
-/* Clean table style for print */
-#print-area .print-title { margin: 0 0 6px; }
-#print-area .meta { font-size: 12px; color:#444; line-height:1.4; margin-bottom:10px; }
-#print-area .print-table { width:100%; border-collapse:collapse; font-size:12px; }
-#print-area .print-table th, 
-#print-area .print-table td { border:1px solid #e5e7eb; padding:6px 8px; vertical-align:top; }
-#print-area .print-table thead th { background:#f3f4f6; font-weight:700; }
-.no-print { display: inline-block; }
-
-@media print {
-  /* hide everything by default */
-  body * { visibility: hidden !important; }
-  /* show only print area */
-  #print-area, #print-area * { visibility: visible !important; }
-  #print-area { display:block; position: absolute; left:0; top:0; width:100%; padding:0 10mm; }
-  /* ensure buttons never print */
-  .no-print { display: none !important; }
-  @page { size: A4 portrait; margin: 14mm; }
-}
     </style>
 </head>
 <body>
-    <div id="print-area"></div>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand fw-bold" href="../index.php">
-                <i class="fas fa-graduation-cap me-2"></i>ETEEAPRO
+                <i class="fas fa-graduation-cap me-2"></i>ETEEAP
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -330,7 +256,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
         </div>
     </nav>
 
-    <div class="container mt-4 mb-5">
+    <div class="container mt-4">
         <?php if (!$application): ?>
         <!-- No Applications -->
         <div class="row justify-content-center">
@@ -347,7 +273,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
         </div>
         <?php else: ?>
         <div class="row g-4">
-            <!-- Main Assessment Content (Left Side - 8 columns) -->
+            <!-- Main Assessment Content -->
             <div class="col-lg-8">
                 <!-- Application Overview -->
                 <div class="assessment-card p-4 mb-4">
@@ -378,6 +304,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                                 </span>
                             </div>
                             
+                            <!-- Overall Score -->
                             <?php if ($application['total_score'] > 0): ?>
                             <div class="score-circle <?php 
                                 if ($application['total_score'] >= 90) echo 'score-excellent';
@@ -466,7 +393,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     <?php endif; ?>
                 </div>
 
-                <!-- Recommendation with Curriculum Breakdown -->
+                <!-- Recommendation -->
                 <?php if ($application['recommendation']): ?>
                 <div class="assessment-card p-4 mb-4">
                     <h5 class="mb-3">
@@ -483,12 +410,54 @@ if ($application && in_array($application['application_status'], ['qualified', '
                         </small>
                     </div>
                     <?php endif; ?>
-                    
-              
+                </div>
+                <?php endif; ?>
 
+                <!-- Uploaded Documents -->
+                <div class="assessment-card p-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-file-alt me-2"></i>
+                        Submitted Documents (<?php echo count($documents); ?>)
+                    </h5>
+                    
+                    <?php if (empty($documents)): ?>
+                    <div class="text-center py-3">
+                        <i class="fas fa-folder-open fa-2x text-muted mb-2"></i>
+                        <p class="text-muted">No documents submitted</p>
+                    </div>
+                    <?php else: ?>
+                    <div class="row g-2">
+                        <?php foreach ($documents as $doc): ?>
+                        <div class="col-md-6">
+                            <div class="document-preview">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-pdf fa-2x text-danger me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1 small"><?php echo htmlspecialchars($doc['original_filename']); ?></h6>
+                                        <div class="mb-1">
+                                            <span class="badge bg-primary small">
+                                                <?php echo ucfirst(str_replace('_', ' ', $doc['document_type'])); ?>
+                                            </span>
+                                        </div>
+                                        <small class="text-muted">
+                                            <?php echo number_format($doc['file_size'] / 1024, 1); ?> KB
+                                        </small>
+                                    </div>
+                                </div>
+                                <?php if ($doc['description']): ?>
+                                <div class="mt-2 small text-muted">
+                                    <?php echo htmlspecialchars($doc['description']); ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
             </div>
 
-            <!-- Sidebar (Right Side - 4 columns) -->
+            <!-- Sidebar -->
             <div class="col-lg-4">
                 <!-- Application Timeline -->
                 <div class="assessment-card p-4 mb-4">
@@ -597,43 +566,6 @@ if ($application && in_array($application['application_status'], ['qualified', '
             location.reload();
         }, 30000);
         <?php endif; ?>
-        function printSection(which) {
-  const secId = which === 'credited' ? 'credited-section' : 'bridging-section';
-  const section = document.getElementById(secId);
-  if (!section) { alert('Nothing to print for ' + which); return; }
-
-  // Gather header meta (Program, Applicant, Dates)
-  const program = <?php echo json_encode($application ? ($application['program_name'] ?? '') : ''); ?>;
-  const applicant = <?php echo json_encode($_SESSION['user_name'] ?? ''); ?>;
-  const today = new Date().toISOString().slice(0,19).replace('T',' ');
-
-  // Build print header + the section HTML (clone tables/alerts/headings inside)
-  const title = which === 'credited' ? 'Credited Subjects' : 'Required Bridging Courses';
-  const header = `
-    <h2 class="print-title">Assessment – ${title}</h2>
-    <div class="meta">
-      Program: <strong>${program || '—'}</strong><br>
-      Candidate: <strong>${applicant || '—'}</strong><br>
-      Generated at: ${today}
-    </div>
-  `;
-
-  // Normalize section HTML into print-friendly tables
-  // (We can reuse your existing table markup safely.)
-  const html = header + section.innerHTML;
-
-  // Inject into print area and print
-  const container = document.getElementById('print-area');
-  container.innerHTML = html;
-
-  // Optional: ensure any Bootstrap classes still look good on paper
-  // (Your @media print CSS already forces borders/colors.)
-
-  window.print();
-
-  // Clean up after print
-  setTimeout(() => { container.innerHTML = ''; }, 500);
-}
     </script>
 </body>
 </html>

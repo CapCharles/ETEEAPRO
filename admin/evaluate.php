@@ -2276,6 +2276,7 @@ if ($hasCriteriaDocs) {
     <div class="mb-3 p-3 rounded border" id="bridgingSummary" style="background:linear-gradient(135deg,#eef7ff,#f6fff0)">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="mb-0">
+                
                 <i class="fas fa-graduation-cap me-2 text-primary"></i>
                 Bridging Requirements
                 <span class="badge bg-success ms-2">

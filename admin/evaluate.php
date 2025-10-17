@@ -1240,9 +1240,6 @@ $pdo->commit();
 
 
 
-
-
-
 // Get application data with enhanced document checking
 $current_application = null;
 $assessment_criteria = [];

@@ -13,7 +13,7 @@ require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
 require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
 
 
-include_once '../includes/email_notifications.php';
+require_once BASE_DIR . '/../includes/email_notifications.php';
 // Check authentication
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
     header('Location: ../auth/login.php');
@@ -1234,13 +1234,13 @@ $auto_recommendation = generateEnhancedRecommendation(
             try {
                 error_log("Attempting to send email...");
                 
-                $emailSent = sendEvaluationResultEmail(
-                    $current_application,
-                    $final_score,
-                    $final_status,
-                    $full_recommendation,
-                    $bridgingUnits
-                );
+               $emailSent = sendEvaluationResultEmail(
+    $current_application,   // ✅ Complete application array with email
+    $final_score,           // ✅ Float (e.g., 85.5)
+    $final_status,          // ✅ String ('qualified', 'not_qualified', etc.)
+    $full_recommendation,   // ✅ String with recommendations
+    $bridging_units         // ✅ Integer (e.g., 12)
+);
                 
                 error_log("Email send result: " . ($emailSent ? 'SUCCESS' : 'FAILED'));
                 

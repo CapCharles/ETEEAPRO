@@ -412,7 +412,7 @@ if ($application) {
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
-
+     </div>
          
 
               <!-- Sidebar (Right Side - 4 columns) -->

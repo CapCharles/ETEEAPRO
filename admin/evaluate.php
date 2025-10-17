@@ -465,77 +465,7 @@ foreach ($subjectPlan['subjects'] as $index => $subject) {
             $recommendations[] = "4. Begin your accelerated path to degree completion";
             break;
             
-        case 'partially_qualified':
-            $recommendations[] = "**ASSESSMENT OUTCOME: PARTIAL QUALIFICATION**";
-            $recommendations[] = "";
-            $recommendations[] = "Your assessment score of {$score}% demonstrates significant competencies in several areas. You have achieved partial qualification status under the ETEEAP program.";
-            
-            // === CREDITED SUBJECTS (Passed) ===
-            if (!empty($passedSubjects) && !empty($curriculumSubjects)) {
-                $recommendations[] = "";
-                $recommendations[] = "**═══════════════════════════════════════════**";
-                $recommendations[] = "**CREDITED SUBJECTS - RECOGNIZED COMPETENCIES**";
-                $recommendations[] = "**═══════════════════════════════════════════**";
-                $recommendations[] = "";
-                
-                $creditedCount = 0;
-                foreach ($curriculumSubjects as $subject) {
-                    if (!in_array($subject['name'], $bridgingSubjectNames)) {
-                        $creditedCount++;
-                        $evidenceNote = isset($passedSubjects[$subject['name']]) 
-                            ? $passedSubjects[$subject['name']] 
-                            : 'Credit via ETEEAP assessment';
-                        $recommendations[] = "✓ {$subject['name']} — {$evidenceNote}";
-                    }
-                }
-                
-                $recommendations[] = "";
-                $recommendations[] = "**Credited:** {$creditedCount} subjects recognized";
-            }
-            
-            // === REQUIRED BRIDGING SUBJECTS ===
-            if ($bridgingUnits > 0) {
-                $recommendations[] = "";
-                $recommendations[] = "**═══════════════════════════════════════════**";
-                $recommendations[] = "**REQUIRED BRIDGING PROGRAM ({$bridgingUnits} units)**";
-                $recommendations[] = "**═══════════════════════════════════════════**";
-                $recommendations[] = "";
-                $recommendations[] = "To achieve full qualification, you must complete:";
-                $recommendations[] = "";
-                
-                foreach ($subjectPlan['subjects'] as $index => $subject) {
-                    $priorityLabel = $subject['priority'] === 1 ? '[PRIORITY]' : '[STANDARD]';
-                    $recommendations[] = ($index + 1) . ". {$subject['name']} ({$subject['code']}) — {$subject['units']} units {$priorityLabel}";
-                }
-                
-                if ($subjectPlan['remaining_units'] > 0) {
-                    $recommendations[] = "";
-                    $recommendations[] = "Plus {$subjectPlan['remaining_units']} units of remedial coursework to be determined.";
-                }
-                
-                $recommendations[] = "";
-                $recommendations[] = "**PATHWAY TO COMPLETION**";
-                $recommendations[] = "• Complete all required bridging courses";
-                $recommendations[] = "• Estimated timeline: 2-3 semesters";
-                $recommendations[] = "• Upon successful completion → Full degree qualification";
-            }
-            
-            if (!empty($criteriaMissing)) {
-                $recommendations[] = "";
-                $recommendations[] = "**AREAS FOR DEVELOPMENT**";
-                $recommendations[] = "Focus on strengthening competencies in:";
-                foreach (array_slice($criteriaMissing, 0, 3) as $criteria) {
-                    $recommendations[] = "• {$criteria['name']}";
-                }
-            }
-            
-            $recommendations[] = "";
-            $recommendations[] = "**NEXT STEPS**";
-            $recommendations[] = "1. Review your personalized bridging program requirements";
-            $recommendations[] = "2. Schedule academic advising to create your study plan";
-            $recommendations[] = "3. Enroll in bridging courses for the upcoming semester";
-            break;
-            
+        case 'partially_qualified':       
         case 'not_qualified':
             $recommendations[] = "**ASSESSMENT OUTCOME: FURTHER PREPARATION RECOMMENDED**";
             $recommendations[] = "";

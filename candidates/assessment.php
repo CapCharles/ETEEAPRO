@@ -484,9 +484,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                     <?php endif; ?>
                     
-                    <!-- Curriculum Status Breakdown -->
-                    <?php if (!empty($curriculum_subjects)): ?>
-                    <hr class="my-4">
+              
                     
                 
                     

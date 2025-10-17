@@ -484,45 +484,7 @@ if ($application && in_array($application['application_status'], ['qualified', '
                     </div>
                     <?php endif; ?>
                     
-              
-                    
-                
-                    
-                    <!-- Summary Statistics -->
-                    <?php if (!empty($curriculum_subjects)): ?>
-                    <div class="card border-primary mt-4">
-                        <div class="card-header bg-primary text-white">
-                            <i class="fas fa-chart-pie me-2"></i>Program Completion Summary
-                        </div>
-                        <div class="card-body">
-                            <div class="row text-center">
-                                <div class="col-md-3">
-                                    <div class="h4 text-primary"><?php echo count($curriculum_subjects); ?></div>
-                                    <div class="small text-muted">Total Subjects</div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="h4 text-success"><?php echo count($passed_subjects); ?></div>
-                                    <div class="small text-muted">Credited</div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="h4 text-warning"><?php echo count($bridging_requirements); ?></div>
-                                    <div class="small text-muted">Required</div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="h4 text-info">
-                                        <?php echo round((count($passed_subjects) / count($curriculum_subjects)) * 100, 1); ?>%
-                                    </div>
-                                    <div class="small text-muted">Completion Rate</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
-                    <?php endif; ?>
-                </div>
-                <?php endif; ?>
-
-            </div>
+           
 
             <!-- Sidebar (Right Side - 4 columns) -->
             <div class="col-lg-4">

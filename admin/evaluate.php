@@ -1205,49 +1205,64 @@ $auto_recommendation = generateEnhancedRecommendation(
 
           $pdo->commit();
 
-        $bridgingUnits = calculateBridgingUnits($final_score);
-        $success_message = "✅ Evaluation completed successfully!<br>";
-        $success_message .= "📊 Final Score: <strong>{$final_score}%</strong><br>";
-        $success_message .= "📋 Status: <strong>" . ucfirst(str_replace('_', ' ', $final_status)) . "</strong>";
-        
-        if ($final_score >= $passing_threshold && $bridgingUnits > 0) {
-            $success_message .= "<br>🎓 Bridging Units Required: <strong>{$bridgingUnits} units</strong>";
-        }
-        
-        // 🔥 DEBUG: Log before email attempt
-        error_log("=== STARTING EMAIL SEND ===");
-        error_log("Application ID: {$app_id}");
-        error_log("Candidate Email: " . $current_application['candidate_email']);
-        error_log("Candidate Name: " . $current_application['candidate_name']);
-        error_log("Final Score: {$final_score}");
-        error_log("Final Status: {$final_status}");
-        error_log("Bridging Units: {$bridgingUnits}");
+      // 🔥 CALCULATE BRIDGING UNITS FOR EMAIL
+$bridgingUnits = calculateBridgingUnits($final_score);
+
+// 🔥 BUILD SUCCESS MESSAGE
+$success_message = "✅ Evaluation completed successfully!<br>";
+$success_message .= "📊 Final Score: <strong>{$final_score}%</strong><br>";
+$success_message .= "📋 Status: <strong>" . ucfirst(str_replace('_', ' ', $final_status)) . "</strong>";
+
+if ($final_score >= 60 && $bridgingUnits > 0) {
+    $success_message .= "<br>🎓 Bridging Units Required: <strong>{$bridgingUnits} units</strong>";
+}
+
+// 🔥 EMAIL SENDING START
+error_log("=== STARTING EMAIL SEND ===");
+error_log("Application ID: {$app_id}");
+error_log("Final Score: {$final_score}");
+error_log("Final Status: {$final_status}");
+error_log("Bridging Units: {$bridgingUnits}");
+
+// Get complete application data for email
+try {
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.program_name, p.program_code,
+            CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+            u.email as candidate_email
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.id = ?
+    ");
+    $stmt->execute([$app_id]);
+    $email_app_data = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($email_app_data) {
+        error_log("✅ Application data retrieved for email");
+        error_log("Candidate Email: " . $email_app_data['candidate_email']);
+        error_log("Candidate Name: " . $email_app_data['candidate_name']);
         
         // Check if function exists
-        if (!function_exists('sendEvaluationResultEmail')) {
-            error_log("❌ ERROR: sendEvaluationResultEmail function NOT FOUND!");
-            $success_message .= "<br>⚠️ <strong>ERROR:</strong> Email function not found. Check includes/email_notifications.php";
-        } else {
+        if (function_exists('sendEvaluationResultEmail')) {
             error_log("✅ sendEvaluationResultEmail function exists");
             
             // Try to send email
             try {
-                error_log("Attempting to send email...");
-                
-               $emailSent = sendEvaluationResultEmail(
-    $current_application,   // ✅ Complete application array with email
-    $final_score,           // ✅ Float (e.g., 85.5)
-    $final_status,          // ✅ String ('qualified', 'not_qualified', etc.)
-    $full_recommendation,   // ✅ String with recommendations
-    $bridging_units         // ✅ Integer (e.g., 12)
-);
+                $emailSent = sendEvaluationResultEmail(
+                    $email_app_data,        // Complete application array
+                    $final_score,           // Float score
+                    $final_status,          // Status string
+                    $full_recommendation,   // Recommendation text
+                    $bridgingUnits         // Integer bridging units
+                );
                 
                 error_log("Email send result: " . ($emailSent ? 'SUCCESS' : 'FAILED'));
                 
                 if ($emailSent) {
-                    $success_message .= "<br>✉️ <strong>Email notification sent successfully</strong> to " . htmlspecialchars($current_application['candidate_email']);
+                    $success_message .= "<br>✉️ <strong>Email notification sent successfully</strong> to " . htmlspecialchars($email_app_data['candidate_email']);
                 } else {
-                    $success_message .= "<br>⚠️ <strong>Warning:</strong> Evaluation saved but email notification failed. Check error logs for details.";
+                    $success_message .= "<br>⚠️ <strong>Warning:</strong> Evaluation saved but email notification failed. Check error logs.";
                     error_log("❌ Email failed for application ID: {$app_id}");
                 }
             } catch (Exception $emailError) {
@@ -1255,9 +1270,21 @@ $auto_recommendation = generateEnhancedRecommendation(
                 error_log("❌ Email exception: " . $emailError->getMessage());
                 error_log("Stack trace: " . $emailError->getTraceAsString());
             }
+        } else {
+            error_log("❌ ERROR: sendEvaluationResultEmail function NOT FOUND!");
+            $success_message .= "<br>⚠️ <strong>ERROR:</strong> Email function not found. Check includes/email_notifications.php";
         }
-        
-        error_log("=== EMAIL SEND COMPLETE ===");
+    } else {
+        error_log("❌ Failed to retrieve application data for email");
+        $success_message .= "<br>⚠️ <strong>Warning:</strong> Could not retrieve application data for email notification.";
+    }
+} catch (PDOException $e) {
+    error_log("❌ Database error when fetching app data for email: " . $e->getMessage());
+    $success_message .= "<br>⚠️ <strong>Warning:</strong> Database error prevented email notification.";
+}
+
+error_log("=== EMAIL SEND COMPLETE ===");
+// 🔥 EMAIL SENDING END
         
     } catch (Exception $e) {
         $pdo->rollBack();

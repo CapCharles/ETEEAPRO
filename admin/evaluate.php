@@ -1203,17 +1203,68 @@ $auto_recommendation = generateEnhancedRecommendation(
             }
         }
 
-        $pdo->commit();
+          $pdo->commit();
 
         $bridgingUnits = calculateBridgingUnits($final_score);
-        $success_message = "Evaluation completed! Final Score: {$final_score}% | Status: " . ucfirst($final_status);
+        $success_message = "✅ Evaluation completed successfully!<br>";
+        $success_message .= "📊 Final Score: <strong>{$final_score}%</strong><br>";
+        $success_message .= "📋 Status: <strong>" . ucfirst(str_replace('_', ' ', $final_status)) . "</strong>";
+        
         if ($final_score >= $passing_threshold && $bridgingUnits > 0) {
-            $success_message .= " | Bridging Units Required: {$bridgingUnits}";
+            $success_message .= "<br>🎓 Bridging Units Required: <strong>{$bridgingUnits} units</strong>";
         }
+        
+        // 🔥 DEBUG: Log before email attempt
+        error_log("=== STARTING EMAIL SEND ===");
+        error_log("Application ID: {$app_id}");
+        error_log("Candidate Email: " . $current_application['candidate_email']);
+        error_log("Candidate Name: " . $current_application['candidate_name']);
+        error_log("Final Score: {$final_score}");
+        error_log("Final Status: {$final_status}");
+        error_log("Bridging Units: {$bridgingUnits}");
+        
+        // Check if function exists
+        if (!function_exists('sendEvaluationResultEmail')) {
+            error_log("❌ ERROR: sendEvaluationResultEmail function NOT FOUND!");
+            $success_message .= "<br>⚠️ <strong>ERROR:</strong> Email function not found. Check includes/email_notifications.php";
+        } else {
+            error_log("✅ sendEvaluationResultEmail function exists");
+            
+            // Try to send email
+            try {
+                error_log("Attempting to send email...");
+                
+                $emailSent = sendEvaluationResultEmail(
+                    $current_application,
+                    $final_score,
+                    $final_status,
+                    $full_recommendation,
+                    $bridgingUnits
+                );
+                
+                error_log("Email send result: " . ($emailSent ? 'SUCCESS' : 'FAILED'));
+                
+                if ($emailSent) {
+                    $success_message .= "<br>✉️ <strong>Email notification sent successfully</strong> to " . htmlspecialchars($current_application['candidate_email']);
+                } else {
+                    $success_message .= "<br>⚠️ <strong>Warning:</strong> Evaluation saved but email notification failed. Check error logs for details.";
+                    error_log("❌ Email failed for application ID: {$app_id}");
+                }
+            } catch (Exception $emailError) {
+                $success_message .= "<br>⚠️ <strong>Email Error:</strong> " . htmlspecialchars($emailError->getMessage());
+                error_log("❌ Email exception: " . $emailError->getMessage());
+                error_log("Stack trace: " . $emailError->getTraceAsString());
+            }
+        }
+        
+        error_log("=== EMAIL SEND COMPLETE ===");
+        
     } catch (Exception $e) {
         $pdo->rollBack();
         $errors[] = "Failed to save evaluation: " . $e->getMessage();
+        error_log("❌ Evaluation submission error: " . $e->getMessage());
     }
+
 }
 
 

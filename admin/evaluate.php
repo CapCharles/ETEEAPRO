@@ -2271,12 +2271,81 @@ if ($hasCriteriaDocs) {
         </div>
     </div>
 
+<div class="evaluation-card p-4">
+    <h5 class="mb-3">
+        <i class="fas fa-robot me-2"></i>
+        Smart Recommendations & Curriculum Status
+    </h5>
+
+    <?php 
+    $curriculumStatus = getPassedSubjects($documents, $current_application['program_code']);
+    $curriculumSubjects = $curriculumStatus['curriculum'];
+    $passedSubjects = $curriculumStatus['passed'];
+    ?>
+
+
+<div class="mb-4 p-3 rounded border" style="background: linear-gradient(135deg, #e8f5e9, #f1f8e9);">
+    <h6 class="mb-3">
+        <i class="fas fa-list-check me-2 text-success"></i>
+        Curriculum Requirements for <?php echo htmlspecialchars($current_application['program_code']); ?>
+    </h6>
+    
+    <table class="table table-sm table-bordered mb-0">
+        <thead class="table-light">
+            <tr>
+                <th style="width: 60%;">Subject</th>
+                <th style="width: 20%;" class="text-center">Status</th>
+                <th style="width: 20%;">Evidence</th>
+            </tr>
+        </thead>
+        <tbody id="curriculumTableBody">
+            <?php foreach ($curriculumSubjects as $subject): ?>
+            <?php
+            $requiredSubjects = array_column($bridging_requirements, 'subject_name');
+            $isRequired = in_array($subject['name'], $requiredSubjects);
+            
+            if (isset($passedSubjects[$subject['name']])) {
+                $evidence = $passedSubjects[$subject['name']];
+            } elseif (!$isRequired) {
+                $evidence = 'Credit via ETEEAP assessment';
+            } else {
+                $evidence = 'To be completed';
+            }
+            ?>
+            <tr data-subject="<?php echo htmlspecialchars($subject['name']); ?>">
+                <td><?php echo htmlspecialchars($subject['name']); ?></td>
+                <td class="text-center status-cell">
+                    <?php if ($isRequired): ?>
+                        <span class="badge bg-warning text-dark">Required</span>
+                    <?php else: ?>
+                        <span class="badge bg-success">Passed</span>
+                    <?php endif; ?>
+                </td>
+                <td class="small text-muted evidence-cell">
+                    <?php echo htmlspecialchars($evidence); ?>
+                </td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <div class="mt-2 small text-muted">
+        <i class="fas fa-info-circle me-1"></i>
+        Subjects marked "Required" must be completed as bridging courses. "Passed" subjects are credited through prior learning assessment.
+    </div>
+</div>
+
+    <!-- Status + Required -->
+    <div class="alert alert-light border mb-3" id="smartRecommendation" style="display:none;">
+        <div class="row">
+            <div class="col-md-6"><strong>Status:</strong><div id="recommendedStatus" class="mt-1"></div></div>
+            <div class="col-md-6"><strong>Required:</strong><div id="recommendedBridging" class="mt-1"></div></div>
+        </div>
+    </div>
 
     <!-- Bridging Requirements (Only shows subjects NOT passed) -->
     <div class="mb-3 p-3 rounded border" id="bridgingSummary" style="background:linear-gradient(135deg,#eef7ff,#f6fff0)">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <h6 class="mb-0">
-                
                 <i class="fas fa-graduation-cap me-2 text-primary"></i>
                 Bridging Requirements
                 <span class="badge bg-success ms-2">

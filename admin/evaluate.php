@@ -702,10 +702,7 @@ if (!function_exists('doc_matches_criteria')) {
             return !empty($h['scholarship_level']) || !empty($h['scholarship_type']);
         }
 
-        // 3) fallback sa dating filename heuristic
-        if (empty($doc['criteria_id']) && stripos($doc['original_filename'] ?? '', $ctype) !== false) {
-            return true;
-        }
+     
         return false;
     }
 }

@@ -895,7 +895,7 @@ if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
     }
     }
 
-    if (stripos($name, 'coordination') !== false && !empty($hier['coordination_level'])) {
+    if (stripos($name, 'program coordination') !== false && !empty($hier['coordination_level'])) {
     $lvl = strtolower($hier['coordination_level']);
     // scale to max_score: local 60%, national 80%, international 100%
     $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];

@@ -817,7 +817,7 @@ if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
 
         $ptype = $hier['publication_type'] ?? 'journal';
         $tbl = [
-            'journal' => ['local'=>2,'national'=>3,'international'=>1], 
+            'journal' => ['local'=>2,'national'=>3,'international'=>1],
             'training_module'  => ['local'=>3,'national'=>4,'international'=>5],
             'book'             => ['local'=>5,'national'=>6,'international'=>7],
             'teaching_module'  => ['local'=>3,'national'=>4,'international'=>5],

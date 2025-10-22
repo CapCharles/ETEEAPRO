@@ -787,21 +787,27 @@ if ($section === 2) {
 
     // --- Sec 3: Publications / Inventions ----------------------------------
     // Invention / Innovation
-    if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
-        $isInvention = (isset($hier['invention_type']) && $hier['invention_type']==='invention')
-                       || stripos($name,'Invention')!==false;
-        if (!empty($hier['patent_status'])) {
-            $base = ($hier['patent_status']==='patented') ? ($isInvention?6:1) : ($isInvention?5:2);
-            $score += $base; $why[] = "Patent: {$hier['patent_status']} (+{$base})";
-        }
-        // acceptability_levels: local/national/international (array)
-        $sum = 0;
-        foreach ((array)($hier['acceptability_levels'] ?? []) as $lvl) {
-            $sum += $isInvention ? (['local'=>7,'national'=>8,'international'=>9][$lvl] ?? 0)
-                                 : (['local'=>4,'national'=>5,'international'=>6][$lvl] ?? 0);
-        }
-        if ($sum>0) { $score += $sum; $why[] = "Market: ".implode(', ', (array)$hier['acceptability_levels'])." (+{$sum})"; }
+if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
+    $isInvention = (isset($hier['invention_type']) && $hier['invention_type']==='invention')
+                   || stripos($name,'Invention')!==false;
+    
+    // Patent base
+    if (!empty($hier['patent_status'])) {
+        $base = ($hier['patent_status']==='patented') 
+                ? ($isInvention ? 6 : 1)   // ✓ Matches PDF
+                : ($isInvention ? 5 : 2);   // ✓ Matches PDF
+        $score += $base;
     }
+    
+    // Acceptability levels
+    $sum = 0;
+    foreach ((array)($hier['acceptability_levels'] ?? []) as $lvl) {
+        $sum += $isInvention 
+            ? (['local'=>7,'national'=>8,'international'=>9][$lvl] ?? 0)    // ✓ Matches PDF
+            : (['local'=>4,'national'=>5,'international'=>6][$lvl] ?? 0);   // ✓ Matches PDF
+    }
+    if ($sum>0) { $score += $sum; }
+}
 
     // Publications / Modules / Books / Literacy outreach
     if (stripos($name,'Journal')!==false || stripos($name,'Training Module')!==false ||
@@ -811,7 +817,7 @@ if ($section === 2) {
 
         $ptype = $hier['publication_type'] ?? 'journal';
         $tbl = [
-            'journal'          => ['local'=>2,'national'=>3,'international'=>4],
+            'journal' => ['local'=>2,'national'=>3,'international'=>1]
             'training_module'  => ['local'=>3,'national'=>4,'international'=>5],
             'book'             => ['local'=>5,'national'=>6,'international'=>7],
             'teaching_module'  => ['local'=>3,'national'=>4,'international'=>5],
@@ -910,7 +916,7 @@ if ((stripos($name, 'resource speaker') !== false || stripos($name, 'trainer') !
 
     if ($lvls) {
         // Default map for community/lecturer/speaker
-        $mapDefault  = ['local'=>3,'national'=>4,'international'=>5];
+        $mapDefault  = ['local'=>6,'national'=>8,'international'=>10];
         // Heavier map for consultancy (mas mataas ang max sa criteria na ito)
         $mapConsult  = ['local'=>5,'national'=>10,'international'=>15];
 

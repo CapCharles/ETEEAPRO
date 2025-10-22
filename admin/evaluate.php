@@ -3307,26 +3307,6 @@ document.getElementById('btnRefreshSmart')?.addEventListener('click', function()
     }
 });
 
-// Update the subjectCounter initialization for existing subjects
-document.addEventListener('DOMContentLoaded', function() {
-    // Set the counter based on existing subjects in the form
-    const existingSubjects = document.querySelectorAll('.bridging-subject-item');
-    subjectCounter = existingSubjects.length;
-    
-    
-    // Rest of your existing initialization code...
-});
-// Update the existing updateBridgingPreview function to show the management section
-// function updateBridgingPreview(score) {
-//     const bridgingManagement = document.getElementById('bridgingManagement');
-    
-//     if (score >= 60) {
-//         bridgingManagement.style.display = 'block';
-//         updateTotalUnits(); // Update the total units display
-//     } else {
-//         bridgingManagement.style.display = 'none';
-//     }
-// }
 
 function updateSubjectDetails(selectElement, index) {
     const selectedOption = selectElement.selectedOptions[0];
@@ -3459,48 +3439,56 @@ function updateCurriculumStatus() {
             return container;
         }
 
-        // Initialize the enhanced evaluation system
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize document modal
-            initializeDocumentModal();
-            
-            // Initialize document-aware scoring
-            initializeDocumentAwareScoring();
-            
-            // Add event listeners to score inputs
-            document.querySelectorAll('.smart-score-input').forEach(input => {
-                input.addEventListener('input', function() {
-                    validateScoreInput(this);
-                    calculateSmartScore();
-                });
-                
-                input.addEventListener('blur', function() {
-                    validateScoreInput(this);
-                });
-                
-                // Prevent manual input on locked fields
-                input.addEventListener('keydown', function(e) {
-                    const hasDocs = this.getAttribute('data-has-docs') === 'true';
-                    if (!hasDocs && !['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-                        e.preventDefault();
-                        showToast('Cannot modify score - no documents uploaded for this criteria', 'warning');
-                    }
-                });
-            });
-            
-            // Initialize score calculation if there are existing scores
-            calculateSmartScore();
-            
-            // Add keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.key === 's') {
-                    e.preventDefault();
-                    document.querySelector('button[name="submit_evaluation"]')?.click();
-                }
-            });
-            
-            console.log('Enhanced ETEEAP Evaluation System with Per-Criteria Document Management initialized!');
+
+        // Update the subjectCounter initialization for existing subjects
+document.addEventListener('DOMContentLoaded', function() {
+    // Set the counter based on existing subjects in the form
+    const existingSubjects = document.querySelectorAll('.bridging-subject-item');
+    subjectCounter = existingSubjects.length;
+    
+
+    // Initialize document modal
+    initializeDocumentModal();
+    
+    // Initialize document-aware scoring
+    initializeDocumentAwareScoring();
+     updateCurriculumStatus();
+    
+    // Add event listeners to score inputs
+    document.querySelectorAll('.smart-score-input').forEach(input => {
+        input.addEventListener('input', function() {
+            validateScoreInput(this);
+            calculateSmartScore(); // This will now auto-load bridging requirements
         });
+        
+        input.addEventListener('blur', function() {
+            validateScoreInput(this);
+        });
+        
+        // Prevent manual input on locked fields
+        input.addEventListener('keydown', function(e) {
+            const hasDocs = this.getAttribute('data-has-docs') === 'true';
+            if (!hasDocs && !['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+                e.preventDefault();
+                showToast('Cannot modify score - no documents uploaded for this criteria', 'warning');
+            }
+        });
+    });
+    
+    // Initialize score calculation and auto-load bridging if scores exist
+    calculateSmartScore();
+    
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            document.querySelector('button[name="submit_evaluation"]')?.click();
+        }
+    });
+    
+    console.log('Enhanced ETEEAP Evaluation System with Auto-Loading Bridging Requirements initialized!');
+});
+
     </script>
 </body>
 </html>

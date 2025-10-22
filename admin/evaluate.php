@@ -724,9 +724,9 @@ function score_one_doc(array $criteria, array $hier): array {
 if ($section === 1) {
     $eduPts = [
         'high_school' => 10,
-        'vocational' => 11-14,      // Could be 11-14 based on additional criteria
-        'technical' => 15-17,       // Could be 15-17 based on additional criteria
-        'undergraduate' => 18-20,   // Could be 18-20 based on completion %
+        'vocational' => 14,      // Could be 11-14 based on additional criteria
+        'technical' => 17,       // Could be 15-17 based on additional criteria
+        'undergraduate' => 18,   // Could be 18-20 based on completion %
         'non_education' => 20
     ];
     

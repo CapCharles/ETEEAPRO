@@ -506,8 +506,7 @@ foreach ($subjectPlan['subjects'] as $index => $subject) {
         $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
     }
     
-    $recommendations[] = "";
-    $recommendations[] = "For questions or appointments:";
+    
   
     
     return implode("\n", $recommendations);
@@ -708,8 +707,8 @@ if (!function_exists('doc_matches_criteria')) {
             $is_match = !empty($h['service_levels']) || !empty($h['service_level']);
         }
         // program coordination / participation
-        elseif (strpos($cname,'program coordination') !== false) {
-            $is_match = !empty($h['coordination_level']);
+        if (strpos($cname,'coordination') !== false) {
+            return !empty($h['coordination_level']);
         }
         elseif (strpos($cname,'participation') !== false) {
             $is_match = !empty($h['participation_level']);
@@ -896,7 +895,7 @@ if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
     }
     }
 
-    if (stripos($name, 'program coordination') !== false && !empty($hier['coordination_level'])) {
+    if (stripos($name, 'coordination') !== false && !empty($hier['coordination_level'])) {
     $lvl = strtolower($hier['coordination_level']);
     // scale to max_score: local 60%, national 80%, international 100%
     $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];

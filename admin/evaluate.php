@@ -1949,23 +1949,41 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
                         </a>
                     </div>
 
+<?php if (!empty($success_message)): ?>
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-success">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="successModalLabel">
+          <i class="fas fa-check-circle me-2"></i> Evaluation Submitted
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center">
+          <i class="fas fa-thumbs-up fa-3x text-success mb-3"></i>
+          <p class="mb-0"><?php echo $success_message; ?></p>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+          <i class="fas fa-check me-1"></i>OK
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
-            <?php if (!empty($errors)): ?>
-                        <div class="alert alert-danger">
-                            <ul class="mb-0">
-                                <?php foreach ($errors as $error): ?>
-                                    <li><?php echo htmlspecialchars($error); ?></li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    <?php endif; ?>
+<!-- Trigger Modal on Load -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('successModal'));
+  modal.show();
+});
+</script>
+<?php endif; ?>
 
-                    <?php if ($success_message): ?>
-                        <div class="alert alert-success">
-                            <i class="fas fa-check-circle me-2"></i>
-                            <?php echo htmlspecialchars($success_message); ?>
-                        </div>
-                    <?php endif; ?>
 
                     <!-- Document Status Alert -->
                     <?php if (!$hasDocs): ?>
@@ -3476,6 +3494,15 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     console.log('Enhanced ETEEAP Evaluation System with Auto-Loading Bridging Requirements initialized!');
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('successModal'));
+  modal.show();
+
+  document.getElementById('successModal').addEventListener('hidden.bs.modal', function () {
+    window.location.href = "evaluate.php";
+  });
 });
 
     </script>

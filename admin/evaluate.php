@@ -1854,7 +1854,22 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
                         </div>
                     </div>
 
-          
+                    <?php if (!empty($errors)): ?>
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                <?php foreach ($errors as $error): ?>
+                                    <li><?php echo htmlspecialchars($error); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($success_message): ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <?php echo htmlspecialchars($success_message); ?>
+                        </div>
+                    <?php endif; ?>
 
                     <div class="table-container">
                         <div class="table-responsive">
@@ -1935,23 +1950,22 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
                     </div>
 
 
-                    <?php if ($success_message): ?>
-    <div class="alert alert-success alert-dismissible fade show mt-3" role="alert">
-        <i class="fas fa-check-circle me-2"></i>
-        <?php echo $success_message; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-<?php endif; ?>
+            <?php if (!empty($errors)): ?>
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                <?php foreach ($errors as $error): ?>
+                                    <li><?php echo htmlspecialchars($error); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
 
-<?php if (!empty($errors)): ?>
-    <div class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
-        <i class="fas fa-exclamation-circle me-2"></i>
-        <?php foreach ($errors as $error): ?>
-            <div><?php echo htmlspecialchars($error); ?></div>
-        <?php endforeach; ?>
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-<?php endif; ?>
+                    <?php if ($success_message): ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <?php echo htmlspecialchars($success_message); ?>
+                        </div>
+                    <?php endif; ?>
 
                     <!-- Document Status Alert -->
                     <?php if (!$hasDocs): ?>

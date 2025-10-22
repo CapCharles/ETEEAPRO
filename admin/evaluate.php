@@ -2490,12 +2490,145 @@ if ($hasCriteriaDocs) {
         </div>
     </div>
 
+    <?php if ($show_success_modal): ?>
+<!-- Success Modal -->
+<div class="modal fade show" id="successModal" tabindex="-1" 
+     style="display: block; background: rgba(0,0,0,0.5);">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header text-white border-0" 
+                 style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Evaluation Submitted Successfully
+                </h5>
+            </div>
+            
+            <div class="modal-body p-4">
+                <div class="text-center mb-4">
+                    <div class="rounded-circle bg-success d-inline-flex align-items-center justify-content-center" 
+                         style="width: 80px; height: 80px;">
+                        <i class="fas fa-check text-white" style="font-size: 3rem;"></i>
+                    </div>
+                </div>
+                
+                <div class="alert alert-light border mb-4">
+                    <h6 class="mb-2">
+                        <i class="fas fa-user me-2 text-primary"></i>
+                        <?php echo htmlspecialchars($eval_success_data['candidate_name']); ?>
+                    </h6>
+                    <small class="text-muted">
+                        <i class="fas fa-envelope me-2"></i>
+                        <?php echo htmlspecialchars($eval_success_data['candidate_email']); ?>
+                    </small>
+                    <br>
+                    <small class="text-muted">
+                        <i class="fas fa-graduation-cap me-2"></i>
+                        <?php echo htmlspecialchars($eval_success_data['program_name']); ?>
+                    </small>
+                </div>
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-chart-line text-primary mb-2" style="font-size: 2rem;"></i>
+                                <h3 class="mb-0 text-primary">
+                                    <?php echo number_format($eval_success_data['score'], 1); ?>%
+                                </h3>
+                                <small class="text-muted">Final Score</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <?php
+                                $status_color = $eval_success_data['status'] === 'qualified' ? 'success' :
+                                              ($eval_success_data['status'] === 'partially_qualified' ? 'warning' : 'danger');
+                                ?>
+                                <i class="fas fa-trophy text-<?php echo $status_color; ?> mb-2" 
+                                   style="font-size: 2rem;"></i>
+                                <h6 class="mb-0 text-<?php echo $status_color; ?>">
+                                    <?php echo ucfirst(str_replace('_', ' ', $eval_success_data['status'])); ?>
+                                </h6>
+                                <small class="text-muted">Status</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100">
+                            <div class="card-body text-center">
+                                <i class="fas fa-book text-info mb-2" style="font-size: 2rem;"></i>
+                                <h3 class="mb-0 text-info">
+                                    <?php echo $eval_success_data['bridging_units']; ?>
+                                </h3>
+                                <small class="text-muted">Bridging Units</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-success border-0">
+                    <i class="fas fa-envelope-circle-check me-2"></i>
+                    <strong>Email Notification Sent</strong>
+                </div>
+            </div>
+            
+            <div class="modal-footer border-0 bg-light">
+                <a href="evaluate.php" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>
+                    Back to Applications
+                </a>
+                <button type="button" class="btn btn-primary" onclick="closeModal()">
+                    <i class="fas fa-eye me-2"></i>
+                    View Details
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
     
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         // Enhanced JavaScript for smart evaluation system with document handling
-        
+        function closeModal() {
+    document.getElementById('successModal').style.display = 'none';
+    var url = new URL(window.location.href);
+    url.searchParams.delete('success');
+    window.history.replaceState({}, document.title, url.toString());
+}
+
+document.getElementById('successModal')?.addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeModal();
+});
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.querySelector('form[method="post"]');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            if (e.submitter?.name === 'submit_evaluation') {
+                var score = document.getElementById('currentLiveScore')?.textContent || '0%';
+                var status = document.getElementById('liveScoreStatus')?.textContent || 'Unknown';
+                
+                if (!confirm('Submit Evaluation?\n\nScore: ' + score + '\nStatus: ' + status + 
+                           '\n\nCandidate will be notified via email.')) {
+                    e.preventDefault();
+                    return false;
+                }
+                
+                e.submitter.disabled = true;
+                e.submitter.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Submitting...';
+            }
+        });
+    }
+});
         
         const programCode = '<?php echo $current_application['program_code'] ?? ''; ?>';
 const programId = <?php echo $current_application['program_id'] ?? 'null'; ?>;

@@ -665,9 +665,9 @@ function render_hier_badges(array $hier) {
 
 if (!function_exists('doc_matches_criteria')) {
     function doc_matches_criteria(array $doc, array $criteria): bool {
-        // 🔥 FIX: Track matched documents to prevent duplicates
+        // 🔥 IMPORTANT: Track matched documents to prevent duplicates
         static $matched_docs = [];
-        $doc_id = (int)$doc['id'];
+        $doc_id = (int)($doc['id'] ?? 0);
         
         // Skip if this document already matched another criteria
         if (isset($matched_docs[$doc_id])) {
@@ -676,14 +676,14 @@ if (!function_exists('doc_matches_criteria')) {
         
         // 1) direct link
         if ((int)$doc['criteria_id'] === (int)$criteria['id']) {
-            $matched_docs[$doc_id] = true; // Mark as matched
+            $matched_docs[$doc_id] = true;
             return true;
         }
 
         // 2) via hierarchical_data badges
-        $h     = parse_hier($doc);
+        $h = parse_hier($doc);
         
-        // 🔥 FIX: Only match if document has metadata (skip empty documents)
+        // Only match documents WITH metadata
         if (empty($h)) {
             return false;
         }
@@ -724,7 +724,7 @@ if (!function_exists('doc_matches_criteria')) {
             $is_match = true;
         }
         
-        // Mark as matched if found
+        // Mark as matched
         if ($is_match) {
             $matched_docs[$doc_id] = true;
         }

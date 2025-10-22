@@ -666,10 +666,11 @@ function render_hier_badges(array $hier) {
 if (!function_exists('doc_matches_criteria')) {
     function doc_matches_criteria(array $doc, array $criteria): bool {
         // 1) direct link
-        if ((int)$doc['criteria_id'] === (int)$criteria['id']) return true;
-
-        // 2) via hierarchical_data badges
-        $h     = parse_hier($doc);
+          if ($doc['criteria_id'] === $criteria['id']) return true; // ✓ File #1 matched!
+    
+    // Path 2: Hierarchical data
+    $h = parse_hier($doc);
+    if (has_coordination($h)) return true; // ✓ File #2 matched!
         $cname = strtolower($criteria['criteria_name'] ?? '');
         $ctype = strtolower($criteria['criteria_type'] ?? '');
 

@@ -887,9 +887,6 @@ if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
 // Resource Speaker / Trainer (Local/National/International)
 if ((stripos($name, 'resource speaker') !== false || stripos($name, 'trainer') !== false)
     && (!empty($hier['service_levels']) || !empty($hier['service_level']))) {
-    
-    $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];
-    $add   = round($max * ($scale[$best] ?? 0), 2);
 
     $levels = [];
     if (!empty($hier['service_levels']) && is_array($hier['service_levels'])) {

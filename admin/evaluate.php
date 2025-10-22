@@ -3308,13 +3308,63 @@ document.getElementById('btnRefreshSmart')?.addEventListener('click', function()
 });
 
 // Update the subjectCounter initialization for existing subjects
+// CONSOLIDATED DOMContentLoaded - Merged all three into ONE
 document.addEventListener('DOMContentLoaded', function() {
-    // Set the counter based on existing subjects in the form
+    console.log('🚀 Initializing Enhanced ETEEAP Evaluation System...');
+    
+    // 1. Set the counter based on existing subjects (from first listener)
     const existingSubjects = document.querySelectorAll('.bridging-subject-item');
     subjectCounter = existingSubjects.length;
+    console.log('✓ Subject counter initialized:', subjectCounter);
     
+    // 2. Initialize document modal
+    initializeDocumentModal();
+    console.log('✓ Document modal initialized');
     
-    // Rest of your existing initialization code...
+    // 3. Initialize document-aware scoring
+    initializeDocumentAwareScoring();
+    console.log('✓ Document-aware scoring initialized');
+    
+    // 4. Update curriculum status
+    updateCurriculumStatus();
+    console.log('✓ Curriculum status updated');
+    
+    // 5. Add event listeners to score inputs
+    document.querySelectorAll('.smart-score-input').forEach(input => {
+        input.addEventListener('input', function() {
+            validateScoreInput(this);
+            calculateSmartScore(); // This will now auto-load bridging requirements
+        });
+        
+        input.addEventListener('blur', function() {
+            validateScoreInput(this);
+        });
+        
+        // Prevent manual input on locked fields
+        input.addEventListener('keydown', function(e) {
+            const hasDocs = this.getAttribute('data-has-docs') === 'true';
+            if (!hasDocs && !['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+                e.preventDefault();
+                showToast('Cannot modify score - no documents uploaded for this criteria', 'warning');
+            }
+        });
+    });
+    console.log('✓ Score input listeners attached');
+    
+    // 6. Initialize score calculation and auto-load bridging if scores exist
+    calculateSmartScore();
+    console.log('✓ Smart score calculated');
+    
+    // 7. Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            document.querySelector('button[name="submit_evaluation"]')?.click();
+        }
+    });
+    console.log('✓ Keyboard shortcuts enabled (Ctrl+S to save)');
+    
+    console.log('✅ Enhanced ETEEAP Evaluation System fully initialized!');
 });
 // Update the existing updateBridgingPreview function to show the management section
 // function updateBridgingPreview(score) {
@@ -3402,49 +3452,6 @@ function updateCurriculumStatus() {
         }
     });
 }
-document.addEventListener('DOMContentLoaded', function() {
-    // ... existing initialization code ...
-    
-    // Initialize document modal
-    initializeDocumentModal();
-    
-    // Initialize document-aware scoring
-    initializeDocumentAwareScoring();
-     updateCurriculumStatus();
-    
-    // Add event listeners to score inputs
-    document.querySelectorAll('.smart-score-input').forEach(input => {
-        input.addEventListener('input', function() {
-            validateScoreInput(this);
-            calculateSmartScore(); // This will now auto-load bridging requirements
-        });
-        
-        input.addEventListener('blur', function() {
-            validateScoreInput(this);
-        });
-        
-        // Prevent manual input on locked fields
-        input.addEventListener('keydown', function(e) {
-            const hasDocs = this.getAttribute('data-has-docs') === 'true';
-            if (!hasDocs && !['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-                e.preventDefault();
-                showToast('Cannot modify score - no documents uploaded for this criteria', 'warning');
-            }
-        });
-    });
-    
-    // Initialize score calculation and auto-load bridging if scores exist
-    calculateSmartScore();
-    
-    // Add keyboard shortcuts
-    document.addEventListener('keydown', function(e) {
-        if (e.ctrlKey && e.key === 's') {
-            e.preventDefault();
-            document.querySelector('button[name="submit_evaluation"]')?.click();
-        }
-    });
-    
-    console.log('Enhanced ETEEAP Evaluation System with Auto-Loading Bridging Requirements initialized!');
 });
         // Enhanced Document-aware scoring initialization
         function initializeDocumentAwareScoring() {
@@ -3503,47 +3510,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Initialize the enhanced evaluation system
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize document modal
-            initializeDocumentModal();
-            
-            // Initialize document-aware scoring
-            initializeDocumentAwareScoring();
-            
-            // Add event listeners to score inputs
-            document.querySelectorAll('.smart-score-input').forEach(input => {
-                input.addEventListener('input', function() {
-                    validateScoreInput(this);
-                    calculateSmartScore();
-                });
-                
-                input.addEventListener('blur', function() {
-                    validateScoreInput(this);
-                });
-                
-                // Prevent manual input on locked fields
-                input.addEventListener('keydown', function(e) {
-                    const hasDocs = this.getAttribute('data-has-docs') === 'true';
-                    if (!hasDocs && !['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
-                        e.preventDefault();
-                        showToast('Cannot modify score - no documents uploaded for this criteria', 'warning');
-                    }
-                });
-            });
-            
-            // Initialize score calculation if there are existing scores
-            calculateSmartScore();
-            
-            // Add keyboard shortcuts
-            document.addEventListener('keydown', function(e) {
-                if (e.ctrlKey && e.key === 's') {
-                    e.preventDefault();
-                    document.querySelector('button[name="submit_evaluation"]')?.click();
-                }
-            });
-            
-            console.log('Enhanced ETEEAP Evaluation System with Per-Criteria Document Management initialized!');
-        });
     </script>
 </body>
 </html>

@@ -359,14 +359,14 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
     }
     
     // Header with assessment outcome
-    $recommendations[] = "**ETEEAP ASSESSMENT RESULTS**";
+    $recommendations[] = "ETEEAP ASSESSMENT RESULTS";
     $recommendations[] = "Program: {$programCode}";
     $recommendations[] = "Final Assessment Score: {$score}%";
   
     
     switch($status) {
         case 'qualified':
-            $recommendations[] = "**ASSESSMENT OUTCOME: QUALIFIED FOR ETEEAP CREDIT**";
+            $recommendations[] = "ASSESSMENT OUTCOME: QUALIFIED FOR ETEEAP CREDIT";
             $recommendations[] = "";
             $recommendations[] = "Congratulations! Your professional experience and competencies demonstrate substantial equivalency to formal academic study. Based on our comprehensive evaluation, you have successfully qualified for the Expanded Tertiary Education Equivalency and Accreditation Program (ETEEAP).";
             
@@ -417,7 +417,7 @@ foreach ($subjectPlan['subjects'] as $index => $subject) {
     $recommendations[] = "";
 }
                 
-                $recommendations[] = "Total Bridging Units Required:** {$bridgingUnits} units";
+                $recommendations[] = "Total Bridging Units Required: {$bridgingUnits} units";
                 
                 if ($subjectPlan['remaining_units'] > 0) {
                     $recommendations[] = "";

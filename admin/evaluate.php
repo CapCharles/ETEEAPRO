@@ -665,49 +665,71 @@ function render_hier_badges(array $hier) {
 
 if (!function_exists('doc_matches_criteria')) {
     function doc_matches_criteria(array $doc, array $criteria): bool {
+        // 🔥 FIX: Track matched documents to prevent duplicates
+        static $matched_docs = [];
+        $doc_id = (int)$doc['id'];
+        
+        // Skip if this document already matched another criteria
+        if (isset($matched_docs[$doc_id])) {
+            return false;
+        }
+        
         // 1) direct link
-          if ($doc['criteria_id'] === $criteria['id']) return true; // ✓ File #1 matched!
-    
-    // Path 2: Hierarchical data
-    $h = parse_hier($doc);
-    if (has_coordination($h)) return true; // ✓ File #2 matched!
+        if ((int)$doc['criteria_id'] === (int)$criteria['id']) {
+            $matched_docs[$doc_id] = true; // Mark as matched
+            return true;
+        }
+
+        // 2) via hierarchical_data badges
+        $h     = parse_hier($doc);
+        
+        // 🔥 FIX: Only match if document has metadata (skip empty documents)
+        if (empty($h)) {
+            return false;
+        }
+        
         $cname = strtolower($criteria['criteria_name'] ?? '');
         $ctype = strtolower($criteria['criteria_type'] ?? '');
+        
+        $is_match = false;
 
         // publications / modules / books
         if (strpos($cname,'journal') !== false) {
-            return ($h['publication_type'] ?? '') === 'journal';
+            $is_match = ($h['publication_type'] ?? '') === 'journal';
         }
-        if (strpos($cname,'training module') !== false || strpos($cname,'training modules') !== false) {
-            return in_array($h['publication_type'] ?? '', ['training_module','teaching_module'], true);
+        elseif (strpos($cname,'training module') !== false || strpos($cname,'training modules') !== false) {
+            $is_match = in_array($h['publication_type'] ?? '', ['training_module','teaching_module'], true);
         }
-        if (strpos($cname,'book') !== false || strpos($cname,'workbook') !== false || strpos($cname,'lab manual') !== false) {
-            return in_array($h['publication_type'] ?? '', ['book','workbook'], true);
+        elseif (strpos($cname,'book') !== false || strpos($cname,'workbook') !== false || strpos($cname,'lab manual') !== false) {
+            $is_match = in_array($h['publication_type'] ?? '', ['book','workbook'], true);
         }
-
         // resource speaker / lecturer
-        if (strpos($cname,'resource speaker') !== false || strpos($cname,'lecturer') !== false || strpos($cname,'speaker') !== false) {
-            return !empty($h['service_levels']) || !empty($h['service_level']);
+        elseif (strpos($cname,'resource speaker') !== false || strpos($cname,'lecturer') !== false || strpos($cname,'speaker') !== false) {
+            $is_match = !empty($h['service_levels']) || !empty($h['service_level']);
         }
-
         // program coordination / participation
-        if (strpos($cname,'program coordination') !== false) {
-            return !empty($h['coordination_level']);
+        elseif (strpos($cname,'program coordination') !== false) {
+            $is_match = !empty($h['coordination_level']);
         }
-        if (strpos($cname,'participation') !== false) {
-            return !empty($h['participation_level']);
+        elseif (strpos($cname,'participation') !== false) {
+            $is_match = !empty($h['participation_level']);
         }
-
         // scholarships/grants
-        if (strpos($cname,'scholarship') !== false || strpos($cname,'grant') !== false) {
-            return !empty($h['scholarship_level']) || !empty($h['scholarship_type']);
+        elseif (strpos($cname,'scholarship') !== false || strpos($cname,'grant') !== false) {
+            $is_match = !empty($h['scholarship_level']) || !empty($h['scholarship_type']);
         }
 
         // 3) fallback sa dating filename heuristic
-        if (empty($doc['criteria_id']) && stripos($doc['original_filename'] ?? '', $ctype) !== false) {
-            return true;
+        if (!$is_match && empty($doc['criteria_id']) && stripos($doc['original_filename'] ?? '', $ctype) !== false) {
+            $is_match = true;
         }
-        return false;
+        
+        // Mark as matched if found
+        if ($is_match) {
+            $matched_docs[$doc_id] = true;
+        }
+        
+        return $is_match;
     }
 }
 

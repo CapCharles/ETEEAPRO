@@ -3,8 +3,6 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-
-
 // Check if user is logged in and is a candidate
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'candidate') {
     header('Location: ../auth/login.php');
@@ -15,17 +13,28 @@ $user_id = $_SESSION['user_id'];
 $success_message = '';
 $errors = [];
 
-// Get available programs
+// Get available programs - EXCLUDE only FULLY QUALIFIED programs
+// partially_qualified and not_qualified can still reapply
 try {
-    $stmt = $pdo->prepare("SELECT * FROM programs WHERE status = 'active' ORDER BY program_name");
-    $stmt->execute();
+    $stmt = $pdo->prepare("
+        SELECT p.* 
+        FROM programs p
+        WHERE p.status = 'active'
+        AND p.id NOT IN (
+            SELECT program_id 
+            FROM applications 
+            WHERE user_id = ? 
+            AND application_status = 'qualified'
+        )
+        ORDER BY p.program_name
+    ");
+    $stmt->execute([$user_id]);
     $programs = $stmt->fetchAll();
 } catch (PDOException $e) {
     $programs = [];
 }
 
-// FIXED: Get user's current application (only active/pending ones, not completed/qualified ones)
-// This allows users to create new applications after their previous one has been evaluated
+// Get user's current application (only active ones, not completed)
 $current_application = null;
 $assessment_criteria = [];
 try {
@@ -63,10 +72,29 @@ if ($_POST && isset($_POST['create_application'])) {
         $errors[] = "Please select a program";
     }
     
-    // FIXED: Only check for draft/submitted/under_review applications
-    // Users who are qualified/not_qualified can now create new applications
     if ($current_application) {
         $errors[] = "You already have an active application. Please complete or submit it first.";
+    }
+    
+    // Check if user is already FULLY qualified in this program
+    if (empty($errors)) {
+        try {
+            $stmt = $pdo->prepare("
+                SELECT COUNT(*) as count 
+                FROM applications 
+                WHERE user_id = ? 
+                AND program_id = ? 
+                AND application_status = 'qualified'
+            ");
+            $stmt->execute([$user_id, $program_id]);
+            $qualified_count = $stmt->fetch()['count'];
+            
+            if ($qualified_count > 0) {
+                $errors[] = "You are already qualified in this program.";
+            }
+        } catch (PDOException $e) {
+            $errors[] = "Database error occurred.";
+        }
     }
     
     if (empty($errors)) {

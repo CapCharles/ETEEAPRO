@@ -24,7 +24,8 @@ try {
     $programs = [];
 }
 
-// Get user's current application
+// FIXED: Get user's current application (only active/pending ones, not completed/qualified ones)
+// This allows users to create new applications after their previous one has been evaluated
 $current_application = null;
 $assessment_criteria = [];
 try {
@@ -32,7 +33,8 @@ try {
         SELECT a.*, p.program_name 
         FROM applications a 
         LEFT JOIN programs p ON a.program_id = p.id 
-        WHERE a.user_id = ? AND a.application_status IN ('draft', 'submitted')
+        WHERE a.user_id = ? 
+        AND a.application_status IN ('draft', 'submitted', 'under_review')
         ORDER BY a.created_at DESC
         LIMIT 1
     ");
@@ -61,6 +63,8 @@ if ($_POST && isset($_POST['create_application'])) {
         $errors[] = "Please select a program";
     }
     
+    // FIXED: Only check for draft/submitted/under_review applications
+    // Users who are qualified/not_qualified can now create new applications
     if ($current_application) {
         $errors[] = "You already have an active application. Please complete or submit it first.";
     }

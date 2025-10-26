@@ -49,8 +49,8 @@ if ($_POST) {
                 ");
                 $stmt->execute([$reset_token, $reset_expiry, $email]);
                 
-                // Construct reset link
-                $reset_link = "http://" . $_SERVER['HTTP_HOST'] . "/auth/reset-password.php?token=" . $reset_token;
+                // Construct reset link - USING YOUR ACTUAL DOMAIN
+                $reset_link = "https://eteeapro.site/auth/reset-password.php?token=" . $reset_token;
                 
                 // Send password reset email
                 sendPasswordResetEmail($email, $user['first_name'] . ' ' . $user['last_name'], $reset_link, $reset_token);

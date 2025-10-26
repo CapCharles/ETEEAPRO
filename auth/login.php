@@ -373,6 +373,37 @@ $remembered_email = isset($_COOKIE['remember_email']) ? $_COOKIE['remember_email
             font-size: 0.9rem;
         }
 
+        .form-check {
+            padding-left: 0;
+        }
+
+        .form-check-input {
+            width: 1.1em;
+            height: 1.1em;
+            margin-top: 0.15em;
+            cursor: pointer;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+        }
+
+        .form-check-input:checked {
+            background-color: #0066cc;
+            border-color: #0066cc;
+        }
+
+        .form-check-input:focus {
+            border-color: #0066cc;
+            box-shadow: 0 0 0 0.2rem rgba(0, 102, 204, 0.25);
+        }
+
+        .form-check-label {
+            cursor: pointer;
+            font-size: 0.9rem;
+            color: #666;
+            margin-left: 0.5rem;
+            user-select: none;
+        }
+
         @media (max-width: 768px) {
             .auth-header {
                 padding: 2rem 1.5rem;
@@ -443,6 +474,18 @@ $remembered_email = isset($_COOKIE['remember_email']) ? $_COOKIE['remember_email
                                             <i class="fas fa-eye" id="toggleIcon"></i>
                                         </button>
                                     </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="remember_me" name="remember_me" <?php echo $remembered_email ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="remember_me">
+                                            Remember me
+                                        </label>
+                                    </div>
+                                    <a href="forgot-password.php" class="text-muted" style="font-size: 0.9rem;">
+                                        Forgot Password?
+                                    </a>
                                 </div>
                                 
                                 <div class="d-grid">

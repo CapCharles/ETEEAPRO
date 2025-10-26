@@ -1,0 +1,217 @@
+-- SQL to add approval workflow to existing u794351022_eteeap_db database
+
+-- ===================================================
+-- 1. ADD NEW USER ROLES
+-- ===================================================
+-- Modify users table to include new roles
+ALTER TABLE `users` 
+MODIFY COLUMN `user_type` ENUM(
+    'candidate',
+    'admin',
+    'evaluator',
+    'industry_partner',
+    'director_eteeap',
+    'ced',
+    'vpaa',
+    'president',
+    'registrar'
+) DEFAULT 'candidate';
+
+-- ===================================================
+-- 2. EXPAND APPLICATION STATUS OPTIONS  
+-- ===================================================
+ALTER TABLE `applications` 
+MODIFY COLUMN `application_status` ENUM(
+    'draft',
+    'submitted',
+    'under_review',
+    'not_qualified',           -- 0-47%
+    'partially_qualified',     -- 48-60%
+    'awaiting_industry',       -- >= 61%, waiting for Industry Partner
+    'awaiting_director',       -- Waiting for Director ETEEAP
+    'awaiting_ced',            -- Waiting for CED
+    'awaiting_vpaa',           -- Waiting for VPAA
+    'awaiting_president',      -- Waiting for President
+    'awaiting_registrar',      -- Waiting for Registrar
+    'qualified',               -- Final - QUALIFIED
+    'rejected'                 -- Rejected during approval chain
+) DEFAULT 'draft';
+
+-- ===================================================
+-- 3. CREATE APPLICATION APPROVALS TABLE
+-- ===================================================
+CREATE TABLE IF NOT EXISTS `application_approvals` (
+    `id` INT(11) NOT NULL AUTO_INCREMENT,
+    `application_id` INT(11) NOT NULL,
+    `approver_role` ENUM(
+        'industry_partner',
+        'director_eteeap',
+        'ced',
+        'vpaa',
+        'president',
+        'registrar'
+    ) NOT NULL,
+    `approver_id` INT(11) NOT NULL,
+    `approver_name` VARCHAR(255) NOT NULL,
+    `action` ENUM('approved', 'rejected') NOT NULL,
+    `remarks` TEXT DEFAULT NULL,
+    `approved_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `idx_app_approvals` (`application_id`),
+    KEY `idx_approver` (`approver_id`),
+    KEY `idx_approver_role` (`approver_role`),
+    CONSTRAINT `fk_app_approvals_application` FOREIGN KEY (`application_id`) 
+        REFERENCES `applications` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `fk_app_approvals_user` FOREIGN KEY (`approver_id`) 
+        REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===================================================
+-- 4. ADD COLUMNS TO APPLICATIONS TABLE
+-- ===================================================
+ALTER TABLE `applications` 
+ADD COLUMN IF NOT EXISTS `current_step` ENUM(
+    'submission',
+    'evaluation',
+    'industry_partner',
+    'director_eteeap',
+    'ced',
+    'vpaa',
+    'president',
+    'registrar',
+    'completed'
+) DEFAULT 'submission' AFTER `application_status`,
+ADD COLUMN IF NOT EXISTS `can_reapply` TINYINT(1) DEFAULT 0 AFTER `current_step`,
+ADD COLUMN IF NOT EXISTS `completed_at` TIMESTAMP NULL DEFAULT NULL AFTER `updated_at`;
+
+-- ===================================================
+-- 5. CREATE TRIGGER FOR AUTO STATUS UPDATE BASED ON SCORE
+-- ===================================================
+DELIMITER $$
+
+DROP TRIGGER IF EXISTS `trg_applications_after_evaluation`$$
+
+CREATE TRIGGER `trg_applications_after_evaluation` 
+AFTER UPDATE ON `applications` 
+FOR EACH ROW 
+BEGIN
+    -- Only trigger if evaluation was just completed (total_score changed from 0)
+    IF NEW.total_score > 0 AND OLD.total_score = 0 THEN
+        
+        -- 0-47%: NOT QUALIFIED (can reapply)
+        IF NEW.total_score < 48 THEN
+            UPDATE applications 
+            SET application_status = 'not_qualified',
+                current_step = 'completed',
+                can_reapply = 1,
+                completed_at = NOW()
+            WHERE id = NEW.id;
+            
+        -- 48-60%: PARTIALLY QUALIFIED (can reapply)
+        ELSEIF NEW.total_score >= 48 AND NEW.total_score <= 60 THEN
+            UPDATE applications 
+            SET application_status = 'partially_qualified',
+                current_step = 'completed',
+                can_reapply = 1,
+                completed_at = NOW()
+            WHERE id = NEW.id;
+            
+        -- >= 61%: Proceed to Panel Approvals
+        ELSE
+            UPDATE applications 
+            SET application_status = 'awaiting_industry',
+                current_step = 'industry_partner',
+                can_reapply = 0
+            WHERE id = NEW.id;
+        END IF;
+        
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- ===================================================
+-- 6. UPDATE EXISTING APPLICATION STATUSES
+-- ===================================================
+-- For applications with scores that need status updates
+UPDATE applications 
+SET application_status = 'not_qualified',
+    current_step = 'completed',
+    can_reapply = 1
+WHERE total_score > 0 AND total_score < 48 
+AND application_status NOT IN ('not_qualified', 'partially_qualified', 'qualified', 'rejected');
+
+UPDATE applications 
+SET application_status = 'partially_qualified',
+    current_step = 'completed',
+    can_reapply = 1
+WHERE total_score >= 48 AND total_score <= 60 
+AND application_status NOT IN ('not_qualified', 'partially_qualified', 'qualified', 'rejected');
+
+UPDATE applications 
+SET application_status = 'awaiting_industry',
+    current_step = 'industry_partner',
+    can_reapply = 0
+WHERE total_score > 60 
+AND application_status NOT IN ('awaiting_industry', 'awaiting_director', 'awaiting_ced', 'awaiting_vpaa', 'awaiting_president', 'awaiting_registrar', 'qualified', 'rejected');
+
+-- ===================================================
+-- 7. CREATE VIEW FOR DIRECTOR DASHBOARD
+-- ===================================================
+CREATE OR REPLACE VIEW `v_director_applications` AS
+SELECT 
+    a.id,
+    a.user_id,
+    a.program_id,
+    a.application_status,
+    a.current_step,
+    a.submission_date,
+    a.evaluation_date,
+    a.total_score,
+    a.can_reapply,
+    a.created_at,
+    a.updated_at,
+    u.first_name AS applicant_first_name,
+    u.last_name AS applicant_last_name,
+    u.email AS applicant_email,
+    u.phone AS applicant_phone,
+    p.program_name,
+    CONCAT(u.first_name, ' ', u.last_name) AS applicant_name,
+    (SELECT COUNT(*) FROM application_approvals aa 
+     WHERE aa.application_id = a.id 
+     AND aa.approver_role = 'director_eteeap' 
+     AND aa.action = 'approved') AS director_approved,
+    (SELECT COUNT(*) FROM application_approvals aa 
+     WHERE aa.application_id = a.id 
+     AND aa.approver_role = 'director_eteeap' 
+     AND aa.action = 'rejected') AS director_rejected
+FROM applications a
+LEFT JOIN users u ON a.user_id = u.id
+LEFT JOIN programs p ON a.program_id = p.id
+WHERE a.application_status IN ('awaiting_director', 'awaiting_ced', 'awaiting_vpaa', 'awaiting_president', 'qualified', 'rejected')
+OR a.current_step IN ('director_eteeap', 'ced', 'vpaa', 'president', 'registrar', 'completed');
+
+-- ===================================================
+-- 8. INSERT SAMPLE DIRECTOR USER (for testing)
+-- ===================================================
+-- Password is 'director123' - change this in production!
+INSERT IGNORE INTO `users` (`email`, `password`, `first_name`, `last_name`, `user_type`, `status`) 
+VALUES (
+    'director@eteeap.edu.ph', 
+    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 
+    'Director', 
+    'ETEEAP', 
+    'director_eteeap', 
+    'active'
+);
+
+-- ===================================================
+-- COMPLETED! 
+-- ===================================================
+-- The database now supports:
+-- 1. New user roles (industry_partner, director_eteeap, ced, vpaa, president, registrar)
+-- 2. Expanded application statuses for approval workflow
+-- 3. Application approvals tracking table
+-- 4. Auto status updates based on evaluation scores
+-- 5. Director dashboard view
+-- 6. Sample director user account

@@ -3,57 +3,32 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-// Login successful - set session variables
-$_SESSION['user_id'] = $user['id'];
-$_SESSION['user_email'] = $user['email'];
-$_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
-$_SESSION['user_type'] = $user['user_type'];
-$_SESSION['panel_role'] = $user['panel_role'] ?? null; // Add panel_role to session
+// Redirect map: user_type => path
+$redirect_map = [
+    'faculty_expert'   => '../admin/evaluate.php',
+    'industry_partner' => '../admin/industry_dashboard.php',
+    'director_eteeap'  => '../admin/director_dashboard.php',
+    'ced'              => '../admin/ced_dashboard.php',
+    'vpaa'             => '../admin/vpaa_dashboard.php',
+    'president'        => '../admin/president_dashboard.php',
+    'registrar'        => '../admin/registrar_dashboard.php',
+    'admin'            => '../admin/dashboard.php',
+    'evaluator'        => '../admin/dashboard.php',
+    'candidate'        => '../candidates/profile.php',
+];
 
-// Redirect based on panel role first, then user type
-if (!empty($user['panel_role'])) {
-    // Panel member - redirect to their specific dashboard
-    switch ($user['panel_role']) {
-        case 'faculty_expert':
-            header('Location: ../admin/evaluate.php'); // Faculty experts use evaluate page
-            break;
-        case 'industry_partner':
-            header('Location: ../admin/industry_dashboard.php');
-            break;
-        case 'director_eteeap':
-            header('Location: ../admin/director_api.php');
-            break;
-        case 'ced':
-            header('Location: ../panel/ced_dashboard.php');
-            break;
-        case 'vpaa':
-            header('Location: ../panel/vpaa_dashboard.php');
-            break;
-        case 'president':
-            header('Location: ../panel/president_dashboard.php');
-            break;
-        case 'registrar':
-            header('Location: ../panel/registrar_dashboard.php');
-            break;
-        default:
-            // Fallback to user_type redirect
-            if ($user['user_type'] === 'admin' || $user['user_type'] === 'evaluator') {
-                header('Location: ../admin/dashboard.php');
-            } else {
-                header('Location: ../candidate/profile.php');
-            }
-    }
-} else {
-    // No panel role - use regular user_type redirect
-    if ($user['user_type'] === 'admin' || $user['user_type'] === 'evaluator') {
-        header('Location: ../admin/dashboard.php');
+// If user is already logged in, redirect to appropriate dashboard
+if (isset($_SESSION['user_id']) && isset($_SESSION['user_type'])) {
+    $sess_user_type = trim(strtolower($_SESSION['user_type']));
+    if (array_key_exists($sess_user_type, $redirect_map)) {
+        header('Location: ' . $redirect_map[$sess_user_type]);
+        exit();
     } else {
-        header('Location: ../candidate/profile.php');
+        // Unknown user_type: logout for safety or send to login
+        header('Location: ../login.php');
+        exit();
     }
 }
-exit();
-
-
 
 $errors = [];
 $success_message = '';

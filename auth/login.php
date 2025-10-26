@@ -3,31 +3,14 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-// Redirect map: user_type => path
-$redirect_map = [
-    'faculty_expert'   => '../admin/evaluate.php',
-    'industry_partner' => '../admin/industry_dashboard.php',
-    'director_eteeap'  => '../admin/director_dashboard.php',
-    'ced'              => '../admin/ced_dashboard.php',
-    'vpaa'             => '../admin/vpaa_dashboard.php',
-    'president'        => '../admin/president_dashboard.php',
-    'registrar'        => '../admin/registrar_dashboard.php',
-    'admin'            => '../admin/dashboard.php',
-    'evaluator'        => '../admin/dashboard.php',
-    'candidate'        => '../candidates/profile.php',
-];
-
 // If user is already logged in, redirect to appropriate dashboard
-if (isset($_SESSION['user_id']) && isset($_SESSION['user_type'])) {
-    $sess_user_type = trim(strtolower($_SESSION['user_type']));
-    if (array_key_exists($sess_user_type, $redirect_map)) {
-        header('Location: ' . $redirect_map[$sess_user_type]);
-        exit();
+if (isset($_SESSION['user_id'])) {
+    if ($_SESSION['user_type'] == 'admin' || $_SESSION['user_type'] == 'evaluator') {
+        header('Location: ../admin/dashboard.php');
     } else {
-        // Unknown user_type: logout for safety or send to login
-        header('Location: ../login.php');
-        exit();
+        header('Location: ../candidates/profile.php');
     }
+    exit();
 }
 
 $errors = [];

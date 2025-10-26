@@ -968,16 +968,20 @@ function suggest_score_from_docs(array $criteria, array $criteriaDocs): array {
     return [$best, $bestWhy];
 }
 
+
 if ($_POST && isset($_POST['submit_evaluation'])) {
     $app_id = $_POST['application_id'];
     $submitted = $_POST['evaluations'] ?? [];
     $additional_comments = trim($_POST['recommendation']);
-    // REMOVED: $manual_override - Auto-determined by score now
+    $manual_override = $_POST['final_status'] ?? 'auto';
+
+    // Huwag i-block kapag empty ang $submitted — pwede kasing lahat ay 0.
+    // if (empty($submitted)) { ... }  // alisin ito kung meron ka
 
     try {
         $pdo->beginTransaction();
 
-        // 1) Get application's program_id
+        // 1) Kunin muna ang program_id ng application
         $stmt = $pdo->prepare("SELECT program_id FROM applications WHERE id = ?");
         $stmt->execute([$app_id]);
         $appRow = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -986,7 +990,7 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         }
         $program_id = (int)$appRow['program_id'];
 
-        // 2) Get all ACTIVE criteria for the program
+        // 2) Kunin lahat ng ACTIVE criteria ng program (ito ang magiging denominator mo)
         $stmt = $pdo->prepare("
             SELECT id, criteria_name, max_score, weight
             FROM assessment_criteria
@@ -996,11 +1000,12 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         $stmt->execute([$program_id]);
         $allCriteria = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Safety: kapag wala talagang criteria, iwasan division by zero
         if (!$allCriteria) {
             throw new Exception("No active assessment criteria found for this program.");
         }
 
-        // 3) Get all documents
+        // 3) Kunin lahat ng documents ng application (gagamitin sa doc-check)
         $stmt = $pdo->prepare("
             SELECT id, criteria_id, original_filename
             FROM documents
@@ -1009,9 +1014,10 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
         $stmt->execute([$app_id]);
         $documents = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // --- Calculate weighted average across ALL criteria ---
+        // --- START: TRUE weighted average across ALL criteria ---
         $total_score = 0;
         $total_weight = 0;
+        $passing_threshold = 60;
         $criteriaMissing = [];
 
         foreach ($allCriteria as $c) {
@@ -1020,25 +1026,36 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
             $weight        = (float)$c['weight'];
             $criteria_name = $c['criteria_name'];
 
+            // values mula sa form; default sa 0/blank kung walang na-post
             $input    = $submitted[$criteria_id] ?? ['score' => 0, 'comments' => ''];
             $score    = (float)($input['score'] ?? 0);
             $comments = trim($input['comments'] ?? '');
 
-            // Check if has documents
-            $criteriaDocs = array_values(array_filter($documents, function($doc) use ($c) {
-                return doc_matches_criteria($doc, $c);
-            }));
-            $hasCriteriaDocs = count($criteriaDocs) > 0;
+            // check kung may doc para sa criteria na ito
+           // Instead of the simple filter:
+$criteriaDocs = array_filter($documents, function($doc) use ($criteria_id) {
+    return (int)$doc['criteria_id'] === $criteria_id
+        || (empty($doc['criteria_id']) && stripos($doc['original_filename'], 'criteria_' . $criteria_id) !== false);
+});
 
+// Use the same matcher as the UI:
+$criteriaDocs = array_values(array_filter($documents, function($doc) use ($c) {
+    return doc_matches_criteria($doc, $c);
+}));
+$hasCriteriaDocs = count($criteriaDocs) > 0;
+
+
+            // kung walang doc, force 0 at lagyan ng note
             if (!$hasCriteriaDocs) {
                 $score    = 0;
                 $comments = "No supporting documents uploaded for this criteria. " . $comments;
             }
 
-            // Clamp score
+            // clamp sa [0, max]
             if ($score < 0) $score = 0;
             if ($score > $max_score) $score = $max_score;
 
+            // ALWAYS include weight sa denominator, kahit 0 ang score
             $percentage     = ($max_score > 0) ? ($score / $max_score) * 100 : 0;
             $weighted_score = $percentage * $weight;
 
@@ -1049,7 +1066,7 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
                 $criteriaMissing[] = ['name' => $criteria_name];
             }
 
-            // Save evaluation
+            // save/update evaluation (kasama ang zeros)
             $stmtSave = $pdo->prepare("
                 INSERT INTO evaluations (application_id, criteria_id, evaluator_id, score, max_score, comments, evaluation_date)
                 VALUES (?, ?, ?, ?, ?, ?, NOW())
@@ -1059,200 +1076,6 @@ if ($_POST && isset($_POST['submit_evaluation'])) {
                     evaluation_date = VALUES(evaluation_date)
             ");
             $stmtSave->execute([$app_id, $criteria_id, $user_id, $score, $max_score, $comments]);
-        }
-
-        $final_score = $total_weight > 0 ? round($total_score / $total_weight, 2) : 0;
-
-        // === NEW: SCORE THRESHOLD LOGIC ===
-        $not_qualified_threshold = 48;      // Below 48% = not qualified
-        $partially_qualified_threshold = 61; // 48-60% = partially qualified
-        // 61% and above = proceed to panel approval
-        
-        // Get program code
-        $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
-        $stmt->execute([$app_id]);
-        $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
-        $programCode = $programInfo['program_code'] ?? '';
-
-        // Get actual bridging subjects
-        $actual_bridging_subjects = [];
-        try {
-            $stmt = $pdo->prepare("
-                SELECT subject_name, subject_code, units, priority
-                FROM bridging_requirements
-                WHERE application_id = ?
-                ORDER BY priority ASC, subject_name ASC
-            ");
-            $stmt->execute([$app_id]);
-            $actual_bridging_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        } catch (PDOException $e) {
-            $actual_bridging_subjects = [];
-        }
-
-        // Get curriculum and passed subjects
-        $curriculumStatus = getPassedSubjects($documents, $programCode);
-        $curriculumSubjects = $curriculumStatus['curriculum'];
-        $passedSubjects = $curriculumStatus['passed'];
-
-        // Determine status based on score
-        if ($final_score < $not_qualified_threshold) {
-            // === NOT QUALIFIED (0-47%) ===
-            $final_status = 'not_qualified';
-            $current_stage = 'not_qualified';
-            
-            $auto_recommendation = generateEnhancedRecommendation(
-                $final_score, 
-                $programCode, 
-                $final_status, 
-                $criteriaMissing,
-                $passedSubjects,
-                $curriculumSubjects,
-                $program_id,
-                $actual_bridging_subjects
-            );
-            
-            $full_recommendation = "ASSESSMENT OUTCOME: NOT QUALIFIED\n\n";
-            $full_recommendation .= "Score: {$final_score}% (Below minimum threshold of {$not_qualified_threshold}%)\n\n";
-            $full_recommendation .= $auto_recommendation;
-            if (!empty($additional_comments)) {
-                $full_recommendation .= "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments;
-            }
-
-            $stmt = $pdo->prepare("
-                UPDATE applications 
-                SET application_status = ?, 
-                    current_approval_stage = ?,
-                    total_score = ?, 
-                    recommendation = ?, 
-                    evaluator_id = ?, 
-                    evaluation_date = NOW()
-                WHERE id = ?
-            ");
-            $stmt->execute([$final_status, $current_stage, $final_score, $full_recommendation, $user_id, $app_id]);
-            
-            $success_message = "Evaluation completed. Application did not meet minimum score threshold ({$not_qualified_threshold}%). Status: NOT QUALIFIED.";
-
-        } elseif ($final_score < $partially_qualified_threshold) {
-            // === PARTIALLY QUALIFIED (48-60%) ===
-            $final_status = 'partially_qualified';
-            $current_stage = 'partially_qualified';
-            
-            $auto_recommendation = generateEnhancedRecommendation(
-                $final_score, 
-                $programCode, 
-                $final_status, 
-                $criteriaMissing,
-                $passedSubjects,
-                $curriculumSubjects,
-                $program_id,
-                $actual_bridging_subjects
-            );
-            
-            $full_recommendation = "ASSESSMENT OUTCOME: PARTIALLY QUALIFIED\n\n";
-            $full_recommendation .= "Score: {$final_score}% (Partially Qualified Range: 48-60%)\n";
-            $full_recommendation .= "Required for full qualification: {$partially_qualified_threshold}%\n\n";
-            $full_recommendation .= $auto_recommendation;
-            if (!empty($additional_comments)) {
-                $full_recommendation .= "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments;
-            }
-
-            $stmt = $pdo->prepare("
-                UPDATE applications 
-                SET application_status = ?, 
-                    current_approval_stage = ?,
-                    total_score = ?, 
-                    recommendation = ?, 
-                    evaluator_id = ?, 
-                    evaluation_date = NOW()
-                WHERE id = ?
-            ");
-            $stmt->execute([$final_status, $current_stage, $final_score, $full_recommendation, $user_id, $app_id]);
-            
-            $success_message = "Evaluation completed. Application is PARTIALLY QUALIFIED with score of {$final_score}%. Does not proceed to panel approval.";
-
-        } else {
-            // === PROCEED TO PANEL APPROVAL (61%+) ===
-            $final_status = 'under_review';
-            $current_stage = 'industry_validation'; // First panel stage after faculty expert
-            
-            $auto_recommendation = generateEnhancedRecommendation(
-                $final_score, 
-                $programCode, 
-                'qualified', // Use 'qualified' for recommendation generation
-                $criteriaMissing,
-                $passedSubjects,
-                $curriculumSubjects,
-                $program_id,
-                $actual_bridging_subjects
-            );
-            
-            $full_recommendation = "FACULTY EXPERT EVALUATION: RECOMMENDED FOR PANEL REVIEW\n\n";
-            $full_recommendation .= "Score: {$final_score}% (Meets threshold for panel approval)\n\n";
-            $full_recommendation .= $auto_recommendation;
-            if (!empty($additional_comments)) {
-                $full_recommendation .= "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments;
-            }
-
-            $stmt = $pdo->prepare("
-                UPDATE applications 
-                SET application_status = ?, 
-                    current_approval_stage = ?,
-                    total_score = ?, 
-                    recommendation = ?, 
-                    evaluator_id = ?, 
-                    evaluation_date = NOW()
-                WHERE id = ?
-            ");
-            $stmt->execute([$final_status, $current_stage, $final_score, $full_recommendation, $user_id, $app_id]);
-            
-            // Create Faculty Expert approval record (auto-approved since they evaluated)
-            try {
-                $stmt = $pdo->prepare("
-                    INSERT INTO panel_approvals 
-                    (application_id, assessor_id, assessor_role, approval_status, approval_date, comments)
-                    VALUES (?, ?, 'faculty_expert', 'approved', NOW(), 'Faculty evaluation completed. Score meets requirement for panel review.')
-                    ON DUPLICATE KEY UPDATE 
-                    approval_status = 'approved', 
-                    approval_date = NOW(),
-                    comments = 'Faculty evaluation completed. Score meets requirement for panel review.'
-                ");
-                $stmt->execute([$app_id, $user_id]);
-            } catch (PDOException $e) {
-                // Panel approvals table might not exist yet, log but don't fail
-                error_log("Could not create panel approval record: " . $e->getMessage());
-            }
-            
-            // Initialize other panel approval records
-            $panel_roles = [
-                'industry_partner',
-                'director_eteeap',
-                'ced',
-                'vpaa',
-                'president',
-                'registrar'
-            ];
-            
-            foreach ($panel_roles as $role) {
-                try {
-                    $stmt = $pdo->prepare("SELECT id FROM users WHERE panel_role = ? AND status = 'active' LIMIT 1");
-                    $stmt->execute([$role]);
-                    $assessor = $stmt->fetch();
-                    
-                    if ($assessor) {
-                        $stmt = $pdo->prepare("
-                            INSERT INTO panel_approvals 
-                            (application_id, assessor_id, assessor_role, approval_status)
-                            VALUES (?, ?, ?, 'pending')
-                            ON DUPLICATE KEY UPDATE approval_status = 'pending'
-                        ");
-                        $stmt->execute([$app_id, $assessor['id'], $role]);
-                    }
-                } catch (PDOException $e) {
-                    error_log("Could not initialize panel approval for {$role}: " . $e->getMessage());
-                }
-            }
-            
-            $success_message = "Evaluation completed successfully! Score: {$final_score}%. Application proceeding to panel approval (Industry Partner next).";
         }
 
         $final_score = $total_weight > 0 ? round($total_score / $total_weight, 2) : 0;

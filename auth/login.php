@@ -3,15 +3,57 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-// If user is already logged in, redirect to appropriate dashboard
-if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['user_type'] == 'admin' || $_SESSION['user_type'] == 'evaluator') {
+// Login successful - set session variables
+$_SESSION['user_id'] = $user['id'];
+$_SESSION['user_email'] = $user['email'];
+$_SESSION['user_name'] = $user['first_name'] . ' ' . $user['last_name'];
+$_SESSION['user_type'] = $user['user_type'];
+$_SESSION['panel_role'] = $user['panel_role'] ?? null; // Add panel_role to session
+
+// Redirect based on panel role first, then user type
+if (!empty($user['panel_role'])) {
+    // Panel member - redirect to their specific dashboard
+    switch ($user['panel_role']) {
+        case 'faculty_expert':
+            header('Location: ../admin/evaluate.php'); // Faculty experts use evaluate page
+            break;
+        case 'industry_partner':
+            header('Location: ../panel/industry_dashboard.php');
+            break;
+        case 'director_eteeap':
+            header('Location: ../panel/director_dashboard.php');
+            break;
+        case 'ced':
+            header('Location: ../panel/ced_dashboard.php');
+            break;
+        case 'vpaa':
+            header('Location: ../panel/vpaa_dashboard.php');
+            break;
+        case 'president':
+            header('Location: ../panel/president_dashboard.php');
+            break;
+        case 'registrar':
+            header('Location: ../panel/registrar_dashboard.php');
+            break;
+        default:
+            // Fallback to user_type redirect
+            if ($user['user_type'] === 'admin' || $user['user_type'] === 'evaluator') {
+                header('Location: ../admin/dashboard.php');
+            } else {
+                header('Location: ../candidate/profile.php');
+            }
+    }
+} else {
+    // No panel role - use regular user_type redirect
+    if ($user['user_type'] === 'admin' || $user['user_type'] === 'evaluator') {
         header('Location: ../admin/dashboard.php');
     } else {
-        header('Location: ../candidates/profile.php');
+        header('Location: ../candidate/profile.php');
     }
-    exit();
 }
+exit();
+
+
 
 $errors = [];
 $success_message = '';

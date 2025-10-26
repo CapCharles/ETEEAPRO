@@ -18,10 +18,10 @@ if (!empty($user['panel_role'])) {
             header('Location: ../admin/evaluate.php'); // Faculty experts use evaluate page
             break;
         case 'industry_partner':
-            header('Location: ../panel/industry_dashboard.php');
+            header('Location: ../admin/industry_dashboard.php');
             break;
         case 'director_eteeap':
-            header('Location: ../panel/director_dashboard.php');
+            header('Location: ../admin/director_api.php');
             break;
         case 'ced':
             header('Location: ../panel/ced_dashboard.php');

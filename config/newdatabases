@@ -194,7 +194,7 @@ OR a.current_step IN ('director_eteeap', 'ced', 'vpaa', 'president', 'registrar'
 -- ===================================================
 -- 8. INSERT SAMPLE DIRECTOR USER (for testing)
 -- ===================================================
--- Password is 'director123' - change this in production!
+-- Password is 'admin' - change this in production!
 INSERT IGNORE INTO `users` (`email`, `password`, `first_name`, `last_name`, `user_type`, `status`) 
 VALUES (
     'director@eteeap.edu.ph', 
@@ -204,6 +204,49 @@ VALUES (
     'director_eteeap', 
     'active'
 );
+
+-- ===================================================
+-- INSERT SAMPLE CED USER (for testing)
+-- ===================================================
+-- Password is 'admin' - change this in production!
+INSERT IGNORE INTO `users` (`email`, `password`, `first_name`, `last_name`, `user_type`, `status`) 
+VALUES (
+    'ced@eteeap.edu.ph',
+    '$2y$10$FAs.0dlt4uKCNC1cmHC75enHmifg8J2BWCEm4tlQPSN6jyU8P0kxO',
+    'CED',
+    'ETEEAP',
+    'ced',
+    'active'
+);
+
+-- ===================================================
+-- INSERT SAMPLE VPAA USER (for testing)
+-- ===================================================
+-- Password is 'admin' - change this in production!
+INSERT IGNORE INTO `users` (`email`, `password`, `first_name`, `last_name`, `user_type`, `status`) 
+VALUES (
+    'vpaa@eteeap.edu.ph',
+    '$2y$10$FAs.0dlt4uKCNC1cmHC75enHmifg8J2BWCEm4tlQPSN6jyU8P0kxO',
+    'VPAA',
+    'ETEEAP',
+    'vpaa',
+    'active'
+);
+
+-- ===================================================
+-- INSERT SAMPLE PRESIDENT USER (for testing)
+-- ===================================================
+-- Password is 'admin' - change this in production!
+INSERT IGNORE INTO `users` (`email`, `password`, `first_name`, `last_name`, `user_type`, `status`) 
+VALUES (
+    'president@eteeap.edu.ph',
+    '$2y$10$FAs.0dlt4uKCNC1cmHC75enHmifg8J2BWCEm4tlQPSN6jyU8P0kxO',
+    'President',
+    'ETEEAP',
+    'president',
+    'active'
+);
+
 
 -- ===================================================
 -- COMPLETED! 

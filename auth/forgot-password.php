@@ -2,7 +2,7 @@
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
-require_once '../config/email_config.php';
+// DON'T load email_config.php - not needed since email_pass_reset.php has the credentials
 include_once '../includes/email_pass_reset.php';
 
 // If user is already logged in, redirect to appropriate dashboard
@@ -53,7 +53,11 @@ if ($_POST) {
                 $reset_link = "https://eteeapro.site/auth/reset-password.php?token=" . $reset_token;
                 
                 // Send password reset email
-                sendPasswordResetEmail($email, $user['first_name'] . ' ' . $user['last_name'], $reset_link, $reset_token);
+                if (function_exists('sendPasswordResetEmail')) {
+                    sendPasswordResetEmail($email, $user['first_name'] . ' ' . $user['last_name'], $reset_link, $reset_token);
+                } else {
+                    error_log('[PASSWORD_RESET] sendPasswordResetEmail function not found!');
+                }
                 
                 // Log the password reset request
                 try {
@@ -68,6 +72,7 @@ if ($_POST) {
                     ]);
                 } catch (PDOException $e) {
                     // Log error but don't prevent reset request
+                    error_log('[PASSWORD_RESET] Failed to log activity: ' . $e->getMessage());
                 }
                 
                 $success_message = "Password reset instructions have been sent to your email address. Please check your inbox and spam folder.";
@@ -76,6 +81,10 @@ if ($_POST) {
                 $success_message = "If an account exists with this email, you will receive password reset instructions shortly.";
             }
         } catch (PDOException $e) {
+            error_log('[PASSWORD_RESET] Database error: ' . $e->getMessage());
+            $errors[] = "An error occurred. Please try again later.";
+        } catch (Exception $e) {
+            error_log('[PASSWORD_RESET] General error: ' . $e->getMessage());
             $errors[] = "An error occurred. Please try again later.";
         }
     }
@@ -314,12 +323,6 @@ if ($_POST) {
             border-left: 4px solid #388e3c;
         }
 
-        .alert-info {
-            background: linear-gradient(145deg, #e3f2fd, #bbdefb);
-            color: #0277bd;
-            border-left: 4px solid #0288d1;
-        }
-
         .alert ul {
             margin: 0;
             padding-left: 1.5rem;
@@ -475,7 +478,6 @@ if ($_POST) {
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Auto-focus email field
         document.addEventListener('DOMContentLoaded', function() {
             const emailField = document.getElementById('email');
             if (emailField && !emailField.value) {

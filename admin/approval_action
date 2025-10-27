@@ -1,18 +1,12 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-// Set JSON header
-header('Content-Type: application/json');
-
 // Check if user is logged in and has approval rights
 if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['director_eteeap', 'ced', 'vpaa'])) {
     http_response_code(403);
-    echo json_encode(['success' => false, 'message' => 'Unauthorized access. User type: ' . ($_SESSION['user_type'] ?? 'not set')]);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
     exit();
 }
 
@@ -27,17 +21,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $application_id = isset($_POST['application_id']) ? intval($_POST['application_id']) : 0;
-$action = isset($_POST['action']) ? $_POST['action'] : '';
+$action = isset($_POST['action']) ? $_POST['action'] : ''; // 'approve' or 'reject'
 $remarks = isset($_POST['remarks']) ? trim($_POST['remarks']) : '';
 
 // Validate inputs
-if (!$application_id) {
-    echo json_encode(['success' => false, 'message' => 'Missing application ID']);
-    exit();
-}
-
-if (!in_array($action, ['approve', 'reject'])) {
-    echo json_encode(['success' => false, 'message' => 'Invalid action: ' . $action]);
+if (!$application_id || !in_array($action, ['approve', 'reject'])) {
+    echo json_encode(['success' => false, 'message' => 'Invalid input data']);
     exit();
 }
 
@@ -60,152 +49,208 @@ try {
     $application = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$application) {
-        throw new Exception('Application not found (ID: ' . $application_id . ')');
-    }
-    
-    // Check if required columns exist - this will help us know if migration was run
-    $columns_to_check = ['director_eteeap_status', 'ced_status', 'vpaa_status', 'evaluator_submitted_at'];
-    foreach ($columns_to_check as $col) {
-        if (!array_key_exists($col, $application)) {
-            throw new Exception('Database not updated! Missing column: ' . $col . '. Please run the SQL migration file first.');
-        }
+        throw new Exception('Application not found');
     }
     
     // CRITICAL: Only allow approval of QUALIFIED applications
-    if ($action === 'approve' && !in_array($application['application_status'], ['qualified', 'under_review'])) {
-        throw new Exception('Only QUALIFIED applications can be approved. Current status: ' . $application['application_status']);
+    // Partially qualified and Not qualified should NOT go through approval process
+    if (!in_array($application['application_status'], ['qualified', 'under_review'])) {
+        throw new Exception('Only QUALIFIED applications can be approved. This application is marked as: ' . $application['application_status']);
     }
     
-    // Determine approval level and validate
-    $updates = [];
-    $next_step = '';
+    // Determine which approval level based on user type
+    $approval_level = '';
+    $status_column = '';
+    $approver_column = '';
+    $timestamp_column = '';
+    $remarks_column = '';
+    $next_status = '';
+    $previous_status = '';
     
     switch ($user_type) {
         case 'director_eteeap':
-            // Check if already processed
+            // Check if this is the first approval
             if ($application['director_eteeap_status'] !== 'pending') {
-                throw new Exception('Already processed by Director ETEEAP. Status: ' . $application['director_eteeap_status']);
+                throw new Exception('This application has already been processed by Director ETEEAP');
             }
             
-            $updates = [
-                'director_eteeap_status' => $action === 'approve' ? 'approved' : 'rejected',
-                'director_eteeap_approved_by' => $user_id,
-                'director_eteeap_approved_at' => 'NOW()',
-                'director_eteeap_remarks' => $remarks
-            ];
-            
-            $next_step = $action === 'approve' ? 'Application will now go to CED for review' : 'Application has been rejected';
+            $approval_level = 'director_eteeap';
+            $status_column = 'director_eteeap_status';
+            $approver_column = 'director_eteeap_approved_by';
+            $timestamp_column = 'director_eteeap_approved_at';
+            $remarks_column = 'director_eteeap_remarks';
+            $previous_status = 'pending';
+            $next_status = $action === 'approve' ? 'approved' : 'rejected';
             break;
             
         case 'ced':
-            // Validate Director ETEEAP approved first
+            // Check if Director ETEEAP has approved first
             if ($application['director_eteeap_status'] !== 'approved') {
-                throw new Exception('Director ETEEAP must approve first. Current status: ' . $application['director_eteeap_status']);
+                throw new Exception('Director ETEEAP must approve first before CED can review');
             }
-            
             if ($application['ced_status'] !== 'pending') {
-                throw new Exception('Already processed by CED. Status: ' . $application['ced_status']);
+                throw new Exception('This application has already been processed by CED');
             }
             
-            $updates = [
-                'ced_status' => $action === 'approve' ? 'approved' : 'rejected',
-                'ced_approved_by' => $user_id,
-                'ced_approved_at' => 'NOW()',
-                'ced_remarks' => $remarks
-            ];
-            
-            $next_step = $action === 'approve' ? 'Application will now go to VPAA for final review' : 'Application has been rejected';
+            $approval_level = 'ced';
+            $status_column = 'ced_status';
+            $approver_column = 'ced_approved_by';
+            $timestamp_column = 'ced_approved_at';
+            $remarks_column = 'ced_remarks';
+            $previous_status = 'pending';
+            $next_status = $action === 'approve' ? 'approved' : 'rejected';
             break;
             
         case 'vpaa':
-            // Validate both approved
+            // Check if both Director ETEEAP and CED have approved
             if ($application['director_eteeap_status'] !== 'approved') {
                 throw new Exception('Director ETEEAP must approve first');
             }
-            
             if ($application['ced_status'] !== 'approved') {
-                throw new Exception('CED must approve first');
+                throw new Exception('CED must approve first before VPAA can review');
             }
-            
             if ($application['vpaa_status'] !== 'pending') {
-                throw new Exception('Already processed by VPAA. Status: ' . $application['vpaa_status']);
+                throw new Exception('This application has already been processed by VPAA');
             }
             
-            $updates = [
-                'vpaa_status' => $action === 'approve' ? 'approved' : 'rejected',
-                'vpaa_approved_by' => $user_id,
-                'vpaa_approved_at' => 'NOW()',
-                'vpaa_remarks' => $remarks
-            ];
-            
-            // Update final approval status
-            if ($action === 'approve') {
-                $updates['final_approval_status'] = 'fully_approved';
-            }
-            
-            $next_step = $action === 'approve' ? 'Application has been FULLY APPROVED!' : 'Application has been rejected';
+            $approval_level = 'vpaa';
+            $status_column = 'vpaa_status';
+            $approver_column = 'vpaa_approved_by';
+            $timestamp_column = 'vpaa_approved_at';
+            $remarks_column = 'vpaa_remarks';
+            $previous_status = 'pending';
+            $next_status = $action === 'approve' ? 'approved' : 'rejected';
             break;
             
         default:
-            throw new Exception('Invalid user type for approval: ' . $user_type);
+            throw new Exception('Invalid user type for approval');
     }
     
-    // If rejected by anyone, update final status
+    // Update the application with approval/rejection
+    $sql = "UPDATE applications SET 
+            $status_column = ?,
+            $approver_column = ?,
+            $timestamp_column = NOW(),
+            $remarks_column = ?";
+    
+    // If VPAA approves, update final approval status
+    if ($user_type === 'vpaa' && $action === 'approve') {
+        $sql .= ", final_approval_status = 'fully_approved'";
+    }
+    
+    // If anyone rejects, update final approval status
     if ($action === 'reject') {
-        $updates['final_approval_status'] = 'rejected';
+        $sql .= ", final_approval_status = 'rejected'";
     }
     
-    // Build UPDATE query
-    $set_clauses = [];
-    $params = [];
-    
-    foreach ($updates as $column => $value) {
-        if ($value === 'NOW()') {
-            $set_clauses[] = "$column = NOW()";
-        } else {
-            $set_clauses[] = "$column = ?";
-            $params[] = $value;
-        }
-    }
-    
-    $params[] = $application_id; // for WHERE clause
-    
-    $sql = "UPDATE applications SET " . implode(', ', $set_clauses) . " WHERE id = ?";
+    $sql .= " WHERE id = ?";
     
     $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+    $stmt->execute([$next_status, $user_id, $remarks, $application_id]);
     
-    // Check if approval_logs table exists, if yes, log it
-    try {
-        $stmt = $pdo->prepare("
-            INSERT INTO approval_logs 
-            (application_id, approver_role, approver_id, action, remarks, previous_status, new_status)
-            VALUES (?, ?, ?, ?, ?, 'pending', ?)
-        ");
-        $stmt->execute([
-            $application_id,
-            $user_type,
-            $user_id,
-            $action === 'approve' ? 'approved' : 'rejected',
-            $remarks,
-            $action === 'approve' ? 'approved' : 'rejected'
-        ]);
-    } catch (PDOException $e) {
-        // approval_logs table doesn't exist, that's ok
-        error_log("approval_logs table not found: " . $e->getMessage());
+    // Log the approval action
+    $stmt = $pdo->prepare("
+        INSERT INTO approval_logs 
+        (application_id, approver_role, approver_id, action, remarks, previous_status, new_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    $stmt->execute([
+        $application_id,
+        $approval_level,
+        $user_id,
+        $action === 'approve' ? 'approved' : 'rejected',
+        $remarks,
+        $previous_status,
+        $next_status
+    ]);
+    
+    // Send email notifications (commented out - implement based on your email setup)
+    // require_once '../includes/email_notifications.php';
+    
+    /* EMAIL NOTIFICATIONS - UNCOMMENT WHEN EMAIL SYSTEM IS READY
+    if ($action === 'approve') {
+        // Determine who to notify next
+        if ($user_type === 'director_eteeap') {
+            // Notify CED
+            $stmt = $pdo->query("SELECT email FROM users WHERE user_type = 'ced' AND status = 'active' LIMIT 1");
+            $ced = $stmt->fetch();
+            if ($ced) {
+                sendApprovalNotification(
+                    $ced['email'],
+                    'CED',
+                    $application['candidate_name'],
+                    $application['program_name'],
+                    $application_id,
+                    'Director ETEEAP has approved this application. It now requires your review.'
+                );
+            }
+        } elseif ($user_type === 'ced') {
+            // Notify VPAA
+            $stmt = $pdo->query("SELECT email FROM users WHERE user_type = 'vpaa' AND status = 'active' LIMIT 1");
+            $vpaa = $stmt->fetch();
+            if ($vpaa) {
+                sendApprovalNotification(
+                    $vpaa['email'],
+                    'VPAA',
+                    $application['candidate_name'],
+                    $application['program_name'],
+                    $application_id,
+                    'CED has approved this application. It now requires your final review.'
+                );
+            }
+        } elseif ($user_type === 'vpaa') {
+            // Notify candidate - FINAL APPROVAL
+            sendFinalApprovalNotification(
+                $application['candidate_email'],
+                $application['candidate_name'],
+                $application['program_name'],
+                $application['application_status'],
+                $application['total_score']
+            );
+        }
+    } else {
+        // Rejection - notify evaluator and candidate
+        $stmt = $pdo->prepare("SELECT email FROM users WHERE id = ?");
+        $stmt->execute([$application['evaluator_id']]);
+        $evaluator = $stmt->fetch();
+        
+        if ($evaluator) {
+            sendRejectionNotification(
+                $evaluator['email'],
+                'Evaluator',
+                $application['candidate_name'],
+                $application['program_name'],
+                $application_id,
+                $user_type,
+                $remarks
+            );
+        }
+        
+        // Also notify candidate about rejection
+        sendCandidateRejectionNotification(
+            $application['candidate_email'],
+            $application['candidate_name'],
+            $application['program_name'],
+            $user_type
+        );
     }
+    END OF EMAIL NOTIFICATIONS */
     
     // Commit transaction
     $pdo->commit();
     
     // Return success response
-    echo json_encode([
+    $response = [
         'success' => true,
-        'message' => ($action === 'approve' ? 'Application approved successfully!' : 'Application rejected successfully!'),
-        'next_step' => $next_step,
+        'message' => $action === 'approve' 
+            ? 'Application approved successfully!' 
+            : 'Application rejected successfully!',
         'action' => $action,
-        'approver' => strtoupper(str_replace('_', ' ', $user_type))
-    ]);
+        'approver' => strtoupper(str_replace('_', ' ', $user_type)),
+        'application_id' => $application_id
+    ];
+    
+    echo json_encode($response);
     
 } catch (Exception $e) {
     // Rollback on error
@@ -213,35 +258,191 @@ try {
         $pdo->rollBack();
     }
     
-    // Log the error
-    error_log("Approval Error: " . $e->getMessage());
-    error_log("User: " . $user_id . " (" . $user_type . ")");
-    error_log("Application ID: " . $application_id);
-    error_log("Action: " . $action);
-    
     http_response_code(400);
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage(),
-        'debug_info' => [
-            'user_type' => $user_type,
-            'application_id' => $application_id,
-            'action' => $action
-        ]
+        'message' => $e->getMessage()
     ]);
-} catch (PDOException $e) {
-    // Database error
-    if ($pdo->inTransaction()) {
-        $pdo->rollBack();
+}
+
+// ========================================
+// Email Notification Functions
+// ========================================
+
+function sendApprovalNotification($to_email, $recipient_role, $candidate_name, $program_name, $app_id, $message) {
+    $subject = "ETEEAP Application Awaiting Your Review";
+    
+    $email_body = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
+            .content { background: #f8f9fa; padding: 20px; }
+            .button { background: #667eea; color: white; padding: 10px 20px; text-decoration: none; display: inline-block; margin: 10px 0; }
+            .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h2>ETEEAP Application Review Required</h2>
+            </div>
+            <div class='content'>
+                <p>Dear $recipient_role,</p>
+                <p>$message</p>
+                <p><strong>Application Details:</strong></p>
+                <ul>
+                    <li><strong>Candidate:</strong> $candidate_name</li>
+                    <li><strong>Program:</strong> $program_name</li>
+                    <li><strong>Application ID:</strong> #$app_id</li>
+                </ul>
+                <p>Please log in to the system to review and approve this application.</p>
+                <a href='" . SITE_URL . "/admin/evaluate.php?id=$app_id' class='button'>Review Application</a>
+            </div>
+            <div class='footer'>
+                <p>This is an automated notification from the ETEEAP System</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+    
+    return sendEmail($to_email, $subject, $email_body);
+}
+
+function sendFinalApprovalNotification($to_email, $candidate_name, $program_name, $status, $score) {
+    $subject = "ETEEAP Application - Final Decision";
+    
+    $status_text = '';
+    if ($status === 'qualified') {
+        $status_text = '<span style="color: #198754; font-weight: bold;">QUALIFIED</span>';
+    } elseif ($status === 'partially_qualified') {
+        $status_text = '<span style="color: #ffc107; font-weight: bold;">PARTIALLY QUALIFIED</span>';
+    } else {
+        $status_text = '<span style="color: #dc3545; font-weight: bold;">NOT QUALIFIED</span>';
     }
     
-    error_log("Database Error in approval_action.php: " . $e->getMessage());
+    $email_body = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #134e5e 0%, #71b280 100%); color: white; padding: 20px; text-align: center; }
+            .content { background: #f8f9fa; padding: 20px; }
+            .result-box { background: white; border: 2px solid #198754; padding: 20px; margin: 20px 0; text-align: center; }
+            .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h2>ETEEAP Application - Final Decision</h2>
+            </div>
+            <div class='content'>
+                <p>Dear $candidate_name,</p>
+                <p>We are pleased to inform you that your ETEEAP application has been fully reviewed and approved by all required authorities.</p>
+                <div class='result-box'>
+                    <h3>Final Assessment Result</h3>
+                    <p><strong>Program:</strong> $program_name</p>
+                    <p><strong>Status:</strong> $status_text</p>
+                    <p><strong>Score:</strong> $score%</p>
+                </div>
+                <p>Please log in to your account to view the complete evaluation details and next steps.</p>
+                <p>If you have any questions, please contact the ETEEAP office.</p>
+            </div>
+            <div class='footer'>
+                <p>This is an automated notification from the ETEEAP System</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
     
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'message' => 'Database error: ' . $e->getMessage(),
-        'sql_error' => $e->getCode()
-    ]);
+    return sendEmail($to_email, $subject, $email_body);
+}
+
+function sendRejectionNotification($to_email, $recipient_role, $candidate_name, $program_name, $app_id, $rejector_role, $remarks) {
+    $subject = "ETEEAP Application Returned for Review";
+    
+    $rejector_name = strtoupper(str_replace('_', ' ', $rejector_role));
+    
+    $email_body = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #dc3545; color: white; padding: 20px; text-align: center; }
+            .content { background: #f8f9fa; padding: 20px; }
+            .remarks { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 15px 0; }
+            .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h2>Application Returned for Review</h2>
+            </div>
+            <div class='content'>
+                <p>Dear $recipient_role,</p>
+                <p>The following application has been returned for review by $rejector_name.</p>
+                <p><strong>Application Details:</strong></p>
+                <ul>
+                    <li><strong>Candidate:</strong> $candidate_name</li>
+                    <li><strong>Program:</strong> $program_name</li>
+                    <li><strong>Application ID:</strong> #$app_id</li>
+                </ul>
+                " . ($remarks ? "<div class='remarks'><strong>Remarks:</strong><br>$remarks</div>" : "") . "
+                <p>Please review and make necessary revisions.</p>
+            </div>
+            <div class='footer'>
+                <p>This is an automated notification from the ETEEAP System</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+    
+    return sendEmail($to_email, $subject, $email_body);
+}
+
+function sendCandidateRejectionNotification($to_email, $candidate_name, $program_name, $rejector_role) {
+    $subject = "ETEEAP Application - Update on Your Application";
+    
+    $email_body = "
+    <html>
+    <head>
+        <style>
+            body { font-family: Arial, sans-serif; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: #6c757d; color: white; padding: 20px; text-align: center; }
+            .content { background: #f8f9fa; padding: 20px; }
+            .footer { text-align: center; padding: 20px; color: #6c757d; font-size: 12px; }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h2>Application Update</h2>
+            </div>
+            <div class='content'>
+                <p>Dear $candidate_name,</p>
+                <p>We would like to inform you that your ETEEAP application for <strong>$program_name</strong> is currently under additional review.</p>
+                <p>The evaluation team is working to ensure a thorough and accurate assessment of your application.</p>
+                <p>We will notify you once the review process is complete.</p>
+                <p>Thank you for your patience and understanding.</p>
+            </div>
+            <div class='footer'>
+                <p>This is an automated notification from the ETEEAP System</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+    
+    return sendEmail($to_email, $subject, $email_body);
 }
 ?>

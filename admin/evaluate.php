@@ -3496,6 +3496,15 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('Enhanced ETEEAP Evaluation System with Auto-Loading Bridging Requirements initialized!');
 });
 
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('successModal'));
+  modal.show();
+
+  document.getElementById('successModal').addEventListener('hidden.bs.modal', function () {
+    window.location.href = "evaluate.php";
+  });
+});
+
     </script>
 </body>
 </html>

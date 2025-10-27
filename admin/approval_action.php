@@ -167,7 +167,7 @@ try {
     // Send email notifications (commented out - implement based on your email setup)
     // require_once '../includes/email_notifications.php';
     
-    /* EMAIL NOTIFICATIONS - UNCOMMENT WHEN EMAIL SYSTEM IS READY
+    //  EMAIL NOTIFICATIONS - UNCOMMENT WHEN EMAIL SYSTEM IS READY
     if ($action === 'approve') {
         // Determine who to notify next
         if ($user_type === 'director_eteeap') {
@@ -234,7 +234,7 @@ try {
             $user_type
         );
     }
-    END OF EMAIL NOTIFICATIONS */
+    // END OF EMAIL NOTIFICATIONS */
     
     // Commit transaction
     $pdo->commit();

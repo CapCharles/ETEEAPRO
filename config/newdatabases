@@ -718,3 +718,21 @@ OR a.current_step IN ('director_eteeap', 'ced', 'vpaa', 'president', 'registrar'
 -- ===================================================
 
 SELECT 'ROLLBACK TO OLD 6-LEVEL WORKFLOW COMPLETE!' as Status;
+
+//DELETE
+
+-- 1. Check for users
+SELECT user_type, COUNT(*) FROM users 
+WHERE user_type IN ('industry_partner', 'director_eteeap', 'ced', 'vpaa', 'president')
+GROUP BY user_type;
+
+-- 2. Convert users (if any)
+UPDATE users SET user_type = 'admin' 
+WHERE user_type IN ('industry_partner', 'director_eteeap', 'ced', 'vpaa', 'president');
+
+-- 3. Remove user types
+ALTER TABLE users 
+MODIFY COLUMN user_type ENUM('candidate','admin','evaluator') DEFAULT 'candidate';
+
+-- 4. Verify
+SHOW COLUMNS FROM users LIKE 'user_type';

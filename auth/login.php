@@ -5,11 +5,37 @@ require_once '../config/database.php';
 require_once '../config/constants.php';
 
 // If user is already logged in, redirect to appropriate dashboard
+// If user is already logged in, redirect to appropriate dashboard
 if (isset($_SESSION['user_id'])) {
-    if ($_SESSION['user_type'] == 'admin' || $_SESSION['user_type'] == 'evaluator') {
-        header('Location: ../admin/dashboard.php');
-    } else {
-        header('Location: ../candidates/profile.php');
+    switch ($_SESSION['user_type']) {
+        case 'admin':
+            header('Location: ../admin/admin.php');
+            break;
+        case 'evaluator':
+            header('Location: ../admin/evaluator.php');
+            break;
+        case 'industry_partner':
+            header('Location: ../admin/industry_partner.php');
+            break;
+        case 'director_eteeap':
+            header('Location: ../admin/director_eteeap.php');
+            break;
+        case 'ced':
+            header('Location: ../admin/ced.php');
+            break;
+        case 'vpaa':
+            header('Location: ../admin/vpaa.php');
+            break;
+        case 'president':
+            header('Location: ../admin/president.php');
+            break;
+        case 'registrar':
+            header('Location: ../admin/registrar.php');
+            break;
+        case 'candidate':
+        default:
+            header('Location: ../candidates/profile.php');
+            break;
     }
     exit();
 }
@@ -105,13 +131,39 @@ if ($_POST) {
                             // Log error but don't prevent login
                         }
                         
-                        // Redirect based on user type
-                        if ($user['user_type'] == 'admin' || $user['user_type'] == 'evaluator') {
-                            header('Location: ../admin/dashboard.php');
-                        } else {
-                            header('Location: ../candidates/profile.php');
-                        }
-                        exit();
+                     
+                       // Redirect based on user type
+switch ($user['user_type']) {
+    case 'admin':
+        header('Location: ../admin/admin.php');
+        break;
+    case 'evaluator':
+        header('Location: ../admin/evaluator.php');
+        break;
+    case 'industry_partner':
+        header('Location: ../admin/industry_partner.php');
+        break;
+    case 'director_eteeap':
+        header('Location: ../admin/director_eteeap.php');
+        break;
+    case 'ced':
+        header('Location: ../admin/ced.php');
+        break;
+    case 'vpaa':
+        header('Location: ../admin/vpaa.php');
+        break;
+    case 'president':
+        header('Location: ../admin/president.php');
+        break;
+    case 'registrar':
+        header('Location: ../admin/registrar.php');
+        break;
+    case 'candidate':
+    default:
+        header('Location: ../candidates/profile.php');
+        break;
+}
+exit();
                     }
                 }
             } else {

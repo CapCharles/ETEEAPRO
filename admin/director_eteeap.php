@@ -16,12 +16,13 @@ $success_message = '';
 // Get dashboard statistics using NEW approval workflow columns
 $stats = [];
 try {
-    // Pending review (waiting for Director ETEEAP approval)
+    // Pending review (waiting for Director ETEEAP approval) - ONLY QUALIFIED
     $stmt = $pdo->query("
         SELECT COUNT(*) as total 
         FROM applications 
         WHERE evaluator_submitted_at IS NOT NULL 
         AND director_eteeap_status = 'pending'
+        AND application_status = 'qualified'
     ");
     $stats['pending_review'] = $stmt->fetch()['total'];
     
@@ -66,7 +67,11 @@ try {
     $where_clause = "";
     switch ($filter) {
         case 'pending':
-            $where_clause = "WHERE a.evaluator_submitted_at IS NOT NULL AND a.director_eteeap_status = 'pending'";
+            // ONLY show QUALIFIED applications that are pending approval
+            // Exclude partially_qualified and not_qualified
+            $where_clause = "WHERE a.evaluator_submitted_at IS NOT NULL 
+                            AND a.director_eteeap_status = 'pending'
+                            AND a.application_status = 'qualified'";
             break;
         case 'approved':
             $where_clause = "WHERE a.director_eteeap_status = 'approved'";

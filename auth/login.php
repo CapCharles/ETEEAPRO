@@ -4,47 +4,15 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-
 // If user is already logged in, redirect to appropriate dashboard
 if (isset($_SESSION['user_id'])) {
-    $user_type = $_SESSION['user_type'];
-
-    switch ($user_type) {
-        // Admin and Evaluator share the same dashboard
-        case 'admin':
-        case 'evaluator':
-            header('Location: ../admin/dashboard.php');
-            break;
-
-        // Panel roles with their specific dashboards
-        case 'industry_partner':
-            header('Location: ../admin/industry_partner.php');
-            break;
-        case 'director_eteeap':
-            header('Location: ../admin/director_eteeap.php');
-            break;
-        case 'ced':
-            header('Location: ../admin/ced.php');
-            break;
-        case 'vpaa':
-            header('Location: ../admin/vpaa.php');
-            break;
-        case 'president':
-            header('Location: ../admin/president.php');
-            break;
-        case 'registrar':
-            header('Location: ../admin/registrar.php');
-            break;
-
-        // Candidates and default fallback
-        case 'candidate':
-        default:
-            header('Location: ../candidates/profile.php');
-            break;
+    if ($_SESSION['user_type'] == 'admin' || $_SESSION['user_type'] == 'evaluator') {
+        header('Location: ../admin/dashboard.php');
+    } else {
+        header('Location: ../candidates/profile.php');
     }
     exit();
 }
-
 
 $errors = [];
 $success_message = '';
@@ -137,42 +105,13 @@ if ($_POST) {
                             // Log error but don't prevent login
                         }
                         
-                   // Redirect based on user type
-switch ($user['user_type']) {
-    // ✅ Admin and Evaluator share the same dashboard
-    case 'admin':
-    case 'evaluator':
-        header('Location: ../admin/dashboard.php');
-        break;
-
-    // ✅ Panel roles with specific dashboards
-    case 'industry_partner':
-        header('Location: ../admin/industry_partner.php');
-        break;
-    case 'director_eteeap':
-        header('Location: ../admin/director_eteeap.php');
-        break;
-    case 'ced':
-        header('Location: ../admin/ced.php');
-        break;
-    case 'vpaa':
-        header('Location: ../admin/vpaa.php');
-        break;
-    case 'president':
-        header('Location: ../admin/president.php');
-        break;
-    case 'registrar':
-        header('Location: ../admin/registrar.php');
-        break;
-
-    // ✅ Candidates and fallback
-    case 'candidate':
-    default:
-        header('Location: ../candidates/profile.php');
-        break;
-}
-exit();
-
+                        // Redirect based on user type
+                        if ($user['user_type'] == 'admin' || $user['user_type'] == 'evaluator') {
+                            header('Location: ../admin/dashboard.php');
+                        } else {
+                            header('Location: ../candidates/profile.php');
+                        }
+                        exit();
                     }
                 }
             } else {

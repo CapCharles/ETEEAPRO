@@ -1141,15 +1141,11 @@ $auto_recommendation = generateEnhancedRecommendation(
         // Update application
         $stmt = $pdo->prepare("
             UPDATE applications 
-            SET application_status = ?, 
-                total_score = ?, 
-                recommendation = ?, 
-                evaluator_id = ?, 
-                evaluation_date = NOW()
-            WHERE id = ?
+               SET application_status = ?, total_score = ?, recommendation = ?, 
+                   evaluator_id = ?, evaluation_date = NOW()
+             WHERE id = ?
         ");
         $stmt->execute([$final_status, $final_score, $full_recommendation, $user_id, $app_id]);
-        
         
  if ($final_score >= 60) {
             $requiredUnits = calculateBridgingUnits($final_score);
@@ -1225,8 +1221,6 @@ $bridgingUnits = calculateBridgingUnits($final_score);
 $success_message = "✅ Evaluation completed successfully!<br>";
 $success_message .= "📊 Final Score: <strong>{$final_score}%</strong><br>";
 $success_message .= "📋 Status: <strong>" . ucfirst(str_replace('_', ' ', $final_status)) . "</strong>";
-
-
 
 if ($final_score >= 60 && $bridgingUnits > 0) {
     $success_message .= "<br>🎓 Bridging Units Required: <strong>{$bridgingUnits} units</strong>";

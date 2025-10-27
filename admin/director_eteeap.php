@@ -711,31 +711,91 @@ function getBridgingRequirements($pdo, $application_id) {
             })
             .then(data => {
                 if (data.success) {
-                    // Show success message
-                    alert('✅ ' + data.message + '\n\n' + (data.next_step || ''));
-                    // Close modal and reload page
+                    // Show success modal
+                    showResultModal('success', data.message, data.next_step || '');
+                    // Close review modal
                     bootstrap.Modal.getInstance(modal).hide();
-                    location.reload();
                 } else {
-                    // Show server error message
-                    let errorMsg = '❌ ' + data.message;
+                    // Show error modal
+                    let errorDetails = '';
                     if (data.debug_info) {
-                        errorMsg += '\n\nDebug Info:\n';
-                        errorMsg += 'User Type: ' + data.debug_info.user_type + '\n';
-                        errorMsg += 'Application ID: ' + data.debug_info.application_id + '\n';
-                        errorMsg += 'Action: ' + data.debug_info.action;
+                        errorDetails = '<div class="mt-3"><small class="text-muted"><strong>Debug Info:</strong><br>';
+                        errorDetails += 'User Type: ' + data.debug_info.user_type + '<br>';
+                        errorDetails += 'Application ID: ' + data.debug_info.application_id + '<br>';
+                        errorDetails += 'Action: ' + data.debug_info.action + '</small></div>';
                     }
-                    alert(errorMsg);
-                    location.reload();
+                    showResultModal('error', data.message, errorDetails);
                 }
             })
             .catch(error => {
                 // Network error or other exception
                 console.error('Fetch error:', error);
-                alert('❌ An error occurred:\n\n' + error.message + '\n\nPlease check:\n• Your internet connection\n• Browser console (F12) for details\n• That approval_action.php exists in /admin/ folder');
-                location.reload();
+                const errorDetails = '<div class="mt-3"><small>Please check:<br>• Your internet connection<br>• Browser console (F12) for details<br>• That approval_action.php exists in /admin/ folder</small></div>';
+                showResultModal('error', error.message, errorDetails);
             });
         }
+        
+        // Function to show result modal
+        function showResultModal(type, message, details) {
+            const modal = document.getElementById('resultModal');
+            const header = document.getElementById('resultModalHeader');
+            const title = document.getElementById('resultModalTitle');
+            const body = document.getElementById('resultModalBody');
+            const content = document.getElementById('resultModalContent');
+            
+            if (type === 'success') {
+                header.className = 'modal-header bg-success text-white';
+                title.innerHTML = '<i class="fas fa-check-circle me-2"></i>Success!';
+                content.style.borderTop = '4px solid #198754';
+                body.innerHTML = `
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>
+                        </div>
+                        <h5 class="mb-3">${message}</h5>
+                        ${details ? '<p class="text-muted">' + details + '</p>' : ''}
+                    </div>
+                `;
+            } else {
+                header.className = 'modal-header bg-danger text-white';
+                title.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Error';
+                content.style.borderTop = '4px solid #dc3545';
+                body.innerHTML = `
+                    <div class="text-center">
+                        <div class="mb-3">
+                            <i class="fas fa-exclamation-circle text-danger" style="font-size: 4rem;"></i>
+                        </div>
+                        <h5 class="mb-3">${message}</h5>
+                        ${details ? '<div class="text-start">' + details + '</div>' : ''}
+                    </div>
+                `;
+            }
+            
+            const bsModal = new bootstrap.Modal(modal);
+            bsModal.show();
+        }
     </script>
+
+    <!-- Success/Error Result Modal -->
+    <div class="modal fade" id="resultModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content" id="resultModalContent">
+                <div class="modal-header" id="resultModalHeader">
+                    <h5 class="modal-title" id="resultModalTitle">
+                        <i class="fas fa-check-circle me-2"></i>Success
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body py-4" id="resultModalBody">
+                    <!-- Dynamic content will be inserted here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" onclick="location.reload()">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh Page
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

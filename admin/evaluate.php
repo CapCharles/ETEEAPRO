@@ -1975,7 +1975,13 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
   </div>
 </div>
 
-
+<!-- Trigger Modal on Load -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('successModal'));
+  modal.show();
+});
+</script>
 <?php endif; ?>
 
 
@@ -3488,15 +3494,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     console.log('Enhanced ETEEAP Evaluation System with Auto-Loading Bridging Requirements initialized!');
-});
-
-document.addEventListener('DOMContentLoaded', function() {
-  var modal = new bootstrap.Modal(document.getElementById('successModal'));
-  modal.show();
-
-  document.getElementById('successModal').addEventListener('hidden.bs.modal', function () {
-    window.location.href = "evaluate.php";
-  });
 });
 
     </script>

@@ -665,6 +665,11 @@ function getBridgingRequirements($pdo, $application_id) {
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Debug: Check if approval_action.php is accessible
+        console.log('Director ETEEAP Dashboard loaded');
+        console.log('Current user type: <?php echo $user_type; ?>');
+        console.log('User ID: <?php echo $user_id; ?>');
+        
         function submitApproval(appId, action) {
             const remarks = document.getElementById('remarks' + appId).value;
             
@@ -692,19 +697,42 @@ function getBridgingRequirements($pdo, $application_id) {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                // Check if response is OK (200-299 status code)
+                if (!response.ok) {
+                    // Try to parse error message from JSON
+                    return response.json().then(errorData => {
+                        throw new Error(errorData.message || 'Server returned error: ' + response.status);
+                    }).catch(() => {
+                        throw new Error('Server error: ' + response.status + ' ' + response.statusText);
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
+                    // Show success message
+                    alert('✅ ' + data.message + '\n\n' + (data.next_step || ''));
                     // Close modal and reload page
                     bootstrap.Modal.getInstance(modal).hide();
                     location.reload();
                 } else {
-                    alert('Error: ' + data.message);
+                    // Show server error message
+                    let errorMsg = '❌ ' + data.message;
+                    if (data.debug_info) {
+                        errorMsg += '\n\nDebug Info:\n';
+                        errorMsg += 'User Type: ' + data.debug_info.user_type + '\n';
+                        errorMsg += 'Application ID: ' + data.debug_info.application_id + '\n';
+                        errorMsg += 'Action: ' + data.debug_info.action;
+                    }
+                    alert(errorMsg);
                     location.reload();
                 }
             })
             .catch(error => {
-                alert('An error occurred. Please try again.');
+                // Network error or other exception
+                console.error('Fetch error:', error);
+                alert('❌ An error occurred:\n\n' + error.message + '\n\nPlease check:\n• Your internet connection\n• Browser console (F12) for details\n• That approval_action.php exists in /admin/ folder');
                 location.reload();
             });
         }

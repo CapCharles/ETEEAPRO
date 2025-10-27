@@ -1975,13 +1975,7 @@ function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = n
   </div>
 </div>
 
-<!-- Trigger Modal on Load -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  var modal = new bootstrap.Modal(document.getElementById('successModal'));
-  modal.show();
-});
-</script>
+
 <?php endif; ?>
 
 

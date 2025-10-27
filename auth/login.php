@@ -4,16 +4,19 @@ session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
 
-// If user is already logged in, redirect to appropriate dashboard
+
 // If user is already logged in, redirect to appropriate dashboard
 if (isset($_SESSION['user_id'])) {
-    switch ($_SESSION['user_type']) {
+    $user_type = $_SESSION['user_type'];
+
+    switch ($user_type) {
+        // Admin and Evaluator share the same dashboard
         case 'admin':
-            header('Location: ../admin/admin.php');
-            break;
         case 'evaluator':
-            header('Location: ../admin/evaluator.php');
+            header('Location: ../admin/dashboard.php');
             break;
+
+        // Panel roles with their specific dashboards
         case 'industry_partner':
             header('Location: ../admin/industry_partner.php');
             break;
@@ -32,6 +35,8 @@ if (isset($_SESSION['user_id'])) {
         case 'registrar':
             header('Location: ../admin/registrar.php');
             break;
+
+        // Candidates and default fallback
         case 'candidate':
         default:
             header('Location: ../candidates/profile.php');
@@ -39,6 +44,7 @@ if (isset($_SESSION['user_id'])) {
     }
     exit();
 }
+
 
 $errors = [];
 $success_message = '';
@@ -131,15 +137,15 @@ if ($_POST) {
                             // Log error but don't prevent login
                         }
                         
-                     
-                       // Redirect based on user type
+                   // Redirect based on user type
 switch ($user['user_type']) {
+    // ✅ Admin and Evaluator share the same dashboard
     case 'admin':
-        header('Location: ../admin/admin.php');
-        break;
     case 'evaluator':
-        header('Location: ../admin/evaluator.php');
+        header('Location: ../admin/dashboard.php');
         break;
+
+    // ✅ Panel roles with specific dashboards
     case 'industry_partner':
         header('Location: ../admin/industry_partner.php');
         break;
@@ -158,12 +164,15 @@ switch ($user['user_type']) {
     case 'registrar':
         header('Location: ../admin/registrar.php');
         break;
+
+    // ✅ Candidates and fallback
     case 'candidate':
     default:
         header('Location: ../candidates/profile.php');
         break;
 }
 exit();
+
                     }
                 }
             } else {

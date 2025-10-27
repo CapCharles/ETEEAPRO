@@ -259,18 +259,18 @@ VALUES (
 -- 5. Director dashboard view
 -- 6. Sample director user account
 
-ALTER TABLE applications 
-ADD COLUMN evaluator_submitted_at DATETIME DEFAULT NULL,
-ADD COLUMN director_eteeap_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-ADD COLUMN director_eteeap_approved_by INT DEFAULT NULL,
-ADD COLUMN director_eteeap_approved_at DATETIME DEFAULT NULL,
-ADD COLUMN director_eteeap_remarks TEXT DEFAULT NULL,
-ADD COLUMN ced_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-ADD COLUMN ced_approved_by INT DEFAULT NULL,
-ADD COLUMN ced_approved_at DATETIME DEFAULT NULL,
-ADD COLUMN ced_remarks TEXT DEFAULT NULL,
-ADD COLUMN vpaa_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
-ADD COLUMN vpaa_approved_by INT DEFAULT NULL,
-ADD COLUMN vpaa_approved_at DATETIME DEFAULT NULL,
-ADD COLUMN vpaa_remarks TEXT DEFAULT NULL,
-ADD COLUMN final_approval_status ENUM('pending_approval', 'approved', 'rejected') DEFAULT 'pending_approval';
+-- ALTER TABLE applications 
+-- ADD COLUMN evaluator_submitted_at DATETIME DEFAULT NULL,
+-- ADD COLUMN director_eteeap_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+-- ADD COLUMN director_eteeap_approved_by INT DEFAULT NULL,
+-- ADD COLUMN director_eteeap_approved_at DATETIME DEFAULT NULL,
+-- ADD COLUMN director_eteeap_remarks TEXT DEFAULT NULL,
+-- ADD COLUMN ced_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+-- ADD COLUMN ced_approved_by INT DEFAULT NULL,
+-- ADD COLUMN ced_approved_at DATETIME DEFAULT NULL,
+-- ADD COLUMN ced_remarks TEXT DEFAULT NULL,
+-- ADD COLUMN vpaa_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+-- ADD COLUMN vpaa_approved_by INT DEFAULT NULL,
+-- ADD COLUMN vpaa_approved_at DATETIME DEFAULT NULL,
+-- ADD COLUMN vpaa_remarks TEXT DEFAULT NULL,
+-- ADD COLUMN final_approval_status ENUM('pending_approval', 'approved', 'rejected') DEFAULT 'pending_approval';

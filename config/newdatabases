@@ -274,3 +274,179 @@ VALUES (
 -- ADD COLUMN vpaa_approved_at DATETIME DEFAULT NULL,
 -- ADD COLUMN vpaa_remarks TEXT DEFAULT NULL,
 -- ADD COLUMN final_approval_status ENUM('pending_approval', 'approved', 'rejected') DEFAULT 'pending_approval';
+
+
+
+USE eteeap_db;
+
+-- Add approval-related columns to applications table
+ALTER TABLE applications 
+-- Evaluator submission tracking
+ADD COLUMN evaluator_submitted_at DATETIME DEFAULT NULL COMMENT 'When evaluator submitted the evaluation',
+
+-- Director ETEEAP approval
+ADD COLUMN director_eteeap_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending' COMMENT 'Director ETEEAP approval status',
+ADD COLUMN director_eteeap_approved_by INT DEFAULT NULL COMMENT 'User ID who approved/rejected',
+ADD COLUMN director_eteeap_approved_at DATETIME DEFAULT NULL COMMENT 'When Director ETEEAP made decision',
+ADD COLUMN director_eteeap_remarks TEXT DEFAULT NULL COMMENT 'Director ETEEAP comments/remarks',
+
+-- CED approval
+ADD COLUMN ced_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending' COMMENT 'CED approval status',
+ADD COLUMN ced_approved_by INT DEFAULT NULL COMMENT 'User ID who approved/rejected',
+ADD COLUMN ced_approved_at DATETIME DEFAULT NULL COMMENT 'When CED made decision',
+ADD COLUMN ced_remarks TEXT DEFAULT NULL COMMENT 'CED comments/remarks',
+
+-- VPAA approval
+ADD COLUMN vpaa_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending' COMMENT 'VPAA approval status',
+ADD COLUMN vpaa_approved_by INT DEFAULT NULL COMMENT 'User ID who approved/rejected',
+ADD COLUMN vpaa_approved_at DATETIME DEFAULT NULL COMMENT 'When VPAA made decision',
+ADD COLUMN vpaa_remarks TEXT DEFAULT NULL COMMENT 'VPAA comments/remarks',
+
+-- Overall approval status
+ADD COLUMN final_approval_status ENUM('pending_approval', 'fully_approved', 'rejected') DEFAULT 'pending_approval' COMMENT 'Overall approval status after all approvers';
+
+-- Add foreign key constraints
+ALTER TABLE applications
+ADD CONSTRAINT fk_director_approver FOREIGN KEY (director_eteeap_approved_by) REFERENCES users(id) ON DELETE SET NULL,
+ADD CONSTRAINT fk_ced_approver FOREIGN KEY (ced_approved_by) REFERENCES users(id) ON DELETE SET NULL,
+ADD CONSTRAINT fk_vpaa_approver FOREIGN KEY (vpaa_approved_by) REFERENCES users(id) ON DELETE SET NULL;
+
+-- Add indexes for better query performance
+CREATE INDEX idx_director_status ON applications(director_eteeap_status);
+CREATE INDEX idx_ced_status ON applications(ced_status);
+CREATE INDEX idx_vpaa_status ON applications(vpaa_status);
+CREATE INDEX idx_final_approval ON applications(final_approval_status);
+CREATE INDEX idx_evaluator_submitted ON applications(evaluator_submitted_at);
+
+-- =====================================================
+-- Create approval_logs table for audit trail
+-- =====================================================
+CREATE TABLE IF NOT EXISTS approval_logs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    application_id INT NOT NULL,
+    approver_role ENUM('director_eteeap', 'ced', 'vpaa') NOT NULL,
+    approver_id INT NOT NULL,
+    action ENUM('approved', 'rejected', 'returned') NOT NULL,
+    remarks TEXT DEFAULT NULL,
+    previous_status VARCHAR(50) DEFAULT NULL,
+    new_status VARCHAR(50) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+    FOREIGN KEY (approver_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_application (application_id),
+    INDEX idx_approver (approver_id),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Audit trail for all approval actions';
+
+-- =====================================================
+-- Update existing applications to have default values
+-- =====================================================
+-- Set all existing evaluated applications to pending approval
+UPDATE applications 
+SET 
+    director_eteeap_status = 'pending',
+    ced_status = 'pending',
+    vpaa_status = 'pending',
+    final_approval_status = 'pending_approval'
+WHERE application_status IN ('qualified', 'partially_qualified', 'not_qualified')
+  AND evaluator_submitted_at IS NULL;
+
+-- Set evaluator_submitted_at for existing evaluated applications
+UPDATE applications 
+SET evaluator_submitted_at = updated_at
+WHERE application_status IN ('qualified', 'partially_qualified', 'not_qualified')
+  AND evaluator_submitted_at IS NULL;
+
+-- =====================================================
+-- Create view for approval dashboard queries
+-- =====================================================
+CREATE OR REPLACE VIEW vw_approval_queue AS
+SELECT 
+    a.id,
+    a.application_status,
+    a.total_score,
+    a.evaluator_submitted_at,
+    
+    -- Candidate info
+    u.id as candidate_id,
+    CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+    u.email as candidate_email,
+    
+    -- Program info
+    p.id as program_id,
+    p.program_name,
+    p.program_code,
+    
+    -- Evaluator info
+    e.id as evaluator_id,
+    CONCAT(e.first_name, ' ', e.last_name) as evaluator_name,
+    
+    -- Approval statuses
+    a.director_eteeap_status,
+    a.director_eteeap_approved_at,
+    d.first_name as director_first_name,
+    d.last_name as director_last_name,
+    
+    a.ced_status,
+    a.ced_approved_at,
+    c.first_name as ced_first_name,
+    c.last_name as ced_last_name,
+    
+    a.vpaa_status,
+    a.vpaa_approved_at,
+    v.first_name as vpaa_first_name,
+    v.last_name as vpaa_last_name,
+    
+    a.final_approval_status,
+    a.created_at,
+    a.updated_at
+    
+FROM applications a
+LEFT JOIN users u ON a.user_id = u.id
+LEFT JOIN programs p ON a.program_id = p.id
+LEFT JOIN users e ON a.evaluator_id = e.id
+LEFT JOIN users d ON a.director_eteeap_approved_by = d.id
+LEFT JOIN users c ON a.ced_approved_by = c.id
+LEFT JOIN users v ON a.vpaa_approved_by = v.id
+WHERE a.evaluator_submitted_at IS NOT NULL;
+
+
+// droppp
+USE eteeap_db;
+
+-- 1) Drop the view if it exists
+DROP VIEW IF EXISTS vw_approval_queue;
+
+-- 2) Drop approval_logs table if exists
+DROP TABLE IF EXISTS approval_logs;
+
+-- 3) Remove indexes (optional — DROP INDEX requires index exists)
+DROP INDEX IF EXISTS idx_director_status ON applications;
+DROP INDEX IF EXISTS idx_ced_status ON applications;
+DROP INDEX IF EXISTS idx_vpaa_status ON applications;
+DROP INDEX IF EXISTS idx_final_approval ON applications;
+DROP INDEX IF EXISTS idx_evaluator_submitted ON applications;
+
+-- 4) Remove foreign keys if they exist
+-- Note: constraint names must match. If you used the exact names in migration, these will drop.
+ALTER TABLE applications
+  DROP FOREIGN KEY IF EXISTS fk_director_approver,
+  DROP FOREIGN KEY IF EXISTS fk_ced_approver,
+  DROP FOREIGN KEY IF EXISTS fk_vpaa_approver;
+
+-- 5) Drop the added columns (IF EXISTS supported in MySQL 8+)
+ALTER TABLE applications
+  DROP COLUMN IF EXISTS evaluator_submitted_at,
+  DROP COLUMN IF EXISTS director_eteeap_status,
+  DROP COLUMN IF EXISTS director_eteeap_approved_by,
+  DROP COLUMN IF EXISTS director_eteeap_approved_at,
+  DROP COLUMN IF EXISTS director_eteeap_remarks,
+  DROP COLUMN IF EXISTS ced_status,
+  DROP COLUMN IF EXISTS ced_approved_by,
+  DROP COLUMN IF EXISTS ced_approved_at,
+  DROP COLUMN IF EXISTS ced_remarks,
+  DROP COLUMN IF EXISTS vpaa_status,
+  DROP COLUMN IF EXISTS vpaa_approved_by,
+  DROP COLUMN IF EXISTS vpaa_approved_at,
+  DROP COLUMN IF EXISTS vpaa_remarks,
+  DROP COLUMN IF EXISTS final_approval_status;

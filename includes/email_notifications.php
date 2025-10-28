@@ -576,7 +576,7 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
 function sendEvaluationResultEmail($application, $final_score, $final_status, $recommendation, $bridging_units = 0) {
     global $pdo;
     
-    $baseUrl = _base_url_safe();
+    $baseUrl   = 'https://eteeapro.site/';
     
     try {
         error_log("=== EMAIL FUNCTION START ===");

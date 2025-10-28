@@ -358,7 +358,13 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
         $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
     }
     
-    $recommendations[] = "DISCLAIMER: This assessment summary is provisional and provided for guidance only.";
+// Professional disclaimer
+    $recommendations[] = "IMPORTANT DISCLAIMER";
+    $recommendations[] = "This assessment summary is provisional and subject to final review by the Academic Council.";
+    $recommendations[] = "All recommendations, including credited subjects and bridging requirements, may be adjusted";
+    $recommendations[] = "upon thorough verification of submitted documents and completion of the formal review process.";
+    $recommendations[] = "Official confirmation will be provided during your enrollment counseling session.";
+    $recommendations[] = "";
     // Header with assessment outcome
     $recommendations[] = "ETEEAP ASSESSMENT RESULTS";
     $recommendations[] = "Program: {$programCode}";

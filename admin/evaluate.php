@@ -1,847 +1,3511 @@
 <?php
-// includes/email_notifications.php
-// Safe + verbose PHPMailer wrapper: logs, SSL relax, 465→587 fallback
+session_start();
 
-// ====== TEMP DEBUG (set to false pag ok na) ======
-if (!defined('MAIL_DEBUG')) { define('MAIL_DEBUG', true); } // true para makita logs sa error_log
+// top of evaluate.php
+define('BASE_DIR', __DIR__); // folder ng evaluate.php
 
-// ====== SMTP CREDENTIALS ======
-if (!defined('MAIL_FROM_EMAIL')) { define('MAIL_FROM_EMAIL', 'cspbank911@gmail.com'); }
-if (!defined('MAIL_FROM_NAME'))  { define('MAIL_FROM_NAME',  'ETEEAP System'); }
-if (!defined('MAIL_USERNAME'))   { define('MAIL_USERNAME',   'cspbank911@gmail.com'); }
-if (!defined('MAIL_PASSWORD'))   { define('MAIL_PASSWORD',   'uzhtbqmdqigquyqq'); } // Gmail App Password
+require_once BASE_DIR . '/../config/database.php';
+require_once BASE_DIR . '/../config/constants.php';
 
-function phpmailer_available(): bool {
-    // XAMPP local path - PHPMailer is in project root
-    $base = __DIR__ . '/../PHPMailer/PHPMailer/src/';
-    
-    $exists = file_exists($base . 'PHPMailer.php')
-        && file_exists($base . 'SMTP.php')
-        && file_exists($base . 'Exception.php');
-    
-    if (!$exists) {
-        error_log('[MAIL] PHPMailer not found. Checked: ' . realpath(__DIR__ . '/..') . '/PHPMailer/PHPMailer/src/');
-    }
-    
-    return $exists;
+// Kung hindi ka composer, at may folder ka talagang PHPMailer sa project:
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/Exception.php';
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/PHPMailer.php';
+require BASE_DIR . '/../PHPMailer/PHPMailer/src/SMTP.php';
+
+
+require_once BASE_DIR . '/../includes/email_notifications.php';
+// Check authentication
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['user_type'], ['admin', 'evaluator'])) {
+    header('Location: ../auth/login.php');
+    exit();
 }
 
-function _base_url_safe(): string {
-    return defined('BASE_URL') ? rtrim(BASE_URL, '/') . '/' : '/';
+$user_id = $_SESSION['user_id'];
+$user_type = $_SESSION['user_type'];
+$application_id = isset($_GET['id']) ? $_GET['id'] : null;
+$filter_status = isset($_GET['status']) ? $_GET['status'] : '';
+$is_admin = ($_SESSION['user_type'] === 'admin'); // exact string match
+
+$errors = [];
+$success_message = '';
+$current_application = null; // <-- add this line
+
+
+
+function evalScopeWhere($is_admin, $user_id) {
+    if ($is_admin) return ['', []];
+    return [' WHERE a.evaluator_id = ? ', [$user_id]];
 }
 
-// Build PHPMailer instance.
-// $mode = 'smtps' (465) or 'starttls' (587)
-function buildMailer(string $mode = 'smtps') {
-    if (!phpmailer_available()) {
-        error_log('[MAIL] PHPMailer files not found');
-        return null;
+$sidebar_submitted_count = 0;
+try {
+    $count_where = ["a.application_status IN ('submitted','under_review')"];
+    $count_params = [];
+    
+    // Add evaluator scope
+    if (!$is_admin) {
+        $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $evaluator_data = $stmt->fetch();
+        $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+        
+        if ($assigned_program_id) {
+            $count_where[] = "a.program_id = ?";
+            $count_params[] = $assigned_program_id;
+        } else {
+            $count_where[] = "1=0";
+        }
     }
     
-    // Use same base path
-    $base = __DIR__ . '/../PHPMailer/PHPMailer/src/';
-    require_once $base . 'Exception.php';
-    require_once $base . 'PHPMailer.php';
-    require_once $base . 'SMTP.php';
+    $count_where_clause = implode(" AND ", $count_where);
+    
+    $stmt = $pdo->prepare("
+        SELECT COUNT(*) 
+        FROM applications a
+        WHERE $count_where_clause
+    ");
+    $stmt->execute($count_params);
+    $sidebar_submitted_count = (int)$stmt->fetchColumn();
+} catch (PDOException $e) {
+    $sidebar_submitted_count = 0;
+    error_log("Error getting submitted count: " . $e->getMessage());
+}
 
-    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
-    // Debug to error_log (DO NOT enable in production)
-    $mail->SMTPDebug  = MAIL_DEBUG ? PHPMailer\PHPMailer\SMTP::DEBUG_SERVER : PHPMailer\PHPMailer\SMTP::DEBUG_OFF;
-    if (MAIL_DEBUG) {
-        $mail->Debugoutput = function($str, $level) { error_log('[SMTP] ' . trim($str)); };
+// Get subjects from database for bridging recommendations
+$predefined_subjects = [];
+if (!empty($current_application['program_id'])) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT 
+                subject_code as code, 
+                subject_name as name, 
+                units,
+                year_level,
+                semester,
+                1 as priority
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Error fetching subjects: " . $e->getMessage());
+        $predefined_subjects = [];
+    }
+}
+
+
+$sidebar_pending_count = 0;
+try {
+    $stmt = $pdo->query("
+        SELECT COUNT(DISTINCT u.id) as total 
+        FROM users u
+        INNER JOIN application_forms af ON u.id = af.user_id
+        WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' OR u.application_form_status NOT IN ('approved', 'rejected'))
+    ");
+    $sidebar_pending_count = $stmt->fetch()['total'];
+} catch (PDOException $e) {
+    $sidebar_pending_count = 0;
+}
+
+function getPendingReviewsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(DISTINCT u.id) as total 
+            FROM users u
+            INNER JOIN application_forms af ON u.id = af.user_id
+            WHERE (u.application_form_status IS NULL OR u.application_form_status = 'pending' 
+                   OR u.application_form_status NOT IN ('approved', 'rejected'))
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting pending reviews count: " . $e->getMessage());
+        return 0;
+    }
+}
+
+$appid = $_GET['id'] ?? null;
+$application = null;
+
+if ($appid) {
+    $params = [$appid];
+    $sql = "
+      SELECT a.*, p.program_name, p.program_code, u.first_name, u.last_name
+      FROM applications a
+      LEFT JOIN programs p ON p.id = a.program_id
+      LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.id = ?
+    ";
+    // important: idagdag scope DITO rin
+    $sql = addEvaluatorScope($sql, $params, $is_admin, $user_id, 'a');
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $application = $stmt->fetch();
+
+    if (!$application && !$is_admin) {
+        http_response_code(403);
+        exit('Forbidden: This application is not assigned to you.');
+    }
+}
+
+
+function getSubmittedApplicationsCount($pdo) {
+    try {
+        $stmt = $pdo->query("
+            SELECT COUNT(*) as total 
+            FROM applications 
+            WHERE application_status IN ('submitted', 'under_review')
+        ");
+        return (int)$stmt->fetch()['total'];
+    } catch (PDOException $e) {
+        error_log("Error getting submitted applications count: " . $e->getMessage());
+        return 0;
+    }
+}
+
+function calculateBridgingUnits($finalScore) {
+    if ($finalScore >= 95) return 3;
+    if ($finalScore >= 91) return 6;
+    if ($finalScore >= 85) return 9;
+    if ($finalScore >= 80) return 12;
+    if ($finalScore >= 75) return 15;
+    if ($finalScore >= 70) return 18;
+    if ($finalScore >= 65) return 21;
+    if ($finalScore >= 60) return 24;
+    return 0;
+}
+
+
+
+if ($_POST && isset($_POST['update_bridging'])) {
+    $app_id = $_POST['application_id'];
+    $bridging_subjects = $_POST['bridging_subjects'] ?? [];
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Clear existing bridging requirements
+        $stmt = $pdo->prepare("DELETE FROM bridging_requirements WHERE application_id = ?");
+        $stmt->execute([$app_id]);
+        
+        // Insert new bridging requirements
+        foreach ($bridging_subjects as $subject) {
+            if (!empty($subject['name']) && !empty($subject['units'])) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO bridging_requirements (application_id, subject_name, subject_code, units, priority, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $app_id, 
+                    $subject['name'], 
+                    $subject['code'] ?? '', 
+                    $subject['units'], 
+                    $subject['priority'] ?? 2,
+                    $user_id
+                ]);
+            }
+        }
+        
+        $pdo->commit();
+        $success_message = "Bridging requirements updated successfully!";
+        
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        $errors[] = "Failed to update bridging requirements: " . $e->getMessage();
+    }
+}
+
+// Get existing bridging requirements
+$bridging_requirements = [];
+if (!empty($application_id)) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM bridging_requirements
+            WHERE application_id = ?
+            ORDER BY priority ASC, subject_name ASC
+        ");
+        $stmt->execute([$application_id]);
+        $bridging_requirements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        // Table might not exist – ensure it exists, then keep empty array
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS bridging_requirements (
+                    id INT PRIMARY KEY AUTO_INCREMENT,
+                    application_id INT NOT NULL,
+                    subject_name VARCHAR(255) NOT NULL,
+                    subject_code VARCHAR(50),
+                    units INT NOT NULL,
+                    priority INT DEFAULT 2,
+                    created_by INT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+                    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+                )
+            ");
+        } catch (PDOException $ignore) {}
+    }
+}
+
+
+
+function getPassedSubjects($documents, $programCode) {
+    global $pdo, $current_application;
+    
+    $curriculum = [];
+    
+    // Fetch curriculum from database instead of hardcoded arrays
+    try {
+        $stmt = $pdo->prepare("
+            SELECT subject_name as name, subject_code
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level, semester, subject_name
+        ");
+        $stmt->execute([$current_application['program_id']]);
+        $dbSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Build curriculum with keywords for matching
+        foreach ($dbSubjects as $subject) {
+            $keywords = [];
+            
+            // Generate keywords from subject name and code
+            $nameParts = explode(' ', strtolower($subject['name']));
+            $keywords = array_merge($keywords, $nameParts);
+            
+            if (!empty($subject['subject_code'])) {
+                $keywords[] = strtolower($subject['subject_code']);
+            }
+            
+            // Remove common words
+            $keywords = array_filter($keywords, function($word) {
+                return !in_array($word, ['and', 'of', 'the', 'with', 'for', 'to']);
+            });
+            
+            $curriculum[] = [
+                'name' => $subject['name'],
+                'keywords' => array_unique($keywords)
+            ];
+        }
+        
+    } catch (PDOException $e) {
+        error_log("Error fetching curriculum: " . $e->getMessage());
+        // Fallback to empty curriculum
+        $curriculum = [];
+    }
+    
+    $passed = [];
+    foreach ($curriculum as $subject) {
+        foreach ($documents as $doc) {
+            $filename = strtolower($doc['original_filename']);
+            $desc = strtolower($doc['description'] ?? '');
+            
+            foreach ($subject['keywords'] as $keyword) {
+                if (strpos($filename, $keyword) !== false || strpos($desc, $keyword) !== false) {
+                    $evidence = [];
+                    if (strpos($filename, 'transcript') !== false || strpos($filename, 'tor') !== false) {
+                        $evidence[] = 'TOR';
+                    }
+                    if (strpos($filename, 'certificate') !== false || strpos($filename, 'cert') !== false) {
+                        $evidence[] = 'Certificate';
+                    }
+                    if (strpos($filename, 'diploma') !== false) {
+                        $evidence[] = 'Diploma';
+                    }
+                    if (!$evidence) $evidence[] = pathinfo($doc['original_filename'], PATHINFO_EXTENSION);
+                    
+                    $passed[$subject['name']] = implode(', ', $evidence);
+                    break 2;
+                }
+            }
+        }
+    }
+    
+    return ['curriculum' => $curriculum, 'passed' => $passed];
+}
+
+
+
+// Add this function near the top of your evaluate.php file, after the predefined_subjects array
+function getFilteredSubjects($programCode, $predefined_subjects) {
+    // Since we're already filtering by program_id in the database query,
+    // just return all subjects
+    return $predefined_subjects;
+}
+
+function generateEnhancedRecommendation($score, $programCode, $status, $criteriaMissing = [], $passedSubjects = [], $curriculumSubjects = [], $program_id = null, $actual_bridging = []) {
+    $recommendations = [];
+    $bridgingUnits = calculateBridgingUnits($score);
+    
+    // Use ACTUAL bridging subjects if available, otherwise generate
+    if (!empty($actual_bridging)) {
+        $subjectPlan = [
+            'subjects' => $actual_bridging,
+            'total_units' => array_sum(array_column($actual_bridging, 'units')),
+            'remaining_units' => 0
+        ];
+    } else {
+        $subjectPlan = getSubjectRecommendations($programCode, $bridgingUnits, $program_id);
+    }
+    
+    // Get bridging subject names
+    $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'subject_name');
+    // Fallback to 'name' key if 'subject_name' doesn't exist
+    if (empty($bridgingSubjectNames)) {
+        $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
+    }
+    
+    $recommendations[] = "DISCLAIMER: This assessment summary is provisional and provided for guidance only.";
+    // Header with assessment outcome
+    $recommendations[] = "ETEEAP ASSESSMENT RESULTS";
+    $recommendations[] = "Program: {$programCode}";
+    $recommendations[] = "Final Assessment Score: {$score}%";
+  
+    
+    switch($status) {
+        case 'qualified':
+            $recommendations[] = "ASSESSMENT OUTCOME: QUALIFIED FOR ETEEAP CREDIT";
+            $recommendations[] = "";
+            $recommendations[] = "Congratulations! Your professional experience and competencies demonstrate substantial equivalency to formal academic study. Based on our comprehensive evaluation, you have successfully qualified for the Expanded Tertiary Education Equivalency and Accreditation Program (ETEEAP).";
+            
+            // === CREDITED SUBJECTS (Passed/Recognized) ===
+            if (!empty($passedSubjects) && !empty($curriculumSubjects)) {
+                $recommendations[] = "";
+                $recommendations[] = "CREDITED SUBJECTS - PRIOR LEARNING RECOGNITION";
+                $recommendations[] = "";
+                $recommendations[] = "The following subjects have been CREDITED based on your demonstrated competencies and uploaded evidence:";
+                $recommendations[] = "";
+                
+                $creditedCount = 0;
+              foreach ($curriculumSubjects as $subject) {
+    // Only show subjects NOT in bridging requirements (i.e., passed/credited)
+    if (!in_array($subject['name'], $bridgingSubjectNames)) {
+        $creditedCount++;
+        $evidenceNote = isset($passedSubjects[$subject['name']]) 
+            ? $passedSubjects[$subject['name']] 
+            : 'Credit via ETEEAP assessment';
+        $recommendations[] = "✓ {$subject['name']}";
+        $recommendations[] = "   Evidence: {$evidenceNote}";
+        $recommendations[] = "";
+    }
+}
+                
+                $recommendations[] = "Summary: {$creditedCount} subjects credited through prior learning assessment";
+            }
+            
+            // === REQUIRED BRIDGING SUBJECTS ===
+            if ($bridgingUnits > 0) {
+                $recommendations[] = "";
+                $recommendations[] = "REQUIRED BRIDGING COURSES";
+                $recommendations[] = "";
+                $recommendations[] = "To complete your degree, you must fulfill {$bridgingUnits} units of bridging courses:";
+                $recommendations[] = "";
+                
+               // In the "REQUIRED BRIDGING COURSES" section
+foreach ($subjectPlan['subjects'] as $index => $subject) {
+    // Handle both 'subject_name' (from DB) and 'name' (from auto-generation)
+    $subjectName = $subject['subject_name'] ?? $subject['name'] ?? 'Unknown Subject';
+    $subjectCode = $subject['subject_code'] ?? $subject['code'] ?? '';
+    $units = $subject['units'] ?? 3;
+    $priority = $subject['priority'] ?? 2;
+    
+    $priorityLabel = $priority === 1 ? '[REQUIRED - HIGH PRIORITY]' : '[REQUIRED - STANDARD]';
+    $recommendations[] = ($index + 1) . ". {$subjectName} ({$subjectCode})";
+    $recommendations[] = "   Units: {$units} | Priority: {$priorityLabel}";
+    $recommendations[] = "";
+}
+                
+                $recommendations[] = "Total Bridging Units Required: {$bridgingUnits} units";
+                
+                if ($subjectPlan['remaining_units'] > 0) {
+                    $recommendations[] = "";
+                    $recommendations[] = "Note: Additional {$subjectPlan['remaining_units']} units of elective courses may be determined during enrollment counseling.";
+                }
+                
+                $recommendations[] = "";
+                $recommendations[] = "PROGRAM COMPLETION TIMELINE";
+                // $recommendations[] = "• Credited Subjects: " . ( count($bridgingSubjectNames)) - count($passedSubjects) . " subjects"; 
+                $recommendations[] = "• Bridging Requirements: " . count($subjectPlan['subjects']) . " subjects ({$bridgingUnits} units)";
+                $recommendations[] = "• Estimated Completion: 1-2 semesters (depending on subject availability)";
+            } else {
+                $recommendations[] = "";
+                $recommendations[] = "OUTSTANDING ACHIEVEMENT";
+                $recommendations[] = "Your exceptional assessment score qualifies you for maximum credit recognition with minimal additional coursework requirements.";
+            }
+            
+            $recommendations[] = "";
+            $recommendations[] = "NEXT STEPS";
+            $recommendations[] = "1. Our Admissions Office will contact you within 3-5 business days";
+            $recommendations[] = "2. Schedule an academic counseling session to finalize your study plan";
+            $recommendations[] = "3. Complete enrollment requirements for bridging courses";
+            $recommendations[] = "4. Begin your accelerated path to degree completion";
+            break;
+            
+        case 'partially_qualified':       
+        case 'not_qualified':
+            $recommendations[] = "ASSESSMENT OUTCOME: FURTHER PREPARATION RECOMMENDED";
+            $recommendations[] = "";
+            $recommendations[] = "Based on your assessment score of {$score}%, we recommend additional preparation before pursuing ETEEAP credit recognition.";
+            
+            // Show any recognized competencies
+            if (!empty($passedSubjects)) {
+                $recommendations[] = "";
+                $recommendations[] = "RECOGNIZED STRENGTHS";
+                $passedCount = count($passedSubjects);
+                if ($passedCount > 0) {
+                    $recommendations[] = "You demonstrated competencies in {$passedCount} area(s):";
+                    $recommendations[] = "";
+                    foreach (array_slice($passedSubjects, 0, 5, true) as $subject => $evidence) {
+                        $recommendations[] = "• {$subject} (Evidence: {$evidence})";
+                    }
+                }
+            }
+            
+            $recommendations[] = "";
+            $recommendations[] = "RECOMMENDED PATHWAYS";
+            $recommendations[] = "";
+            $recommendations[] = "Option 1: Regular Degree Program (Recommended)";
+            $recommendations[] = "• Complete the full academic curriculum";
+            $recommendations[] = "• Build comprehensive foundational knowledge";
+            $recommendations[] = "";
+            $recommendations[] = "Option 2: Professional Development Track";
+            $recommendations[] = "• Targeted skill-building program";
+            $recommendations[] = "• Industry certifications";
+            $recommendations[] = "• Re-apply for ETEEAP ";
+            
+            if (!empty($criteriaMissing)) {
+                $recommendations[] = "";
+                $recommendations[] = "PRIORITY DEVELOPMENT AREAS";
+                foreach (array_slice($criteriaMissing, 0, 5) as $criteria) {
+                    $recommendations[] = "• {$criteria['name']}";
+                }
+            }
+            
+            $recommendations[] = "";
+            $recommendations[] = "SUPPORT AVAILABLE";
+            $recommendations[] = "Schedule a consultation with our academic advisors to create a personalized development plan.";
+            break;
+    }
+    
+
+    
+    if (!empty($curriculumSubjects)) {
+        $totalSubjects = count($curriculumSubjects);
+        $creditedSubjects = $totalSubjects - count($bridgingSubjectNames);
+        $requiredSubjects = count($bridgingSubjectNames);
+        
+        $recommendations[] = "• Total Curriculum Subjects: {$totalSubjects}";
+        $recommendations[] = "• Credited (Passed): {$creditedSubjects} subjects";
+        $recommendations[] = "• Required (Bridging): {$requiredSubjects} subjects ({$bridgingUnits} units)";
+        $recommendations[] = "• Completion Rate: " . round(($creditedSubjects / $totalSubjects) * 100, 1) . "%";
+    }
+    
+
+   $recommendations[] = "";
+$recommendations[] = "For questions or appointments:";
+$recommendations[] = "Please contact the administrator at pobletecharles11@gmail.com";
+$recommendations[] = "Office hours: Monday to Friday, 8:00 AM to 5:00 PM";
+
+  
+    
+    return implode("\n", $recommendations);
+}
+
+function getSubjectRecommendations($programCode, $requiredUnits, $program_id) {
+    global $pdo;
+    
+    if (empty($program_id)) {
+        return ['subjects' => [], 'total_units' => 0, 'remaining_units' => $requiredUnits];
+    }
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT subject_name as name, subject_code as code, units
+            FROM subjects 
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY year_level DESC, semester DESC, subject_name
+        ");
+        $stmt->execute([$program_id]);
+        $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $selectedSubjects = [];
+        $totalUnits = 0;
+        
+        foreach ($availableSubjects as $subject) {
+            $units = (int)$subject['units'];
+            if ($totalUnits + $units <= $requiredUnits) {
+                $selectedSubjects[] = [
+                    'name' => $subject['name'],
+                    'code' => $subject['code'],
+                    'units' => $units,
+                    'priority' => 1
+                ];
+                $totalUnits += $units;
+            }
+            if ($totalUnits >= $requiredUnits) break;
+        }
+        
+        $remaining = $requiredUnits - $totalUnits;
+        if ($remaining > 0 && !empty($selectedSubjects)) {
+            $selectedSubjects[count($selectedSubjects) - 1]['units'] += $remaining;
+            $totalUnits = $requiredUnits;
+        }
+        
+        return [
+            'subjects' => $selectedSubjects,
+            'total_units' => $totalUnits,
+            'remaining_units' => max(0, $requiredUnits - $totalUnits)
+        ];
+        
+    } catch (PDOException $e) {
+        error_log("Error in getSubjectRecommendations: " . $e->getMessage());
+        return ['subjects' => [], 'total_units' => 0, 'remaining_units' => $requiredUnits];
+    }
+}
+
+function parse_hier($doc) {
+    // 1) JSON column
+    if (!empty($doc['hierarchical_data'])) {
+        $h = json_decode($doc['hierarchical_data'], true);
+        if (is_array($h)) return $h;
+    }
+    // 2) Fallback: hinango mula sa description
+    if (!empty($doc['description']) && strpos($doc['description'], 'Hierarchical Data:') !== false) {
+        $parts = explode('Hierarchical Data:', $doc['description']);
+        $json  = trim($parts[1] ?? '');
+        $h = json_decode($json, true);
+        if (is_array($h)) return $h;
+    }
+    return [];
+}
+
+function render_hier_badges(array $hier) {
+    if (!$hier) return '';
+
+    // Value → friendly label
+    $valueLabel = [
+        // common levels
+        'local'=>'Local','national'=>'National','international'=>'International',
+        // edu (Sec 1)
+        'high_school'=>'High School','vocational'=>'Vocational','technical'=>'Technical',
+        'undergraduate'=>'Undergraduate','non_education'=>'Non-Education',
+        'full'=>'Full','partial'=>'Partial','none'=>'None',
+        // roles / exp (Sec 2)
+        'administrator'=>'Administrator','supervisor'=>'Training Supervisor','trainer'=>'Trainer/Lecturer',
+        'sunday_school'=>'Sunday School Tutor','daycare'=>'Day Care Tutor',
+        // eligibility (Sec 5)
+        'cs_sub_professional'=>'CS Sub-Professional','cs_professional'=>'CS Professional','prc'=>'PRC',
+        // pubs/types (Sec 3)
+        'journal'=>'Journal','training_module'=>'Training Module','book'=>'Book',
+        'teaching_module'=>'Teaching Module','workbook'=>'Workbook','reading_kit'=>'Reading Kit',
+        'literacy_outreach'=>'Early Literacy/Numeracy Outreach',
+        // inventions
+        'invention'=>'Invention','innovation'=>'Innovation','patented'=>'Patented','no_patent'=>'No Patent',
+    ];
+    // Field → label
+    $fieldLabel = [
+        'publication_type'=>'Type','patent_status'=>'Patent','invention_type'=>'Invention',
+        'circulation_level'=>'Circulation','circulation_levels'=>'Circulation',
+        'acceptability_levels'=>'Market','service_levels'=>'Service',
+        'education_level'=>'Education','scholarship_type'=>'Scholarship',
+        'years_experience'=>'Years','experience_role'=>'Role',
+        'coordination_level'=>'Coordination','participation_level'=>'Participation',
+        'membership_level'=>'Membership','scholarship_level'=>'Scholarship',
+        'recognition_level'=>'Recognition','eligibility_type'=>'Eligibility',
+    ];
+    // special phrasing para sa literacy outreach
+    $litPhrases = ['local'=>'Local Community','national'=>'National Program','international'=>'International Initiative'];
+    $isLiteracy = (isset($hier['publication_type']) && $hier['publication_type']==='literacy_outreach');
+
+    $chips = [];
+
+    // “type-ish” fields muna
+    foreach (['publication_type','invention_type','patent_status'] as $k) {
+        if (!empty($hier[$k])) {
+            $v = $hier[$k];
+            $pretty = $valueLabel[$v] ?? ucwords(str_replace('_',' ',$v));
+            $chips[] = "<span class='badge bg-secondary me-1'>{$fieldLabel[$k]}: ".htmlspecialchars($pretty)."</span>";
+        }
     }
 
-    $mail->isSMTP();
-    $mail->Host       = 'smtp.gmail.com';
-    $mail->SMTPAuth   = true;
-    $mail->Username   = MAIL_USERNAME;
-    $mail->Password   = MAIL_PASSWORD;
+    // single-selects
+    foreach (['circulation_level','education_level','experience_role','coordination_level','participation_level','membership_level','scholarship_level','recognition_level','eligibility_type','scholarship_type'] as $k) {
+        if (!empty($hier[$k])) {
+            $v = $hier[$k];
+            $pretty = $valueLabel[$v] ?? ucwords(str_replace('_',' ',$v));
+            if ($k==='circulation_level') {
+                $pretty = $isLiteracy ? ($litPhrases[$v] ?? ucfirst($v)) : ($pretty.' Circulation');
+            }
+            $chips[] = "<span class='badge bg-info text-dark me-1'>{$fieldLabel[$k]}: ".htmlspecialchars($pretty)."</span>";
+        }
+    }
 
-    // SSL/TLS relax (para hindi ma-block agad sa shared host na walang CA)
-    $mail->SMTPOptions = [
-        'ssl' => [
-            'verify_peer'       => false,
-            'verify_peer_name'  => false,
-            'allow_self_signed' => true,
-        ]
+    // multi-select arrays
+    foreach (['circulation_levels'=>'Circulation','acceptability_levels'=>'Market','service_levels'=>'Service'] as $k=>$lbl) {
+        if (!empty($hier[$k]) && is_array($hier[$k])) {
+            $vals = array_map(function($v) use($isLiteracy,$litPhrases,$valueLabel,$k){
+                if ($k==='circulation_levels' && $isLiteracy) return $litPhrases[$v] ?? ucfirst($v);
+                return $valueLabel[$v] ?? ucwords(str_replace('_',' ',$v));
+            }, $hier[$k]);
+            $chips[] = "<span class='badge bg-primary me-1'>".$lbl.": ".htmlspecialchars(implode(', ',$vals))."</span>";
+        }
+    }
+
+    // numbers
+    if (!empty($hier['years_experience']) && is_numeric($hier['years_experience'])) {
+        $chips[] = "<span class='badge bg-light text-dark border me-1'>Years: ".intval($hier['years_experience'])."</span>";
+    }
+
+    return '<div class="mt-1 small">'.implode(' ',$chips).'</div>';
+}
+
+
+
+if (!function_exists('doc_matches_criteria')) {
+    function doc_matches_criteria(array $doc, array $criteria): bool {
+        // 1) direct link
+        if ((int)$doc['criteria_id'] === (int)$criteria['id']) return true;
+
+        // 2) via hierarchical_data badges
+        $h     = parse_hier($doc);
+        $cname = strtolower($criteria['criteria_name'] ?? '');
+        $ctype = strtolower($criteria['criteria_type'] ?? '');
+
+        // publications / modules / books
+        if (strpos($cname,'journal') !== false) {
+            return ($h['publication_type'] ?? '') === 'journal';
+        }
+        if (strpos($cname,'training module') !== false || strpos($cname,'training modules') !== false) {
+            return in_array($h['publication_type'] ?? '', ['training_module','teaching_module'], true);
+        }
+        if (strpos($cname,'book') !== false || strpos($cname,'workbook') !== false || strpos($cname,'lab manual') !== false) {
+            return in_array($h['publication_type'] ?? '', ['book','workbook'], true);
+        }
+
+        // resource speaker / lecturer
+        if (strpos($cname,'resource speaker') !== false || strpos($cname,'lecturer') !== false || strpos($cname,'speaker') !== false) {
+            return !empty($h['service_levels']) || !empty($h['service_level']);
+        }
+
+        // program coordination / participation
+        if (strpos($cname,'program coordination') !== false) {
+            return !empty($h['coordination_level']);
+        }
+        if (strpos($cname,'participation') !== false) {
+            return !empty($h['participation_level']);
+        }
+
+        // scholarships/grants
+        if (strpos($cname,'scholarship') !== false || strpos($cname,'grant') !== false) {
+            return !empty($h['scholarship_level']) || !empty($h['scholarship_type']);
+        }
+
+        // 3) fallback sa dating filename heuristic
+        if (empty($doc['criteria_id']) && stripos($doc['original_filename'] ?? '', $ctype) !== false) {
+            return true;
+        }
+        return false;
+    }
+}
+
+// === Auto-suggest scoring helpers ==========================================
+
+// Gumamit ng existing parse_hier($doc)
+function score_one_doc(array $criteria, array $hier): array {
+    $max     = (float)$criteria['max_score'];
+    $name    = $criteria['criteria_name'] ?? '';
+    $section = (int)($criteria['section_number'] ?? 0);
+
+    $score = 0.0;
+    $why   = [];
+
+if ($section === 1) {
+    $eduPts = [
+        'high_school' => 10,
+        'vocational' => 14,      // Could be 11-14 based on additional criteria
+        'technical' => 17,       // Could be 15-17 based on additional criteria
+        'undergraduate' => 18,   // Could be 18-20 based on completion %
+        'non_education' => 20
+    ];
+    
+    if (!empty($hier['education_level']) && isset($eduPts[$hier['education_level']])) {
+        $add = $eduPts[$hier['education_level']];
+        $score += $add;
+        $why[] = "Education: {$hier['education_level']} (+{$add})";
+    }
+    
+    
+}
+// --- Sec 2: Work Experience (30pts max) ---
+if ($section === 2) {
+    $rolePts = [
+        'administrator' => 5,
+        'supervisor'    => 3,
+        'trainer'       => 2,
+        'sunday_school' => 1,
+        'daycare'       => 1
     ];
 
-    if ($mode === 'starttls') {
-        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-    } else {
-        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Port       = 465;
+    $yrs = (int)($hier['years_experience'] ?? 0);
+    
+    // --- Entry points (15 base + 1 per year beyond 5) ---
+    $entry = 0;
+    if ($yrs >= 5) {
+        $entry = 15 + ($yrs - 5);
     }
 
-    $mail->setFrom(MAIL_FROM_EMAIL, MAIL_FROM_NAME);
-    $mail->isHTML(true);
-    $mail->CharSet = 'UTF-8';
+    // --- Role points (allow MULTIPLE roles) ---
+    $roleTotal = 0;
+    $rolesList = [];
+    
+    // If roles is an array (checkbox/multi-select)
+    if (!empty($hier['experience_roles']) && is_array($hier['experience_roles'])) {
+        foreach ($hier['experience_roles'] as $role) {
+            if (isset($rolePts[$role])) {
+                $roleTotal += $rolePts[$role];
+                $rolesList[] = "{$role}({$rolePts[$role]})";
+            }
+        }
+    }
+    // Fallback for single role (if using old format)
+    elseif (!empty($hier['experience_role']) && isset($rolePts[$hier['experience_role']])) {
+        $roleTotal = $rolePts[$hier['experience_role']];
+        $rolesList[] = "{$hier['experience_role']}({$roleTotal})";
+    }
 
-    return $mail;
+    // --- Combine and cap at 30 ---
+    $totalAdd = min(30, $entry + $roleTotal);
+    
+    $score += $totalAdd;
+    $rolesStr = implode(', ', $rolesList);
+    $why[] = "Experience: {$yrs} yrs, roles [{$rolesStr}] (entry={$entry}, roles={$roleTotal}) → +{$totalAdd} pts";
 }
 
-// Try send with fallback (465 → 587). Always logs ErrorInfo on failure.
-function send_with_fallback(callable $prepare): bool {
+
+
+    // --- Sec 3: Publications / Inventions ----------------------------------
+    // Invention / Innovation
+if (stripos($name,'Invention')!==false || stripos($name,'Innovation')!==false) {
+    $isInvention = (isset($hier['invention_type']) && $hier['invention_type']==='invention')
+                   || stripos($name,'Invention')!==false;
+    
+    // Patent base
+    if (!empty($hier['patent_status'])) {
+        $base = ($hier['patent_status']==='patented') 
+                ? ($isInvention ? 6 : 1)   // ✓ Matches PDF
+                : ($isInvention ? 5 : 2);   // ✓ Matches PDF
+        $score += $base;
+    }
+    
+    // Acceptability levels
+    $sum = 0;
+    foreach ((array)($hier['acceptability_levels'] ?? []) as $lvl) {
+        $sum += $isInvention 
+            ? (['local'=>7,'national'=>8,'international'=>9][$lvl] ?? 0)    // ✓ Matches PDF
+            : (['local'=>4,'national'=>5,'international'=>6][$lvl] ?? 0);   // ✓ Matches PDF
+    }
+    if ($sum>0) { $score += $sum; }
+}
+
+    // Publications / Modules / Books / Literacy outreach
+    if (stripos($name,'Journal')!==false || stripos($name,'Training Module')!==false ||
+        stripos($name,'Book')!==false   || stripos($name,'Teaching Modules')!==false ||
+        stripos($name,'Workbooks')!==false || stripos($name,'Reading Kits')!==false ||
+        stripos($name,'Early Literacy')!==false) {
+
+        $ptype = $hier['publication_type'] ?? 'journal';
+        $tbl = [
+            'journal' => ['local'=>2,'national'=>3,'international'=>1], 
+            'training_module'  => ['local'=>3,'national'=>4,'international'=>5],
+            'book'             => ['local'=>5,'national'=>6,'international'=>7],
+            'teaching_module'  => ['local'=>3,'national'=>4,'international'=>5],
+            'workbook'         => ['local'=>2,'national'=>3,'international'=>4],
+            'reading_kit'      => ['local'=>2,'national'=>3,'international'=>4],
+            'literacy_outreach'=> ['local'=>4,'national'=>5,'international'=>6],
+        ];
+        $lvl = $hier['circulation_level'] ?? null;
+        $levelsArr = $hier['circulation_levels'] ?? [];
+
+        if ($lvl && isset($tbl[$ptype][$lvl])) {
+            $add = $tbl[$ptype][$lvl];
+            $score += $add; $why[] = ucfirst(str_replace('_',' ',$ptype)).": {$lvl} (+{$add})";
+        } elseif (is_array($levelsArr) && $levelsArr) {
+            $sum=0; $hit=[];
+            foreach ($levelsArr as $lv) { if (isset($tbl[$ptype][$lv])) { $sum+=$tbl[$ptype][$lv]; $hit[]=$lv; } }
+            if ($sum>0) { $score += $sum; $why[] = ucfirst(str_replace('_',' ',$ptype)).": ".implode(', ',$hit)." (+{$sum})"; }
+        }
+    }
+
+    // --- Sec 4: Professional Development (quick map) ------------------------
+    if ($section === 4) {
+        if (!empty($hier['coordination_level'])) {
+            $add = ['local'=>6,'national'=>8,'international'=>10][$hier['coordination_level']] ?? 0;
+            $score += $add; $why[] = "Coordination: {$hier['coordination_level']} (+{$add})";
+        }
+        if (!empty($hier['participation_level'])) {
+            $add = ['local'=>3,'national'=>4,'international'=>5][$hier['participation_level']] ?? 0;
+            $score += $add; $why[] = "Participation: {$hier['participation_level']} (+{$add})";
+        }
+        if (!empty($hier['membership_level'])) {
+            $add = ['local'=>3,'national'=>4,'international'=>5][$hier['membership_level']] ?? 0;
+            $score += $add; $why[] = "Membership: {$hier['membership_level']} (+{$add})";
+        }
+        if (!empty($hier['scholarship_level'])) {
+        $lvl = $hier['scholarship_level'];
+        if (is_numeric($lvl)) {
+            $add = (float)$lvl;  // e.g., "5" -> 5 pts
+        } else {
+            $map = ['local'=>3,'national'=>4,'international'=>5];
+            $add = $map[strtolower($lvl)] ?? 0;
+        }
+        if ($add > 0) { $score += $add; $why[] = "Scholarship level: {$lvl} (+{$add})"; }
+    }
+    // optional bonus for competitive/non-competitive type
+    if (!empty($hier['scholarship_type'])) {
+        $bonusMap = ['full'=>1.0, 'partial'=>0.5];
+        $stype = strtolower($hier['scholarship_type']);
+        if (isset($bonusMap[$stype])) {
+            $score += $bonusMap[$stype];
+            $why[] = "Scholarship type: {$stype} (+{$bonusMap[$stype]})";
+        }
+    }
+    }
+
+    if (stripos($name, 'program coordination') !== false && !empty($hier['coordination_level'])) {
+    $lvl = strtolower($hier['coordination_level']);
+    // scale to max_score: local 60%, national 80%, international 100%
+    $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];
+    if (isset($scale[$lvl])) {
+        $add = round($max * $scale[$lvl], 2);
+        $score += $add;
+        $why[] = "Coordination: {$lvl} (+{$add})";
+    }
+}
+
+// Resource Speaker / Trainer (Local/National/International)
+if ((stripos($name, 'resource speaker') !== false || stripos($name, 'trainer') !== false)
+    && (!empty($hier['service_levels']) || !empty($hier['service_level']))) {
+    
+    $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];
+    $add   = round($max * ($scale[$best] ?? 0), 2);
+
+    $levels = [];
+    if (!empty($hier['service_levels']) && is_array($hier['service_levels'])) {
+        $levels = $hier['service_levels'];
+    } elseif (!empty($hier['service_level'])) {
+        $levels = [$hier['service_level']];
+    }
+    // pick the highest level present
+    $rank = ['local'=>1, 'national'=>2, 'international'=>3];
+    $best = 'local';
+    foreach ($levels as $lv) {
+        $lv = strtolower($lv);
+        if (isset($rank[$lv]) && $rank[$lv] > $rank[$best]) $best = $lv;
+    }
+    $scale = ['local'=>0.60, 'national'=>0.80, 'international'=>1.00];
+    $add   = round($max * ($scale[$best] ?? 0), 2);
+    if ($add > 0) {
+        $score += $add;
+        $why[] = "Service: {$best} (+{$add})";
+    }
+}
+
+
+    $lvls = [];
+    if (!empty($hier['service_levels']) && is_array($hier['service_levels'])) $lvls = $hier['service_levels'];
+    if (!empty($hier['service_level'])) $lvls[] = $hier['service_level'];
+
+    if ($lvls) {
+        // Default map for community/lecturer/speaker
+        $mapDefault  = ['local'=>6,'national'=>8,'international'=>10];
+        // Heavier map for consultancy (mas mataas ang max sa criteria na ito)
+        $mapConsult  = ['local'=>5,'national'=>10,'international'=>15];
+
+        $use = (stripos($name,'consultancy') !== false) ? $mapConsult : $mapDefault;
+
+        // piliin ang pinakamataas na level na present
+        $got = array_intersect_key($use, array_flip($lvls));
+        $add = $got ? max($got) : 0;
+
+        if ($add > 0) {
+            $score += $add;
+            $why[] = "Service scope: ".implode(', ', $lvls)." (+{$add})";
+        }
+    }
+
+
+    // --- Sec 5: Recognition / Eligibility -----------------------------------
+    if ($section === 5) {
+        if (!empty($hier['recognition_level'])) {
+            $add = ['local'=>6,'national'=>8][$hier['recognition_level']] ?? 0;
+            $score += $add; $why[] = "Recognition: {$hier['recognition_level']} (+{$add})";
+        }
+        if (!empty($hier['eligibility_type'])) {
+            $add = ['cs_sub_professional'=>3,'cs_professional'=>4,'prc'=>5][$hier['eligibility_type']] ?? 0;
+            $score += $add; $why[] = "Eligibility: {$hier['eligibility_type']} (+{$add})";
+        }
+    }
+
+    // Cap sa max ng criteria
+    $final = round(min($score, $max), 2);
+    return [$final, $why ? implode('; ', $why) : 'No detailed selections found'];
+}
+
+/**
+ * Piliin ang BEST document para iwas double-counting.
+ * (Pwede mo itong palitan sa pagsum ng lahat: palitan mo lang ang logic dito.)
+ */
+function suggest_score_from_docs(array $criteria, array $criteriaDocs): array {
+    $best = 0.0; $bestWhy = 'No documents';
+    foreach ($criteriaDocs as $doc) {
+        $hier = parse_hier($doc);
+        if (!$hier) continue;
+        [$s, $w] = score_one_doc($criteria, $hier);
+        if ($s > $best) { $best = $s; $bestWhy = $w; }
+    }
+    return [$best, $bestWhy];
+}
+
+
+if ($_POST && isset($_POST['submit_evaluation'])) {
+    $app_id = $_POST['application_id'];
+    $submitted = $_POST['evaluations'] ?? [];
+    $additional_comments = trim($_POST['recommendation']);
+    $manual_override = $_POST['final_status'] ?? 'auto';
+
+    // Huwag i-block kapag empty ang $submitted — pwede kasing lahat ay 0.
+    // if (empty($submitted)) { ... }  // alisin ito kung meron ka
+
     try {
-        // 1) Try SMTPS:465
-        $m1 = buildMailer('smtps');
-        if ($m1) {
-            $prepare($m1);
-            $ok1 = $m1->send();
-            if ($ok1) return true;
-            error_log('[MAIL] SMTPS send failed: ' . $m1->ErrorInfo);
-        } else {
-            error_log('[MAIL] buildMailer(smtps) returned null.');
+        $pdo->beginTransaction();
+
+        // 1) Kunin muna ang program_id ng application
+        $stmt = $pdo->prepare("SELECT program_id FROM applications WHERE id = ?");
+        $stmt->execute([$app_id]);
+        $appRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$appRow) {
+            throw new Exception("Application not found.");
+        }
+        $program_id = (int)$appRow['program_id'];
+
+        // 2) Kunin lahat ng ACTIVE criteria ng program (ito ang magiging denominator mo)
+        $stmt = $pdo->prepare("
+            SELECT id, criteria_name, max_score, weight
+            FROM assessment_criteria
+            WHERE program_id = ? AND status = 'active'
+            ORDER BY section_number, criteria_type, criteria_name
+        ");
+        $stmt->execute([$program_id]);
+        $allCriteria = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Safety: kapag wala talagang criteria, iwasan division by zero
+        if (!$allCriteria) {
+            throw new Exception("No active assessment criteria found for this program.");
         }
 
-        // 2) Fallback STARTTLS:587
-        $m2 = buildMailer('starttls');
-        if ($m2) {
-            $prepare($m2);
-            $ok2 = $m2->send();
-            if ($ok2) return true;
-            error_log('[MAIL] STARTTLS send failed: ' . $m2->ErrorInfo);
-        } else {
-            error_log('[MAIL] buildMailer(starttls) returned null.');
+        // 3) Kunin lahat ng documents ng application (gagamitin sa doc-check)
+        $stmt = $pdo->prepare("
+            SELECT id, criteria_id, original_filename
+            FROM documents
+            WHERE application_id = ?
+        ");
+        $stmt->execute([$app_id]);
+        $documents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // --- START: TRUE weighted average across ALL criteria ---
+        $total_score = 0;
+        $total_weight = 0;
+        $passing_threshold = 60;
+        $criteriaMissing = [];
+
+        foreach ($allCriteria as $c) {
+            $criteria_id   = (int)$c['id'];
+            $max_score     = (float)$c['max_score'];
+            $weight        = (float)$c['weight'];
+            $criteria_name = $c['criteria_name'];
+
+            // values mula sa form; default sa 0/blank kung walang na-post
+            $input    = $submitted[$criteria_id] ?? ['score' => 0, 'comments' => ''];
+            $score    = (float)($input['score'] ?? 0);
+            $comments = trim($input['comments'] ?? '');
+
+            // check kung may doc para sa criteria na ito
+           // Instead of the simple filter:
+$criteriaDocs = array_filter($documents, function($doc) use ($criteria_id) {
+    return (int)$doc['criteria_id'] === $criteria_id
+        || (empty($doc['criteria_id']) && stripos($doc['original_filename'], 'criteria_' . $criteria_id) !== false);
+});
+
+// Use the same matcher as the UI:
+$criteriaDocs = array_values(array_filter($documents, function($doc) use ($c) {
+    return doc_matches_criteria($doc, $c);
+}));
+$hasCriteriaDocs = count($criteriaDocs) > 0;
+
+
+            // kung walang doc, force 0 at lagyan ng note
+            if (!$hasCriteriaDocs) {
+                $score    = 0;
+                $comments = "No supporting documents uploaded for this criteria. " . $comments;
+            }
+
+            // clamp sa [0, max]
+            if ($score < 0) $score = 0;
+            if ($score > $max_score) $score = $max_score;
+
+            // ALWAYS include weight sa denominator, kahit 0 ang score
+            $percentage     = ($max_score > 0) ? ($score / $max_score) * 100 : 0;
+            $weighted_score = $percentage * $weight;
+
+            $total_score  += $weighted_score;
+            $total_weight += $weight;
+
+            if ($score == 0) {
+                $criteriaMissing[] = ['name' => $criteria_name];
+            }
+
+            // save/update evaluation (kasama ang zeros)
+            $stmtSave = $pdo->prepare("
+                INSERT INTO evaluations (application_id, criteria_id, evaluator_id, score, max_score, comments, evaluation_date)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE 
+                    score = VALUES(score),
+                    comments = VALUES(comments),
+                    evaluation_date = VALUES(evaluation_date)
+            ");
+            $stmtSave->execute([$app_id, $criteria_id, $user_id, $score, $max_score, $comments]);
         }
 
-        return false;
-    } catch (Throwable $e) {
-        error_log('[MAIL] send_with_fallback exception: ' . $e->getMessage());
-        return false;
+        $final_score = $total_weight > 0 ? round($total_score / $total_weight, 2) : 0;
+        // --- END: TRUE weighted average ---
+
+        // Status
+        if ($manual_override === 'auto') {
+            if ($final_score >= $passing_threshold) {
+                $final_status = 'qualified';
+            } elseif ($final_score >= ($passing_threshold * 0.8)) {
+                $final_status = 'partially_qualified';
+            } else {
+                $final_status = 'not_qualified';
+            }
+        } else {
+            $final_status = $manual_override;
+        }
+
+        // Program code para sa rekomendasyon
+        $stmt = $pdo->prepare("SELECT program_code FROM programs p JOIN applications a ON p.id = a.program_id WHERE a.id = ?");
+        $stmt->execute([$app_id]);
+        $programInfo = $stmt->fetch(PDO::FETCH_ASSOC);
+        $programCode = $programInfo['program_code'] ?? '';
+
+
+
+  $actual_bridging_subjects = [];
+try {
+    $stmt = $pdo->prepare("
+        SELECT subject_name, subject_code, units, priority
+        FROM bridging_requirements
+        WHERE application_id = ?
+        ORDER BY priority ASC, subject_name ASC
+    ");
+    $stmt->execute([$app_id]);
+    $actual_bridging_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    $actual_bridging_subjects = [];
+}
+
+// Get curriculum and passed subjects
+$curriculumStatus = getPassedSubjects($documents, $programCode);
+$curriculumSubjects = $curriculumStatus['curriculum'];
+$passedSubjects = $curriculumStatus['passed'];
+
+// Generate recommendation WITH actual bridging subjects
+$auto_recommendation = generateEnhancedRecommendation(
+    $final_score, 
+    $programCode, 
+    $final_status, 
+    $criteriaMissing,
+    $passedSubjects,
+    $curriculumSubjects,
+    $program_id,
+    $actual_bridging_subjects  // <-- ADD THIS PARAMETER
+);
+        $full_recommendation = !empty($additional_comments)
+            ? $auto_recommendation . "\n\n=== Additional Evaluator Comments ===\n" . $additional_comments
+            : $auto_recommendation;
+
+
+
+        // Update application
+        $stmt = $pdo->prepare("
+            UPDATE applications 
+               SET application_status = ?, total_score = ?, recommendation = ?, 
+                   evaluator_id = ?, evaluation_date = NOW()
+             WHERE id = ?
+        ");
+        $stmt->execute([$final_status, $final_score, $full_recommendation, $user_id, $app_id]);
+        
+ if ($final_score >= 60) {
+            $requiredUnits = calculateBridgingUnits($final_score);
+            
+            // Get program_id
+            $stmt = $pdo->prepare("SELECT program_id FROM applications WHERE id = ?");
+            $stmt->execute([$app_id]);
+            $programRow = $stmt->fetch();
+            $program_id = $programRow['program_id'];
+            
+            // Clear existing bridging requirements
+            $stmt = $pdo->prepare("DELETE FROM bridging_requirements WHERE application_id = ?");
+            $stmt->execute([$app_id]);
+            
+            // Get recommended subjects from database
+            $stmt = $pdo->prepare("
+                SELECT subject_name, subject_code, units
+                FROM subjects 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY year_level DESC, semester DESC, subject_name
+            ");
+            $stmt->execute([$program_id]);
+            $availableSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Select subjects to fill required units
+            $totalUnits = 0;
+            $selectedSubjects = [];
+            
+            foreach ($availableSubjects as $subject) {
+                $units = (int)$subject['units'];
+                if ($totalUnits + $units <= $requiredUnits) {
+                    $selectedSubjects[] = [
+                        'name' => $subject['subject_name'],
+                        'code' => $subject['subject_code'],
+                        'units' => $units,
+                        'priority' => 1
+                    ];
+                    $totalUnits += $units;
+                }
+                if ($totalUnits >= $requiredUnits) break;
+            }
+            
+            // Handle remaining units if needed
+            $remaining = $requiredUnits - $totalUnits;
+            if ($remaining > 0 && !empty($selectedSubjects)) {
+                // Add remaining units to last subject
+                $selectedSubjects[count($selectedSubjects) - 1]['units'] += $remaining;
+            }
+            
+            // Insert bridging requirements into database
+            foreach ($selectedSubjects as $subject) {
+                $stmt = $pdo->prepare("
+                    INSERT INTO bridging_requirements (application_id, subject_name, subject_code, units, priority, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([
+                    $app_id,
+                    $subject['name'],
+                    $subject['code'],
+                    $subject['units'],
+                    $subject['priority'],
+                    $user_id
+                ]);
+            }
+        }
+
+          $pdo->commit();
+
+      // 🔥 CALCULATE BRIDGING UNITS FOR EMAIL
+$bridgingUnits = calculateBridgingUnits($final_score);
+
+// 🔥 BUILD SUCCESS MESSAGE
+$success_message = "✅ Evaluation completed successfully!<br>";
+$success_message .= "📊 Final Score: <strong>{$final_score}%</strong><br>";
+$success_message .= "📋 Status: <strong>" . ucfirst(str_replace('_', ' ', $final_status)) . "</strong>";
+
+if ($final_score >= 60 && $bridgingUnits > 0) {
+    $success_message .= "<br>🎓 Bridging Units Required: <strong>{$bridgingUnits} units</strong>";
+}
+
+// 🔥 EMAIL SENDING START
+error_log("=== STARTING EMAIL SEND ===");
+error_log("Application ID: {$app_id}");
+error_log("Final Score: {$final_score}");
+error_log("Final Status: {$final_status}");
+error_log("Bridging Units: {$bridgingUnits}");
+
+// Get complete application data for email
+try {
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.program_name, p.program_code,
+            CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+            u.email as candidate_email
+        FROM applications a
+        LEFT JOIN programs p ON a.program_id = p.id
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.id = ?
+    ");
+    $stmt->execute([$app_id]);
+    $email_app_data = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    if ($email_app_data) {
+        error_log("✅ Application data retrieved for email");
+        error_log("Candidate Email: " . $email_app_data['candidate_email']);
+        error_log("Candidate Name: " . $email_app_data['candidate_name']);
+        
+        // Check if function exists
+        if (function_exists('sendEvaluationResultEmail')) {
+            error_log("✅ sendEvaluationResultEmail function exists");
+            
+            // Try to send email
+            try {
+                $emailSent = sendEvaluationResultEmail(
+                    $email_app_data,        // Complete application array
+                    $final_score,           // Float score
+                    $final_status,          // Status string
+                    $full_recommendation,   // Recommendation text
+                    $bridgingUnits         // Integer bridging units
+                );
+                
+                error_log("Email send result: " . ($emailSent ? 'SUCCESS' : 'FAILED'));
+                
+                if ($emailSent) {
+                    $success_message .= "<br>✉️ <strong>Email notification sent successfully</strong> to " . htmlspecialchars($email_app_data['candidate_email']);
+                } else {
+                    $success_message .= "<br>⚠️ <strong>Warning:</strong> Evaluation saved but email notification failed. Check error logs.";
+                    error_log("❌ Email failed for application ID: {$app_id}");
+                }
+            } catch (Exception $emailError) {
+                $success_message .= "<br>⚠️ <strong>Email Error:</strong> " . htmlspecialchars($emailError->getMessage());
+                error_log("❌ Email exception: " . $emailError->getMessage());
+                error_log("Stack trace: " . $emailError->getTraceAsString());
+            }
+        } else {
+            error_log("❌ ERROR: sendEvaluationResultEmail function NOT FOUND!");
+            $success_message .= "<br>⚠️ <strong>ERROR:</strong> Email function not found. Check includes/email_notifications.php";
+        }
+    } else {
+        error_log("❌ Failed to retrieve application data for email");
+        $success_message .= "<br>⚠️ <strong>Warning:</strong> Could not retrieve application data for email notification.";
+    }
+} catch (PDOException $e) {
+    error_log("❌ Database error when fetching app data for email: " . $e->getMessage());
+    $success_message .= "<br>⚠️ <strong>Warning:</strong> Database error prevented email notification.";
+}
+
+error_log("=== EMAIL SEND COMPLETE ===");
+// 🔥 EMAIL SENDING END
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        $errors[] = "Failed to save evaluation: " . $e->getMessage();
+        error_log("❌ Evaluation submission error: " . $e->getMessage());
+    }
+
+}
+
+
+
+
+
+
+// Get application data with enhanced document checking
+$current_application = null;
+$assessment_criteria = [];
+$existing_evaluations = [];
+$documents = [];
+$hasDocs = false;
+$docCounts = [];
+$predefined_subjects = []; // Initialize empty
+
+if ($application_id) {
+    try {
+        // Build query with evaluator scope
+        $app_where = ["a.id = ?"];
+        $app_params = [$application_id];
+        
+        // Add evaluator scope for non-admins
+        if (!$is_admin) {
+            $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            $evaluator_data = $stmt->fetch();
+            $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+            
+            if ($assigned_program_id) {
+                $app_where[] = "a.program_id = ?";
+                $app_params[] = $assigned_program_id;
+            } else {
+                $app_where[] = "1=0"; // Block access if no assigned program
+            }
+        }
+        
+        $app_where_clause = "WHERE " . implode(" AND ", $app_where);
+        
+        // 1. GET APPLICATION DETAILS WITH SCOPE
+        $stmt = $pdo->prepare("
+            SELECT a.*, p.program_name, p.program_code,
+                CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+                u.email as candidate_email, u.phone, u.address
+            FROM applications a 
+            LEFT JOIN programs p ON a.program_id = p.id 
+            LEFT JOIN users u ON a.user_id = u.id
+            $app_where_clause
+        ");
+        $stmt->execute($app_params);
+        $current_application = $stmt->fetch();
+        
+        // If evaluator tries to access application outside their scope
+        if (!$current_application && !$is_admin) {
+            $_SESSION['error_message'] = "Access denied: This application is not assigned to your program.";
+            header('Location: evaluate.php');
+            exit();
+        }
+        // 1. GET APPLICATION DETAILS FIRST
+        $stmt = $pdo->prepare("
+            SELECT a.*, p.program_name, p.program_code,
+                CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+                u.email as candidate_email, u.phone, u.address
+            FROM applications a 
+            LEFT JOIN programs p ON a.program_id = p.id 
+            LEFT JOIN users u ON a.user_id = u.id
+            WHERE a.id = ?
+        ");
+        $stmt->execute([$application_id]);
+        $current_application = $stmt->fetch();
+        
+        if ($current_application) {
+            // 2. NOW GET SUBJECTS FOR THIS PROGRAM (from database)
+            $stmt = $pdo->prepare("
+                SELECT 
+                    subject_code as code, 
+                    subject_name as name, 
+                    units,
+                    year_level,
+                    semester
+                FROM subjects 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY year_level DESC, semester DESC, subject_name
+            ");
+            $stmt->execute([$current_application['program_id']]);
+            $predefined_subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // 3. GET ASSESSMENT CRITERIA
+            $stmt = $pdo->prepare("
+                SELECT * FROM assessment_criteria 
+                WHERE program_id = ? AND status = 'active'
+                ORDER BY section_number, criteria_type, criteria_name
+            ");
+            $stmt->execute([$current_application['program_id']]);
+            $assessment_criteria = $stmt->fetchAll();
+            
+            // Get existing evaluations
+            $stmt = $pdo->prepare("
+                SELECT * FROM evaluations 
+                WHERE application_id = ?
+            ");
+            $stmt->execute([$application_id]);
+            $existing_evals = $stmt->fetchAll();
+            foreach ($existing_evals as $eval) {
+                $existing_evaluations[$eval['criteria_id']] = $eval;
+            }
+            
+            // Enhanced document fetching with counts
+            $stmt = $pdo->prepare("
+                SELECT *, 
+                       CASE 
+                           WHEN LOWER(mime_type) LIKE '%pdf%' THEN 'pdf'
+                           WHEN LOWER(mime_type) LIKE '%image%' THEN 'image'
+                           WHEN LOWER(mime_type) LIKE '%word%' OR LOWER(mime_type) LIKE '%doc%' THEN 'document'
+                           ELSE 'other'
+                       END as file_category
+                FROM documents 
+                WHERE application_id = ? 
+                ORDER BY document_type, upload_date DESC
+            ");
+            $stmt->execute([$application_id]);
+            $documents = $stmt->fetchAll();
+            
+            // Set document flags and counts
+            $hasDocs = count($documents) > 0;
+            $docCounts = [
+                'total' => count($documents),
+                'by_type' => [],
+                'by_category' => ['pdf' => 0, 'image' => 0, 'document' => 0, 'other' => 0]
+            ];
+            
+            foreach ($documents as $doc) {
+                $type = $doc['document_type'];
+                $category = $doc['file_category'];
+                
+                $docCounts['by_type'][$type] = ($docCounts['by_type'][$type] ?? 0) + 1;
+                $docCounts['by_category'][$category]++;
+            }
+        }
+    } catch (PDOException $e) {
+        $current_application = null;
     }
 }
 
+// Get all applications for listing
+$applications = [];
+$where_conditions = ["1=1"];
+$params = [];
 
-/** Optional example; safe kahit walang PHPMailer */
-function sendRegistrationEmail(string $toEmail, string $toName): bool {
-    return send_with_fallback(function($mail) use ($toEmail, $toName) {
-        $mail->addAddress($toEmail, $toName);
-        $mail->Subject = 'Welcome to ETEEAPRO';
-        $mail->Body    = '<p>Hi ' . htmlspecialchars($toName) . ', welcome!</p>';
-        $mail->AltBody = 'Hi ' . $toName . ', welcome!';
-    });
+// Add status filter if provided
+if ($filter_status) {
+    $where_conditions[] = "a.application_status = ?";
+    $params[] = $filter_status;
+}
+
+// CRITICAL: Add evaluator scope - only show applications for their assigned program
+if (!$is_admin) {
+    // Get evaluator's assigned program
+    $stmt = $pdo->prepare("SELECT assigned_program_id FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $evaluator_data = $stmt->fetch();
+    $assigned_program_id = $evaluator_data['assigned_program_id'] ?? null;
+    
+    if ($assigned_program_id) {
+        $where_conditions[] = "a.program_id = ?";
+        $params[] = $assigned_program_id;
+    } else {
+        // If evaluator has no assigned program, show nothing
+        $where_conditions[] = "1=0";
+    }
+}
+
+$where_clause = "WHERE " . implode(" AND ", $where_conditions);
+
+try {
+    $stmt = $pdo->prepare("
+        SELECT a.*, p.program_name, p.program_code,
+            CONCAT(u.first_name, ' ', u.last_name) as candidate_name,
+            u.email as candidate_email
+        FROM applications a 
+        LEFT JOIN programs p ON a.program_id = p.id 
+        LEFT JOIN users u ON a.user_id = u.id
+        $where_clause
+        ORDER BY 
+            CASE a.application_status
+                WHEN 'submitted' THEN 1
+                WHEN 'under_review' THEN 2
+                ELSE 3
+            END,
+            a.submission_date DESC,
+            a.created_at DESC
+    ");
+    $stmt->execute($params);
+    $applications = $stmt->fetchAll();
+} catch (PDOException $e) {
+    $applications = [];
+    error_log("Error fetching applications: " . $e->getMessage());
+}
+
+function addEvaluatorScope($sql, array &$params, $is_admin, $user_id, $alias = null) {
+    if ($is_admin) return $sql;
+
+    // 1) Subukan i-detect ang alias ng "applications"
+    if ($alias === null) {
+        if (preg_match('/\bFROM\s+applications\s+(?:AS\s+)?([a-zA-Z_][a-zA-Z0-9_]*)/i', $sql, $m)) {
+            $alias = $m[1]; // e.g. 'a'
+        } else { 
+            $alias = 'applications'; // walang alias sa query
+        }
+    }
+
+    // 2) Hanap kung saan isisingit (bago ORDER BY / GROUP BY / LIMIT / OFFSET / UNION…)
+    $upper = strtoupper($sql);
+    $cuts = [];
+    foreach ([' ORDER BY ', ' GROUP BY ', ' LIMIT ', ' OFFSET ', ' UNION ', ' INTERSECT ', ' EXCEPT '] as $kw) {
+        $pos = strpos($upper, $kw);
+        if ($pos !== false) $cuts[] = $pos;
+    }
+    $insertPos = empty($cuts) ? strlen($sql) : min($cuts);
+
+    $head = substr($sql, 0, $insertPos);
+    $tail = substr($sql, $insertPos);
+
+    // 3) May WHERE na ba?
+   if (stripos($head, ' WHERE ') !== false) {
+    $head .= " AND ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
+} else {
+    $head .= " WHERE ({$alias}.evaluator_id = ? OR {$alias}.evaluator_id IS NULL)";
+}
+
+    $params[] = $user_id;
+    return $head . $tail;
 }
 
 
-function sendRegistrationNotification($user_email, $user_name) {
-    $html = '
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title> Evaluation System - ETEEAP</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            margin: 0; 
+            padding-top: 0 !important;
+        }
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 0;
+        }
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 1rem 1.5rem;
+            border-radius: 0;
+            transition: all 0.3s ease;
+        }
+        .sidebar .nav-link:hover {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        .sidebar .nav-link.active {
+            color: white;
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Add to your existing <style> section */
+.sidebar .nav-link .badge {
+    font-size: 0.65rem;
+    padding: 0.25em 0.5em;
+    font-weight: 900;
+    animation: pulse-badge 2s ease-in-out infinite;
+}
+
+.sidebar .nav-link:hover .badge {
+    background-color: #ffc107 !important;
+}
+
+.sidebar .nav-link.active .badge {
+    background-color: #fff !important;
+    color: #667eea !important;
+}
+
+@keyframes pulse-badge {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+        .evaluation-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            border: none;
+        }
+        .criteria-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        .score-input {
+            max-width: 80px;
+        }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        .status-draft { background-color: #e9ecef; color: #495057; }
+        .status-submitted { background-color: #cff4fc; color: #055160; }
+        .status-under_review { background-color: #fff3cd; color: #664d03; }
+        .status-qualified { background-color: #d1e7dd; color: #0f5132; }
+        .status-partially_qualified { background-color: #ffeaa7; color: #d63031; }
+        .status-not_qualified { background-color: #f8d7da; color: #721c24; }
+        .bridging-preview { 
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 10px;
+            border-left: 4px solid #2196f3;
+            margin-bottom: 15px;
+        }
+        .subject-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px dotted #ccc;
+        }
+        .priority-badge {
+            background: #ff9800;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 10px;
+            margin-left: 5px;
+        }
+        .table-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .score-calculator-pass { background-color: #d1e7dd !important; }
+        .score-calculator-partial { background-color: #fff3cd !important; }
+        .score-calculator-fail { background-color: #f8d7da !important; }
+        .progress-bar-pass { background-color: #198754 !important; }
+        .progress-bar-partial { background-color: #ffc107 !important; }
+        .progress-bar-fail { background-color: #dc3545 !important; }
+        
+        /* Document viewer styles */
+        .document-viewer {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            border: none;
+        }
+        .doc-thumbnail {
+            width: 60px;
+            height: 60px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid #dee2e6;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .doc-thumbnail:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .doc-thumbnail.pdf { background: #ff5722; color: white; }
+        .doc-thumbnail.image { background: #4caf50; color: white; }
+        .doc-thumbnail.document { background: #2196f3; color: white; }
+        .doc-thumbnail.other { background: #9e9e9e; color: white; }
+        .doc-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .doc-item {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .doc-item:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .no-docs-alert {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fab1a0 100%);
+            border: none;
+            color: #d63031;
+            border-radius: 10px;
+        }
+        .doc-count-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge { border-radius: 999px; }
+.bridging-management {
+    background: linear-gradient(135deg, #e8f5e8 0%, #f0f8f0 100%);
+    border-radius: 15px;
+    padding: 20px;
+    border-left: 4px solid #28a745;
+}
+
+.bridging-subject-item {
+    background: white;
+    transition: all 0.3s ease;
+}
+
+.bridging-subject-item:hover {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.custom-subject-input {
+    transition: all 0.3s ease;
+}
+
+#totalUnitsDisplay {
+    font-size: 1rem;
+    padding: 8px 12px;
+}
+
+.subject-selector option[data-category]::before {
+    content: attr(data-category) ': ';
+    font-weight: bold;
+    color: #666;
+}
+    </style>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, \'Helvetica Neue\', Arial, sans-serif; background-color: #f4f4f4; -webkit-font-smoothing: antialiased;">
-    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4; padding: 20px 0;">
-        <tr>
-            <td align="center">
-                <!-- Main Container -->
-                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+           <div class="col-md-3 col-lg-2 sidebar">
+                <div class="p-3">
+                    <h4 class="text-white mb-4">
+                        <i class="fas fa-graduation-cap me-2"></i>
+                        ETEEAP Admin
+                    </h4>
                     
-                    <!-- Header -->
-                    <tr>
-                        <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px 40px;">
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                <tr>
-                               
-                                    <td valign="middle" align="middle">
-                                        <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 600; letter-spacing: -0.5px;"> 🎓 ETEEAP Registration</h1>
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    
-                    <!-- Body Content -->
-                    <tr>
-                        <td style="padding: 40px 40px 20px 40px;">
-                            <h2 style="margin: 0 0 20px 0; color: #1a1a1a; font-size: 20px; font-weight: 600; line-height: 1.4;">Dear '.htmlspecialchars($user_name).',</h2>
-                            
-                            <p style="margin: 0 0 20px 0; color: #444444; font-size: 15px; line-height: 1.6;">Thank you for registering with the ETEEAP (Expanded Tertiary Education Equivalency and Accreditation Program)!</p>
-                            
-                            <!-- Status Badge -->
-                            <div style="margin: 0 0 30px 0;">
-                                <span style="display: inline-block; padding: 8px 16px; background-color: #fff3cd; color: #856404; font-size: 14px; font-weight: 600; border-radius: 6px; border: 1px solid #ffeaa7;">
-                                    <span style="display: inline-block; width: 8px; height: 8px; background-color: #ffc107; border-radius: 50%; margin-right: 8px; vertical-align: middle;"></span>
-                                    Under Review
-                                </span>
-                            </div>
-                            
-                            <!-- What\'s Next Section -->
-                            <h3 style="margin: 30px 0 16px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">What\'s Next?</h3>
-                            
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-bottom: 30px;">
-                                <tr>
-                                    <td style="padding: 0 0 12px 0;">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                            <tr>
-                                                <td width="24" valign="top" style="padding-top: 2px;">
-                                                    <span style="color: #28a745; font-size: 16px;">✓</span>
-                                                </td>
-                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">Your registration form has been received</td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 0 0 12px 0;">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                            <tr>
-                                                <td width="24" valign="top" style="padding-top: 2px;">
-                                                    <span style="color: #28a745; font-size: 16px;">✓</span>
-                                                </td>
-                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">All required documents have been uploaded</td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 0 0 12px 0;">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                            <tr>
-                                                <td width="24" valign="top" style="padding-top: 2px;">
-                                                    <span style="color: #ffc107; font-size: 16px;">⏳</span>
-                                                </td>
-                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">Our admin team is reviewing your application</td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td style="padding: 0 0 12px 0;">
-                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                            <tr>
-                                                <td width="24" valign="top" style="padding-top: 2px;">
-                                                    <span style="color: #17a2b8; font-size: 16px;">✉</span>
-                                                </td>
-                                                <td style="color: #444444; font-size: 15px; line-height: 1.6;">You will receive an email notification once approved</td>
-                                            </tr>
-                                        </table>
-                                    </td>
-                                </tr>
-                            </table>
-                            
-                            <!-- Important Notes Section -->
-                            <div style="background-color: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px; padding: 20px; margin-bottom: 30px;">
-                                <h3 style="margin: 0 0 12px 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">Important Notes</h3>
-                                
-                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                    <tr>
-                                        <td style="padding: 0 0 8px 0;">
-                                            <span style="color: #666666; font-size: 14px; line-height: 1.6;">• Review process typically takes 2-3 business days</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 0 0 8px 0;">
-                                            <span style="color: #666666; font-size: 14px; line-height: 1.6;">• You cannot log in until your application is approved</span>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 0 0 0 0;">
-                                            <span style="color: #666666; font-size: 14px; line-height: 1.6;">• If additional information is needed, we will contact you</span>
-                                        </td>
-                                    </tr>
-                                </table>
-                            </div>
-                            
-                            <p style="margin: 0 0 10px 0; color: #444444; font-size: 15px; line-height: 1.6;">If you have any questions, please contact our support team.</p>
-                            
-                            <p style="margin: 0; color: #444444; font-size: 15px; line-height: 1.6;">Best regards,<br><strong style="color: #1a1a1a;">ETEEAP Admin Team</strong></p>
-                        </td>
-                    </tr>
-                    
-                    <!-- Footer -->
-                    <tr>
-                        <td style="background-color: #303030ff; padding: 30px 40px; border-top: 1px solid #e0e0e0;">
-                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
-                                <tr>
-                                    <td align="center" style="padding-bottom: 12px;">
-                                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;">Privacy Policy</a>
-                                        <span style="color: #cccccc;">|</span>
-                                        <a href="#" style="color: #667eea; text-decoration: none; font-size: 13px; margin: 0 12px;">Contact Support</a>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td align="center" style="color: #ffffffff; font-size: 12px; line-height: 1.5;">
-                                        &copy; '.date('Y').' ETEEAP System. All rights reserved.
-                                    </td>
-                                </tr>
-                            </table>
-                        </td>
-                    </tr>
-                    
-                </table>
-            </td>
-        </tr>
-    </table>
-</body>
-</html>';
+                      
+                  <nav class="nav flex-column">
+    <a class="nav-link" href="dashboard.php">
+        <i class="fas fa-tachometer-alt me-2"></i>
+        Dashboard
+    </a>
 
-    $alt = "Dear {$user_name}, Your ETEEAP registration has been received and is currently under review. You will be notified once your application is approved.";
+     <?php if ($user_type === 'admin'): ?>
+  <a class="nav-link" href="application-reviews.php">
+        <i class="fas fa-file-signature me-2"></i>
+        Application Reviews
+            <?php if ($sidebar_pending_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_pending_count; ?></span>
+        <?php endif; ?>
+    </a>
+    <?php endif; ?>
+    <a class="nav-link" href="evaluate.php">
+        <i class="fas fa-clipboard-check me-2"></i>
+        Evaluate Applications
+             <?php if ($sidebar_submitted_count > 0): ?>
+        <span class="badge bg-warning rounded-pill float-end"><?php echo $sidebar_submitted_count; ?></span>
+        <?php endif; ?>
+    </a>
 
-    $ok = send_with_fallback(function($mail) use ($user_email, $user_name, $html, $alt) {
-        $mail->addAddress($user_email, $user_name);
-        $mail->Subject = 'ETEEAP Registration - Under Review';
-        $mail->Body    = $html;
-        $mail->AltBody = $alt;
-    });
-    error_log('Registration email to ' . $user_email . ' => ' . ($ok ? 'Success' : 'Failed'));
-    return $ok;
-}
+    <a class="nav-link" href="reports.php">
+        <i class="fas fa-chart-bar me-2"></i>
+        Reports
+    </a>
 
+    <?php if ($user_type === 'admin'): ?>
+        <a class="nav-link" href="users.php">
+            <i class="fas fa-users me-2"></i>
+            Manage Users
+        </a>
+        <a class="nav-link" href="programs.php">
+            <i class="fas fa-graduation-cap me-2"></i>
+            Manage Programs
+        </a>
+    <?php endif; ?>
 
-/** Rejection / Needs info (FULL HTML) */
-function sendRejectionNotification($user_email, $user_name, $reason = '') {
-    $baseUrl = _base_url_safe();
-    $reason = !empty($reason) ? $reason : 'Additional review required';
-    $html = "
-    <html>
-    <head>
-        <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%); color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9f9f9; }
-            .footer { background: #333; color: white; padding: 10px; text-align: center; }
-            .warning-badge { background: #dc3545; color: white; padding: 5px 10px; border-radius: 15px; display: inline-block; }
-            .reason-box { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 5px; padding: 15px; margin: 15px 0; }
-            .reapply-btn { background: #667eea; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block; margin: 10px 0; }
-            ul { padding-left: 18px; }
-        </style>
-    </head>
-    <body>
-        <div class='container'>
-            <div class='header'>
-                <h2>📋 ETEEAP Registration Review</h2>
-            </div>
-            <div class='content'>
-                <h3>Dear ".htmlspecialchars($user_name).",</h3>
-                <p>Thank you for your interest in the ETEEAP program. After reviewing your application, we need additional information before we can proceed.</p>
-                <p><strong>Application Status:</strong> <span class='warning-badge'>⚠️ Needs Attention</span></p>
-                <div class='reason-box'>
-                    <h4>📝 Review Comments:</h4>
-                    <p><strong>".nl2br(htmlspecialchars($reason))."</strong></p>
+    <a class="nav-link" href="settings.php">
+        <i class="fas fa-cog me-2"></i>
+        Settings
+    </a>
+</nav>
                 </div>
-                <h4>What you can do:</h4>
-                <ul>
-                    <li>📧 Contact our support team for clarification</li>
-                    <li>📄 Prepare the required additional information</li>
-                    <li>🔄 Resubmit your application when ready</li>
-                </ul>
-                <div style='text-align: center; margin: 20px 0;'>
-                    <a href='".$baseUrl."auth/register.php' class='reapply-btn'>Reapply Now</a>
-                </div>
-                <p><strong>Need Help?</strong></p>
-                <p>If you have questions about the requirements or need assistance, please don't hesitate to contact our support team.</p>
-                <p>We appreciate your patience and look forward to helping you achieve your educational goals.</p>
-                <p>Best regards,<br><strong>ETEEAP Admin Team</strong></p>
-            </div>
-            <div class='footer'>
-                <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
-            </div>
-        </div>
-    </body>
-    </html>";
-    $alt = "Dear {$user_name}, Your ETEEAP registration needs additional information. Reason: {$reason}. Please reapply at ".$baseUrl."auth/register.php";
-
-    $ok = send_with_fallback(function($mail) use ($user_email, $user_name, $html, $alt) {
-        $mail->addAddress($user_email, $user_name);
-        $mail->Subject = 'ETEEAP Registration - Additional Information Required';
-        $mail->Body    = $html;
-        $mail->AltBody = $alt;
-    });
-    error_log('Rejection email to ' . $user_email . ' => ' . ($ok ? 'Success' : 'Failed'));
-    return $ok;
-}
-
-/** Admin notify (FULL HTML) */
-function notifyAdminNewRegistration($user_name, $user_email, $admin_emails = ['cspbank911@gmail.com']) {
-    $baseUrl = _base_url_safe();
-    $html = "
-    <html>
-    <head>
-        <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; }
-            .content { padding: 20px; background: #f9f9f9; }
-            .footer { background: #333; color: white; padding: 10px; text-align: center; }
-            .info-box { background: #e3f2fd; border: 1px solid #2196f3; border-radius: 5px; padding: 15px; margin: 15px 0; }
-            .review-btn { background: #667eea; color: white; padding: 10px 20px; border-radius: 5px; text-decoration: none; display: inline-block; margin: 10px 0; }
-        </style>
-    </head>
-    <body>
-        <div class='container'>
-            <div class='header'>
-                <h2>🔔 New Registration Alert</h2>
-            </div>
-            <div class='content'>
-                <h3>Dear Admin,</h3>
-                <p>A new ETEEAP registration has been submitted and requires your review.</p>
-                <div class='info-box'>
-                    <h4>📋 Registration Details:</h4>
-                    <p><strong>Name:</strong> ".htmlspecialchars($user_name)."</p>
-                    <p><strong>Email:</strong> ".htmlspecialchars($user_email)."</p>
-                    <p><strong>Registration Date:</strong> " . date('F j, Y g:i A') . "</p>
-                    <p><strong>Status:</strong> Pending Review</p>
-                </div>
-                <h4>📄 Documents Submitted:</h4>
-                <ul>
-                    <li>✅ ETEEAP Application Form</li>
-                    <li>✅ Application Letter</li>
-                    <li>✅ Curriculum Vitae (CV)</li>
-                </ul>
-                <div style='text-align: center; margin: 20px 0;'>
-                    <a href='".$baseUrl."admin/application-reviews.php' class='review-btn'>Review Application</a>
-                </div>
-                <p><strong>Action Required:</strong></p>
-                <ol>
-                    <li>Review uploaded documents</li>
-                    <li>Verify completeness and accuracy</li>
-                    <li>Approve or request additional information</li>
-                    <li>User will be notified of your decision</li>
-                </ol>
-                <p>Please review this application at your earliest convenience.</p>
-                <p>Best regards,<br><strong>ETEEAP System</strong></p>
-            </div>
-            <div class='footer'>
-                <p>&copy; ".date('Y')." ETEEAP System. All rights reserved.</p>
-            </div>
-        </div>
-    </body>
-    </html>";
-    $alt = "New ETEEAP registration from {$user_name} ({$user_email}) requires review. Review at ".$baseUrl."admin/application-reviews.php";
-
-    $ok = send_with_fallback(function($mail) use ($admin_emails, $html, $alt) {
-        foreach ($admin_emails as $admin_email) {
-            $mail->addAddress($admin_email);
-        }
-        $mail->Subject = '🔔 New ETEEAP Registration - Pending Review';
-        $mail->Body    = $html;
-        $mail->AltBody = $alt;
-    });
-    error_log('Admin notification for ' . $user_email . ' => ' . ($ok ? 'Success' : 'Failed'));
-    return $ok;
-}
-
-
-
-/** Approval + Program (PRO Email Template) */
-function sendApprovalWithProgram($user_email, $user_name, $program_code, $program_name, $reroute_reason = '') {
-    $baseUrl   = 'https://eteeapro.site/';
-    $fullName  = trim($user_name);
-    $preheader = "Your ETEEAP application is approved. Program: {$program_code} – {$program_name}. Continue inside.";
-
-    $reasonHtml = '';
-    if (!empty($reroute_reason)) {
-        $reasonHtml = '
-        <div style="margin-top:10px;padding:12px 14px;border:1px solid #ffe8a1;border-radius:8px;background:#fff8e1;color:#7a5d00;">
-            <strong>Note on program assignment:</strong><br>' . nl2br(htmlspecialchars($reroute_reason)) . '
-        </div>';
-    }
-
-    $html = '<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light dark">
-<meta name="supported-color-schemes" content="light dark">
-<title>ETEEAP Application Approved</title>
-<style>
-  html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important}
-  *{-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%}
-  table{border-collapse:collapse!important}
-  a{text-decoration:none}
-  @media screen and (max-width:600px){
-    .container{width:100%!important}
-  }
-  :root{color-scheme:light dark;supported-color-schemes:light dark}
-  @media (prefers-color-scheme:dark){
-    body{background-color:#0f1115!important}
-    .card{background-color:#161a22!important;color:#e6e6e6!important}
-    .footer{background-color:#0f1115!important;color:#b5b5b5!important}
-    a.btn{background-color:#6d9eff!important}
-  }
-</style>
-</head>
-<body style="background:#f3f5f9;margin:0;padding:0;">
-  <!-- Preheader -->
-  <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0;">' . htmlspecialchars($preheader) . '</div>
-
-  <table role="presentation" width="100%" bgcolor="#f3f5f9">
-    <tr>
-      <td align="center" style="padding:24px;">
-        <!-- Compact centered card -->
-        <table role="presentation" width="100%" class="container" style="max-width:480px;width:100%;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.05);">
-          <!-- Header -->
-          <tr>
-            <td align="center" style="background:linear-gradient(135deg,#22c55e 0%,#16a34a 100%);padding:20px 16px;">
-              <div style="font:700 20px Arial,Helvetica,sans-serif;color:#ffffff;">Your Application is Approved ✅</div>
-              <div style="font:14px Arial,Helvetica,sans-serif;color:#eafff2;">You can now continue to the next steps.</div>
-            </td>
-          </tr>
-
-          <!-- Body -->
-          <tr>
-            <td style="padding:24px;font:14px Arial,Helvetica,sans-serif;color:#344054;line-height:1.7;">
-              <p>Hi <strong>' . htmlspecialchars($fullName) . '</strong>,</p>
-              <p>Your ETEEAP application has been <strong>approved</strong>.</p>
-
-              <div style="margin:16px 0;padding:12px 14px;border:1px solid #e6e8ee;border-radius:8px;background:#fbfcff;">
-                <div style="font-weight:600;margin-bottom:4px;">Assigned Program</div>
-                <div>' . htmlspecialchars($program_code) . ' — ' . htmlspecialchars($program_name) . '</div>
-                ' . $reasonHtml . '
-              </div>
-
-              <div style="margin:16px 0;padding:12px 14px;border:1px solid #e6e8ee;border-radius:8px;background:#fbfcff;">
-                <div style="font-weight:600;margin-bottom:4px;">Next Steps</div>
-                <ul style="margin:0 0 0 18px;padding:0;">
-                  <li>Log in to your ETEEAP account</li>
-                  <li>Complete your candidate profile</li>
-                  <li>Upload supporting documents for evaluation</li>
-                  <li>Track your assessment progress</li>
-                </ul>
-              </div>
-
-              <!-- Centered login button -->
-              <table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:20px auto;">
-                <tr>
-                  <td align="center">
-                    <a href="' . $baseUrl . 'auth/login.php"
-                       class="btn"
-                       style="display:inline-block;
-                              padding:10px 22px;
-                              font:600 14px Arial,Helvetica,sans-serif;
-                              color:#ffffff;
-                              background-color:#3b82f6;
-                              border-radius:6px;
-                              text-decoration:none;">
-                      Log in to your account
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="font-size:12px;color:#667085;margin-top:20px;text-align:center;">
-                If the button doesn't work, copy and paste this URL into your browser:<br>
-                <a href="' . $baseUrl . 'auth/login.php" style="color:#3b82f6;">' . $baseUrl . 'auth/login.php</a>
-              </p>
-
-              <hr style="border:none;border-top:1px solid #e6e8ee;margin:24px 0;">
-              <p style="font-size:12px;color:#888;text-align:center;">Need help? Reply to this email or contact support.</p>
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td align="center" class="footer" style="background:#0f172a;padding:16px;border-radius:0 0 12px 12px;">
-              <p style="font:12px Arial,Helvetica,sans-serif;color:#ffffffff;margin:0;">
-                &copy; ' . date('Y') . ' ETEEAP System. All rights reserved.<br>
-                <a href="' . $baseUrl . '" style="color:#93c5fd;">Visit Website</a> ·
-                <a href="' . $baseUrl . 'privacy" style="color:#93c5fd;">Privacy Policy</a> ·
-                <a href="' . $baseUrl . 'contact" style="color:#93c5fd;">Contact Support</a>
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>';
-
-    $alt = "Your ETEEAP application has been approved. Program: {$program_code} - {$program_name}. Log in at {$baseUrl}auth/login.php";
-
-    $ok = send_with_fallback(function($mail) use ($user_email, $fullName, $html, $alt) {
-        $mail->addAddress($user_email, $fullName);
-        $mail->Subject = 'ETEEAP Application Approved — Program Assigned';
-        $mail->Body    = $html;
-        $mail->AltBody = $alt;
-        $mail->isHTML(true);
-    });
-
-    error_log("sendApprovalWithProgram to {$user_email}: " . ($ok ? 'Success' : 'Failed'));
-    return $ok;
-}
-
-
-function sendEvaluationResultEmail($application, $final_score, $final_status, $recommendation, $bridgingUnits) {
-    global $pdo;
-    
-    try {
-        error_log("=== EMAIL FUNCTION START ===");
-        error_log("Recipient: " . $application['candidate_email']);
-        error_log("Score: " . $final_score);
-        error_log("Status: " . $final_status);
-        
-        // Status badge color
-        $statusColor = $final_status === 'qualified' ? '#28a745' : 
-                      ($final_status === 'partially_qualified' ? '#ffc107' : '#dc3545');
-        
-        // Parse recommendation to extract subjects
-        $recommendationLines = explode("\n", $recommendation);
-        $creditedSubjects = [];
-        $bridgingSubjects = [];
-        $inCreditedSection = false;
-        $inBridgingSection = false;
-        
-        foreach ($recommendationLines as $line) {
-            $line = trim($line);
-            
-            if (strpos($line, 'CREDITED SUBJECTS') !== false) {
-                $inCreditedSection = true;
-                $inBridgingSection = false;
-                continue;
-            }
-            if (strpos($line, 'REQUIRED BRIDGING COURSES') !== false) {
-                $inCreditedSection = false;
-                $inBridgingSection = true;
-                continue;
-            }
-            if (strpos($line, 'PROGRAM COMPLETION TIMELINE') !== false || 
-                strpos($line, 'NEXT STEPS') !== false ||
-                strpos($line, 'OUTSTANDING ACHIEVEMENT') !== false) {
-                $inCreditedSection = false;
-                $inBridgingSection = false;
-                continue;
-            }
-            
-            if ($inCreditedSection && preg_match('/^✓\s+(.+)$/', $line, $matches)) {
-                $creditedSubjects[] = [
-                    'name' => trim($matches[1]),
-                    'evidence' => ''
-                ];
-            } elseif ($inCreditedSection && preg_match('/Evidence:\s*(.+)$/i', $line, $matches)) {
-                if (!empty($creditedSubjects)) {
-                    $creditedSubjects[count($creditedSubjects) - 1]['evidence'] = trim($matches[1]);
-                }
-            }
-            
-            if ($inBridgingSection && preg_match('/^\d+\.\s+(.+?)\s*\(([^)]+)\)/', $line, $matches)) {
-                $bridgingSubjects[] = [
-                    'name' => trim($matches[1]),
-                    'code' => trim($matches[2]),
-                    'units' => 0,
-                    'priority' => ''
-                ];
-            } elseif ($inBridgingSection && preg_match('/Units:\s*(\d+)\s*\|\s*Priority:\s*\[([^\]]+)\]/i', $line, $matches)) {
-                if (!empty($bridgingSubjects)) {
-                    $bridgingSubjects[count($bridgingSubjects) - 1]['units'] = (int)$matches[1];
-                    $bridgingSubjects[count($bridgingSubjects) - 1]['priority'] = trim($matches[2]);
-                }
-            }
-        }
-        
-        // Build credited subjects table
-        $creditedTableRows = '';
-        if (!empty($creditedSubjects)) {
-            foreach ($creditedSubjects as $index => $subject) {
-                $creditedTableRows .= '
-                    <tr style="' . ($index % 2 === 0 ? 'background-color: #f8f9fa;' : '') . '">
-                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6;">' . htmlspecialchars($subject['name']) . '</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; color: #6c757d; font-size: 14px;">' . htmlspecialchars($subject['evidence']) . '</td>
-                    </tr>';
-            }
-        }
-        
-        // Build bridging subjects table
-        $bridgingTableRows = '';
-        if (!empty($bridgingSubjects)) {
-            foreach ($bridgingSubjects as $index => $subject) {
-                $priorityBadge = strpos(strtoupper($subject['priority']), 'HIGH') !== false ? 
-                    '<span style="background-color: #dc3545; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">HIGH PRIORITY</span>' :
-                    '<span style="background-color: #6c757d; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">STANDARD</span>';
                 
-                $bridgingTableRows .= '
-                    <tr style="' . ($index % 2 === 0 ? 'background-color: #f8f9fa;' : '') . '">
-                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 600;">' . htmlspecialchars($subject['name']) . '</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center; color: #6c757d;">' . htmlspecialchars($subject['code']) . '</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center; font-weight: 600;">' . $subject['units'] . '</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center;">' . $priorityBadge . '</td>
-                    </tr>';
-            }
+                
+                <div class="mt-auto p-3">
+                    <div class="dropdown">
+                        <a href="#" class="d-flex align-items-center text-white text-decoration-none dropdown-toggle" 
+                           id="dropdownUser" data-bs-toggle="dropdown">
+                            <div class="bg-light rounded-circle d-flex align-items-center justify-content-center me-2" 
+                                 style="width: 32px; height: 32px;">
+                                <i class="fas fa-user text-dark"></i>
+                            </div>
+                            <span class="small"><?php echo htmlspecialchars($_SESSION['user_name'] ?? 'User'); ?></span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-dark text-small shadow">
+                            <li><a class="dropdown-item" href="../candidates/profile.php">Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="../auth/logout.php">Sign out</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10">
+                <div class="p-4">
+                    <?php if (!$current_application): ?>
+                    <!-- Application Listing -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h2 class="mb-1">Evaluation System</h2>
+                            <p class="text-muted mb-0">Smart evaluation with automatic bridging unit calculation</p>
+                        </div>
+                        
+                        <!-- Status Filter -->
+                        <div class="dropdown">
+                            <button class="btn btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-filter me-1"></i>
+                                Filter: <?php echo $filter_status ? ucfirst(str_replace('_', ' ', $filter_status)) : 'All'; ?>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="evaluate.php">All Applications</a></li>
+                                <li><a class="dropdown-item" href="evaluate.php?status=submitted">Submitted</a></li>
+                               
+                                <li><a class="dropdown-item" href="evaluate.php?status=qualified">Qualified</a></li>
+                             
+                                <li><a class="dropdown-item" href="evaluate.php?status=not_qualified">Not Qualified</a></li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <?php if (!empty($errors)): ?>
+                        <div class="alert alert-danger">
+                            <ul class="mb-0">
+                                <?php foreach ($errors as $error): ?>
+                                    <li><?php echo htmlspecialchars($error); ?></li>
+                                <?php endforeach; ?>
+                            </ul>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($success_message): ?>
+                        <div class="alert alert-success">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <?php echo htmlspecialchars($success_message); ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="table-container">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="bg-light">
+                                    <tr>
+                                        <th>Candidate</th>
+                                        <th>Program</th>
+                                        <th>Status</th>
+                                        <th>Score</th>
+                                        <th>Bridging Units</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if (empty($applications)): ?>
+                                    <tr>
+                                        <td colspan="6" class="text-center py-5 text-muted">
+                                            <i class="fas fa-inbox fa-3x mb-3"></i><br>
+                                            No applications found
+                                        </td>
+                                    </tr>
+                                    <?php else: ?>
+                                    <?php foreach ($applications as $app): ?>
+                                    <tr>
+                                        <td>
+                                            <div class="fw-semibold"><?php echo htmlspecialchars($app['candidate_name']); ?></div>
+                                            <small class="text-muted"><?php echo htmlspecialchars($app['candidate_email']); ?></small>
+                                        </td>
+                                        <td>
+                                            <div class="fw-semibold"><?php echo htmlspecialchars($app['program_code']); ?></div>
+                                            <small class="text-muted"><?php echo htmlspecialchars($app['program_name']); ?></small>
+                                        </td>
+                                        <td>
+                                            <span class="status-badge status-<?php echo $app['application_status']; ?>">
+                                                <?php echo ucfirst(str_replace('_', ' ', $app['application_status'])); ?>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <?php if ($app['total_score'] > 0): ?>
+                                                <span class="fw-bold text-primary"><?php echo $app['total_score']; ?>%</span>
+                                            <?php else: ?>
+                                                <span class="text-muted">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <?php if ($app['total_score'] >= 60): ?>
+                                                <span class="badge bg-info"><?php echo calculateBridgingUnits($app['total_score']); ?> units</span>
+                                            <?php elseif ($app['total_score'] > 0 && $app['total_score'] < 60): ?>
+                                                <span class="badge bg-warning">Regular Program</span>
+                                            <?php else: ?>
+                                                <span class="text-muted">—</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <a href="evaluate.php?id=<?php echo $app['id']; ?>" class="btn btn-sm btn-primary">
+                                                <i class="fas fa-calculator me-1"></i>Evaluate
+                                            </a>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <?php else: ?>
+                    <!-- Individual Application Evaluation -->
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <div>
+                            <h2 class="mb-1">Smart Evaluation System</h2>
+                            <p class="text-muted mb-0">Advanced assessment with bridging unit calculator</p>
+                        </div>
+                        <a href="evaluate.php" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back to List
+                        </a>
+                    </div>
+
+<?php if (!empty($success_message)): ?>
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-success">
+      <div class="modal-header bg-success text-white">
+        <h5 class="modal-title" id="successModalLabel">
+          <i class="fas fa-check-circle me-2"></i> Evaluation Submitted
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="text-center">
+          <i class="fas fa-thumbs-up fa-3x text-success mb-3"></i>
+          <p class="mb-0"><?php echo $success_message; ?></p>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-center">
+        <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+          <i class="fas fa-check me-1"></i>OK
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Trigger Modal on Load -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('successModal'));
+  modal.show();
+});
+</script>
+<?php endif; ?>
+
+
+                    <!-- Document Status Alert -->
+                    <?php if (!$hasDocs): ?>
+                    <div class="alert no-docs-alert mb-4">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <h5 class="mb-1">No Documents Uploaded</h5>
+                                <p class="mb-0">This application has no supporting documents. All evaluation scores will default to 0 until documents are provided.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Candidate Information -->
+                    <div class="evaluation-card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 2rem; border-radius: 15px;">
+                        <div class="row align-items-center">
+                            <div class="col-md-8">
+                                <h3 class="mb-2"><?php echo htmlspecialchars($current_application['candidate_name']); ?></h3>
+                                <p class="mb-1">
+                                    <i class="fas fa-envelope me-2"></i>
+                                    <?php echo htmlspecialchars($current_application['candidate_email']); ?>
+                                </p>
+                                <p class="mb-3">
+                                    <i class="fas fa-graduation-cap me-2"></i>
+                                    <?php echo htmlspecialchars($current_application['program_name']); ?>
+                                    <span class="badge bg-light text-dark ms-2"><?php echo htmlspecialchars($current_application['program_code']); ?></span>
+                                </p>
+                            </div>
+                            <div class="col-md-4 text-md-end">
+                                <div class="mb-2">
+                                    <span class="status-badge status-<?php echo $current_application['application_status']; ?>">
+                                        <?php echo ucfirst(str_replace('_', ' ', $current_application['application_status'])); ?>
+                                    </span>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="doc-count-badge">
+                                        <i class="fas fa-file-alt me-1"></i>
+                                        <?php echo $docCounts['total']; ?> Documents
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4">
+                        <!-- Documents (Enhanced) -->
+                        <div class="col-lg-4">
+                            <div class="evaluation-card p-4">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-folder-open me-2"></i>
+                                    Documents (<?php echo $docCounts['total']; ?>)
+                                </h5>
+                                
+                                <?php if (!$hasDocs): ?>
+                                <div class="text-center py-4 text-muted">
+                                    <i class="fas fa-folder-open fa-3x mb-3" style="opacity: 0.3;"></i>
+                                    <p class="mb-0">No documents uploaded</p>
+                                    <small>Evaluation scores will default to 0</small>
+                                </div>
+                                <?php else: ?>
+                                <!-- Document type summary -->
+                                <div class="mb-3">
+                                    <div class="row g-2">
+                                        <?php foreach ($docCounts['by_category'] as $category => $count): ?>
+                                        <?php if ($count > 0): ?>
+                                        <div class="col-6">
+                                            <div class="small text-center">
+                                                <div class="doc-thumbnail <?php echo $category; ?> mx-auto mb-1" style="width: 40px; height: 40px;">
+                                                    <i class="fas fa-<?php echo $category === 'pdf' ? 'file-pdf' : ($category === 'image' ? 'image' : ($category === 'document' ? 'file-word' : 'file')); ?>"></i>
+                                                </div>
+                                                <div><?php echo ucfirst($category); ?>: <?php echo $count; ?></div>
+                                            </div>
+                                        </div>
+                                        <?php endif; ?>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                
+                                <!-- Document list with preview -->
+                                <div class="doc-list" style="max-height: 400px; overflow-y: auto;">
+                                    <?php foreach ($documents as $doc): ?>
+                                    <div class="doc-item mb-2" data-bs-toggle="modal" data-bs-target="#docModal" 
+                                         data-doc-id="<?php echo $doc['id']; ?>"
+                                         data-doc-filename="<?php echo htmlspecialchars($doc['original_filename']); ?>"
+                                         data-doc-path="<?php echo htmlspecialchars($doc['file_path']); ?>"
+                                         data-doc-type="<?php echo $doc['file_category']; ?>"
+                                         data-doc-size="<?php echo $doc['file_size']; ?>">
+                                        <div class="d-flex align-items-center">
+                                            <div class="doc-thumbnail <?php echo $doc['file_category']; ?> me-3">
+                                                <i class="fas fa-<?php echo $doc['file_category'] === 'pdf' ? 'file-pdf' : ($doc['file_category'] === 'image' ? 'image' : ($doc['file_category'] === 'document' ? 'file-word' : 'file')); ?>"></i>
+                                            </div>
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-1 small"><?php echo htmlspecialchars($doc['original_filename']); ?></h6>
+                                                <div class="d-flex justify-content-between">
+                                                    <span class="badge bg-primary small">
+                                                        <?php echo ucfirst(str_replace('_', ' ', $doc['document_type'])); ?>
+                                                    </span>
+                                                    <small class="text-muted">
+                                                        <?php echo number_format($doc['file_size'] / 1024, 1); ?> KB
+                                                    </small>
+                                                </div>
+                                                <?php
+    $hier = parse_hier($doc);
+    echo render_hier_badges($hier);
+?>
+
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
+                        <!-- Enhanced Evaluation Form -->
+                        <div class="col-lg-8">
+                            <form method="POST" action="">
+                                <input type="hidden" name="application_id" value="<?php echo $current_application['id']; ?>">
+                                
+                                <div class="evaluation-card p-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-4">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-brain me-2"></i>
+                                            Smart Assessment
+                                        </h5>
+                                        <div class="text-end">
+                                            <div class="fw-bold text-success">Qualified: 60%+</div>
+                                            <!-- <div class="small text-warning">Partial: 48%+</div> -->
+                                        </div>
+                                    </div>
+
+                                    <!-- Live Score Calculator -->
+                                    <div class="alert alert-info mb-4" id="liveScoreCalculator" style="display: none;">
+                                        <div class="row align-items-center">
+                                            <div class="col-md-8">
+                                                <strong>Live Score: <span id="currentLiveScore">0</span>%</strong>
+                                                <div class="progress mt-2" style="height: 8px;">
+                                                    <div class="progress-bar" id="liveScoreProgress" role="progressbar"></div>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <span id="liveScoreStatus" class="badge bg-secondary">Enter scores</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Bridging Units Preview -->
+                                    <div class="bridging-preview" id="bridgingPreview" style="display: none;">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <strong><i class="fas fa-graduation-cap me-2"></i>Bridging Requirements</strong>
+                                            <span class="badge bg-primary" id="requiredUnits">0 units</span>
+                                        </div>
+                                        <div id="subjectList" class="small"></div>
+                                    </div>
+
+                                    <?php foreach ($assessment_criteria as $criteria): ?>
+                                    <?php 
+                                    // Get documents related to this criteria
+                                    
+               $criteriaDocs = array_values(array_filter($documents, fn($doc) => doc_matches_criteria($doc, $criteria)));
+$hasCriteriaDocs = !empty($criteriaDocs);
+
+                                    // Auto-suggest score mula sa Detailed Upload
+$suggestedScore = 0; 
+$suggestedWhy   = 'No detailed selections';
+if ($hasCriteriaDocs) {
+    list($suggestedScore, $suggestedWhy) = suggest_score_from_docs($criteria, $criteriaDocs);
+}
+
+                                    ?>
+                                    
+                                    <div class="criteria-card">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                                    <h6 class="mb-0"><?php echo htmlspecialchars($criteria['criteria_name']); ?></h6>
+                                                    <div class="d-flex gap-2">
+                                                        <span class="badge bg-secondary">
+                                                            <?php echo ucfirst(str_replace('_', ' ', $criteria['criteria_type'])); ?>
+                                                        </span>
+                                                        <span class="badge <?php echo $hasCriteriaDocs ? 'bg-success' : 'bg-warning'; ?>">
+                                                            Max: <?php echo $criteria['max_score']; ?> pts
+                                                        </span>
+                                                        <span class="badge bg-info">
+                                                            Weight: <?php echo $criteria['weight']; ?>x
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <p class="text-muted small mb-3"><?php echo htmlspecialchars($criteria['description']); ?></p>
+                                                
+                                           <?php if ($hasCriteriaDocs): ?>
+<div class="mb-3 p-3 rounded" style="background: #e8f5e8; border-left: 4px solid #28a745;">
+    <h6 class="mb-3 text-success">
+        <i class="fas fa-folder-open me-2"></i>Uploaded Documents
+    </h6>
+    <?php foreach ($criteriaDocs as $doc): ?>
+    <div class="d-flex align-items-center mb-2 p-2 bg-white rounded border">
+        <div class="doc-thumbnail <?php echo $doc['file_category']; ?> me-3" style="width: 40px; height: 40px; min-width: 40px;">
+            <i class="fas fa-<?php echo $doc['file_category'] === 'pdf' ? 'file-pdf' : ($doc['file_category'] === 'image' ? 'image' : 'file'); ?>"></i>
+        </div>
+        <div class="flex-grow-1">
+            <div class="fw-semibold small"><?php echo htmlspecialchars($doc['original_filename']); ?></div>
+            <div class="text-muted small">
+                <?php echo date('M j, Y \a\t g:i A', strtotime($doc['upload_date'])); ?> | 
+                <?php echo number_format($doc['file_size'] / 1024, 1); ?> KB
+            </div>
+            <?php
+                $hier = parse_hier($doc);
+                echo render_hier_badges($hier);
+            ?>
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-sm" 
+                data-bs-toggle="modal" data-bs-target="#docModal"
+                data-doc-id="<?php echo $doc['id']; ?>"
+                data-doc-filename="<?php echo htmlspecialchars($doc['original_filename']); ?>"
+                data-doc-path="<?php echo htmlspecialchars($doc['file_path']); ?>"
+                data-doc-type="<?php echo $doc['file_category']; ?>"
+                data-doc-size="<?php echo $doc['file_size']; ?>">
+            <i class="fas fa-eye"></i>
+        </button>
+    </div>
+    <?php endforeach; ?>
+</div>
+
+
+                                                <?php else: ?>
+<div class="mb-3 p-3 rounded" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+    <div class="d-flex align-items-center">
+        <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+        <span class="text-warning"><strong>No supporting documents uploaded for this criteria.</strong></span>
+    </div>
+    <small class="text-muted">Score will automatically be set to 0</small>
+</div>
+<?php endif; ?>
+                                                
+                                                <textarea class="form-control" 
+                                                        name="evaluations[<?php echo $criteria['id']; ?>][comments]" 
+                                                        rows="2" 
+                                                        placeholder="Evidence and justification..."><?php echo isset($existing_evaluations[$criteria['id']]) ? htmlspecialchars($existing_evaluations[$criteria['id']]['comments']) : ''; ?></textarea>
+                                            </div>
+                                            <div class="col-md-4 text-end">
+                                                <div class="sticky-top" style="top: 20px;">
+                                                    <div class="input-group mb-2">
+                                                        <input type="number" 
+                                                            class="form-control score-input text-center smart-score-input" 
+                                                            name="evaluations[<?php echo $criteria['id']; ?>][score]" 
+                                                            data-max="<?php echo $criteria['max_score']; ?>"
+                                                            data-weight="<?php echo $criteria['weight']; ?>"
+                                                            data-criteria-id="<?php echo $criteria['id']; ?>"
+                                                            data-has-docs="<?php echo $hasCriteriaDocs ? 'true' : 'false'; ?>"
+                                                            min="0" 
+                                                            max="<?php echo $criteria['max_score']; ?>" 
+                                                            step="0.1"
+                                                           value="<?php
+  if (isset($existing_evaluations[$criteria['id']])) {
+      echo $existing_evaluations[$criteria['id']]['score'];   // keep saved value
+  } else {
+      echo $hasCriteriaDocs ? $suggestedScore : '0';          // prefill from auto-suggest
+  }
+?>"
+
+                                                            <?php echo !$hasCriteriaDocs ? 'style="background-color: #fff3cd;" readonly' : ''; ?>
+                                                            required>
+                                                        <span class="input-group-text">/ <?php echo $criteria['max_score']; ?></span>
+                                                    </div>
+                                                    
+                                                    <div class="text-center mb-3">
+                                                        <div class="fw-bold <?php echo $hasCriteriaDocs ? 'text-primary' : 'text-warning'; ?>" 
+                                                             id="percentage-<?php echo $criteria['id']; ?>">0%</div>
+                                                        <small class="text-muted">Current Score</small>
+                                                    </div>
+                                                    <?php if ($hasCriteriaDocs): ?>
+  <div class="small text-muted mb-3">
+    <i class="fas fa-magic me-1 text-success"></i>
+    Auto-suggested: <strong><?php echo $suggestedScore; ?></strong>
+    <div class="text-muted"><?php echo htmlspecialchars($suggestedWhy); ?></div>
+    <button type="button" class="btn btn-link p-0 small"
+      onclick="var inp=this.closest('.criteria-card').querySelector('input.smart-score-input'); inp.value='<?php echo $suggestedScore; ?>'; calculateSmartScore();">
+      Use this score
+    </button>
+  </div>
+<?php endif; ?>
+
+                                                    
+                                                    <?php if ($hasCriteriaDocs): ?>
+                                                    <div class="alert alert-success p-2 small text-center">
+                                                        <i class="fas fa-thumbs-up"></i><br>
+                                                        Ready for scoring
+                                                    </div>
+                                                    <?php else: ?>
+                                                    <div class="alert alert-warning p-2 small text-center">
+                                                        <i class="fas fa-lock"></i><br>
+                                                        Auto-scored as 0<br>
+                                                        <em>No documents</em>
+                                                    </div>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+
+                                
+                                <!-- Smart Final Assessment -->
+<div class="evaluation-card p-4">
+    <h5 class="mb-3">
+        <i class="fas fa-robot me-2"></i>
+        Smart Recommendations & Auto-Bridging Requirements
+    </h5>
+
+    <!-- Status + Required -->
+    <div class="alert alert-light border mb-3" id="smartRecommendation" style="display:none;">
+        <div class="row">
+            <div class="col-md-6"><strong>Status:</strong><div id="recommendedStatus" class="mt-1"></div></div>
+            <div class="col-md-6"><strong>Required:</strong><div id="recommendedBridging" class="mt-1"></div></div>
+        </div>
+    </div>
+
+
+    <!-- Bridging Requirements (Only shows subjects NOT passed) -->
+    <div class="mb-3 p-3 rounded border" id="bridgingSummary" style="background:linear-gradient(135deg,#eef7ff,#f6fff0)">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="mb-0">
+                <i class="fas fa-graduation-cap me-2 text-primary"></i>
+                Bridging Requirements
+                <span class="badge bg-success ms-2">
+                    <i class="fas fa-magic me-1"></i>Auto-Generated
+                </span>
+            </h6>
+            <div class="d-flex gap-2">
+                <span class="badge bg-primary">
+                    Required: <span id="summaryRequiredUnits"><?php echo $reqUnits ?: '—'; ?></span>
+                </span>
+                <span class="badge bg-info">
+                    Current: <span id="summaryCurrentUnits">
+                        <?php echo !empty($bridging_requirements) ? array_sum(array_column($bridging_requirements,'units')).' units' : '0 units'; ?>
+                    </span>
+                </span>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="toggleEditBridging">
+                    <i class="fas fa-pen-to-square me-1"></i>Customize
+                </button>
+            </div>
+        </div>
+
+        <div id="summaryList">
+            <?php if (!empty($bridging_requirements)): ?>
+                <?php foreach ($bridging_requirements as $req): ?>
+                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom">
+                        <div>
+                            <strong><?php echo htmlspecialchars($req['subject_name']); ?></strong>
+                            <?php if (!empty($req['subject_code'])): ?>
+                                <span class="text-muted"> (<?php echo htmlspecialchars($req['subject_code']); ?>)</span>
+                            <?php endif; ?>
+                            <?php if (!empty($req['priority'])): ?>
+                                <span class="priority-badge ms-1"><?php echo (int)$req['priority']==1?'HIGH':((int)$req['priority']==2?'MEDIUM':'LOW'); ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <span class="badge bg-light text-dark"><?php echo (int)$req['units']; ?> units</span>
+                    </div>
+                <?php endforeach; ?>
+            <?php else: ?>
+                <div class="text-muted small">
+                    <i class="fas fa-info-circle me-1"></i>
+                    Bridging subjects will auto-load when evaluation reaches 60% or higher.
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- EDIT MODE (hidden by default, no Load Smart button) -->
+    <div class="bridging-management mb-4" id="bridgingManagement" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0">
+                <i class="fas fa-graduation-cap me-2 text-primary"></i>
+                Customize Bridging Requirements
+                <small class="text-muted ms-2">(Auto-loaded based on score)</small>
+            </h6>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshSmart">
+                    <i class="fas fa-refresh me-1"></i>Refresh Suggestions
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addBridgingSubject()">
+                    <i class="fas fa-plus me-1"></i>Add Subject
+                </button>
+            </div>
+        </div>
+
+        <div class="alert alert-info small mb-3">
+            <i class="fas fa-lightbulb me-1"></i>
+            <strong>Auto-Loading:</strong> Bridging requirements are automatically generated when the evaluation score reaches 60% or higher. 
+            You can customize them below if needed.
+        </div>
+
+        <form method="POST" action="" id="bridgingForm">
+            <input type="hidden" name="application_id" value="<?php echo $current_application['id']; ?>">
+
+            <div id="bridgingSubjectsList" class="mb-3">
+                <!-- Existing bridging requirements will be loaded here -->
+              <?php if (!empty($bridging_requirements)): ?>
+    <?php foreach ($bridging_requirements as $index => $req): ?>
+        <div class="bridging-subject-item mb-2 p-3 border rounded">
+            <div class="row align-items-center">
+                <div class="col-md-5">
+                    <label class="form-label small">Subject Name</label>
+                    <select class="form-select form-select-sm subject-selector" 
+                            name="bridging_subjects[<?php echo $index; ?>][name]" 
+                            onchange="updateSubjectDetails(this, <?php echo $index; ?>)" required>
+                        <option value="">Select Subject...</option>
+                        <?php foreach ($predefined_subjects as $subject): ?>
+                        <option value="<?php echo htmlspecialchars($subject['name']); ?>" 
+                                data-code="<?php echo htmlspecialchars($subject['code']); ?>"
+                                data-units="<?php echo (int)$subject['units']; ?>"
+                                <?php echo $req['subject_name'] === $subject['name'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($subject['name']); ?>
+                        </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Code</label>
+                    <input type="text" class="form-control form-control-sm" 
+                           name="bridging_subjects[<?php echo $index; ?>][code]" 
+                           value="<?php echo htmlspecialchars($req['subject_code']); ?>" readonly>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Units</label>
+                    <input type="number" class="form-control form-control-sm units-input" 
+                           name="bridging_subjects[<?php echo $index; ?>][units]" 
+                           value="<?php echo (int)$req['units']; ?>" readonly required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Priority</label>
+                    <select class="form-select form-select-sm" 
+                            name="bridging_subjects[<?php echo $index; ?>][priority]">
+                        <option value="1" <?php echo (int)$req['priority'] === 1 ? 'selected' : ''; ?>>High</option>
+                        <option value="2" <?php echo (int)$req['priority'] === 2 ? 'selected' : ''; ?>>Medium</option>
+                        <option value="3" <?php echo (int)$req['priority'] === 3 ? 'selected' : ''; ?>>Low</option>
+                    </select>
+                </div>
+                <div class="col-md-1 text-end">
+                    <button type="button" class="btn btn-sm btn-outline-danger" 
+                            onclick="removeBridgingSubject(this)">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary" id="totalUnitsDisplay">
+                        Total: <span id="totalUnitsCount"><?php echo array_sum(array_column($bridging_requirements, 'units')); ?></span> units
+                    </span>
+                    <span class="badge bg-success">
+                        Required: <span id="editRequiredUnits"><?php echo $reqUnits ?: 0; ?></span> units
+                    </span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="toggleCancelEdit">Close</button>
+                    <button type="submit" name="update_bridging" class="btn btn-sm btn-success">
+                        <i class="fas fa-save me-1"></i>Save Requirements
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+    
+    <div class="row g-3">
+        <div class="col-md-8">
+            <label class="form-label">Additional Comments (Optional)</label>
+            <textarea class="form-control" name="recommendation" rows="3" 
+                      placeholder="Add comments beyond auto-generated recommendations..."></textarea>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">Status Override</label>
+            <select class="form-select" name="final_status">
+                <option value="auto">Use Smart Recommendation</option>
+                <option value="qualified">Override: Qualified</option>
+                <option value="partially_qualified">Override: Partially Qualified</option>
+                <option value="not_qualified">Override: Not Qualified</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="mt-4">
+        <button type="submit" name="submit_evaluation" class="btn btn-success btn-lg">
+            <i class="fas fa-brain me-2"></i>
+            Submit Smart Evaluation
+        </button>
+        <a href="evaluate.php" class="btn btn-outline-secondary btn-lg ms-2">Cancel</a>
+    </div>
+
+</div>
+
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+    
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Enhanced JavaScript for smart evaluation system with document handling
+        
+        
+        const programCode = '<?php echo $current_application['program_code'] ?? ''; ?>';
+const programId = <?php echo $current_application['program_id'] ?? 'null'; ?>;
+const hasDocuments = <?php echo $hasDocs ? 'true' : 'false'; ?>;
+ 
+   // Replace the hardcoded subjectData with PHP-generated data
+const subjectData = <?php echo json_encode($predefined_subjects); ?>;
+
+// Simple: Just pick subjects from database until we reach required units
+function getSubjectRecommendations(programCode, requiredUnits) {
+    if (!subjectData || subjectData.length === 0) {
+        return { subjects: [], totalUnits: 0, remaining: requiredUnits };
+    }
+    
+    let selectedSubjects = [];
+    let totalUnits = 0;
+    
+    // Add subjects until we're close
+    for (let subject of subjectData) {
+        const units = parseInt(subject.units) || 3;
+        
+        if (totalUnits + units <= requiredUnits) {
+            selectedSubjects.push({
+                name: subject.name,
+                code: subject.code,
+                units: units,
+                priority: 1
+            });
+            totalUnits += units;
         }
         
-        $html = '
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px;">
-                <tr>
-                    <td align="center">
-                        <table width="600" cellpadding="0" cellspacing="0" style="background-color: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                            
-                            <!-- Header -->
-                            <tr>
-                                <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
-                                    <h1 style="color: white; margin: 0; font-size: 28px;">🎓 ETEEAP Evaluation Results</h1>
-                                    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">Expanded Tertiary Education Equivalency and Accreditation Program</p>
-                                </td>
-                            </tr>
-                            
-                            <!-- Greeting -->
-                            <tr>
-                                <td style="padding: 30px;">
-                                    <p style="font-size: 16px; color: #333; margin: 0 0 20px 0;">Dear <strong>' . htmlspecialchars($application['candidate_name']) . '</strong>,</p>
-                                    <p style="font-size: 14px; color: #666; line-height: 1.6; margin: 0 0 20px 0;">Your ETEEAP application for <strong>' . htmlspecialchars($application['program_name']) . '</strong> has been evaluated. Below are your assessment results:</p>
-                                </td>
-                            </tr>
-                            
-                            <!-- Results Card -->
-                            <tr>
-                                <td style="padding: 0 30px 30px 30px;">
-                                    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 8px; border: 2px solid ' . $statusColor . ';">
-                                        <tr>
-                                            <td style="padding: 20px;">
-                                                <table width="100%">
-                                                    <tr>
-                                                        <td width="50%" style="padding: 10px;">
-                                                            <div style="font-size: 13px; color: #6c757d; margin-bottom: 5px;">Final Score</div>
-                                                            <div style="font-size: 32px; font-weight: bold; color: ' . $statusColor . ';">' . $final_score . '%</div>
-                                                        </td>
-                                                        <td width="50%" style="padding: 10px; text-align: right;">
-                                                            <div style="font-size: 13px; color: #6c757d; margin-bottom: 5px;">Status</div>
-                                                            <div style="display: inline-block; background-color: ' . $statusColor . '; color: white; padding: 8px 16px; border-radius: 20px; font-weight: 600; font-size: 14px;">
-                                                                ' . strtoupper(str_replace('_', ' ', $final_status)) . '
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                </table>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </td>
-                            </tr>
-                            
-                            ' . ($final_status === 'qualified' && $bridgingUnits > 0 ? '
-                            <!-- Bridging Units Badge -->
-                            <tr>
-                                <td style="padding: 0 30px 20px 30px; text-align: center;">
-                                    <div style="display: inline-block; background-color: #17a2b8; color: white; padding: 10px 20px; border-radius: 25px; font-weight: 600;">
-                                        🎓 Bridging Requirements: ' . $bridgingUnits . ' units
-                                    </div>
-                                </td>
-                            </tr>
-                            ' : '') . '
-                            
-                            <!-- Detailed Evaluation & Recommendations -->
-                            <tr>
-                                <td style="padding: 0 30px 30px 30px;">
-                                    <div style="background-color: #e7f3ff; border-left: 4px solid #007bff; padding: 20px; border-radius: 5px;">
-                                        <h2 style="color: #007bff; margin: 0 0 15px 0; font-size: 18px;">📋 Detailed Evaluation & Recommendations</h2>
-                                        
-                                        ' . (!empty($creditedSubjects) ? '
-                                        <div style="margin-bottom: 25px;">
-                                            <h3 style="color: #28a745; font-size: 16px; margin: 0 0 10px 0;">✅ Credited Subjects - Prior Learning Recognition</h3>
-                                            <p style="font-size: 13px; color: #666; margin: 0 0 10px 0;">The following subjects have been credited based on your demonstrated competencies:</p>
-                                            <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #dee2e6; border-radius: 5px; overflow: hidden;">
-                                                <thead>
-                                                    <tr style="background-color: #28a745; color: white;">
-                                                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">Subject Name</th>
-                                                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">Evidence</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ' . $creditedTableRows . '
-                                                </tbody>
-                                            </table>
-                                            <p style="font-size: 12px; color: #666; margin: 10px 0 0 0; font-style: italic;">
-                                                Summary: ' . count($creditedSubjects) . ' subjects credited through prior learning assessment
-                                            </p>
-                                        </div>
-                                        ' : '') . '
-                                        
-                                        ' . (!empty($bridgingSubjects) ? '
-                                        <div style="margin-bottom: 20px;">
-                                            <h3 style="color: #dc3545; font-size: 16px; margin: 0 0 10px 0;">📚 Required Bridging Courses</h3>
-                                            <p style="font-size: 13px; color: #666; margin: 0 0 10px 0;">To complete your degree, you must fulfill ' . $bridgingUnits . ' units of bridging courses:</p>
-                                            <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #dee2e6; border-radius: 5px; overflow: hidden;">
-                                                <thead>
-                                                    <tr style="background-color: #dc3545; color: white;">
-                                                        <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px;">Subject Name</th>
-                                                        <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px;">Code</th>
-                                                        <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px;">Units</th>
-                                                        <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px;">Priority</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    ' . $bridgingTableRows . '
-                                                </tbody>
-                                                <tfoot>
-                                                    <tr style="background-color: #f8f9fa; font-weight: bold;">
-                                                        <td colspan="2" style="padding: 12px; text-align: right; border-top: 2px solid #dee2e6;">Total Bridging Units Required:</td>
-                                                        <td style="padding: 12px; text-align: center; border-top: 2px solid #dee2e6; color: #dc3545; font-size: 16px;">' . $bridgingUnits . '</td>
-                                                        <td style="padding: 12px; border-top: 2px solid #dee2e6;"></td>
-                                                    </tr>
-                                                </tfoot>
-                                            </table>
-                                        </div>
-                                        ' : '') . '
-                                        
-                                        <div style="background-color: white; padding: 15px; border-radius: 5px; margin-top: 15px;">
-                                            <pre style="font-family: Arial, sans-serif; font-size: 13px; color: #333; line-height: 1.6; white-space: pre-wrap; margin: 0;">' . htmlspecialchars($recommendation) . '</pre>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Next Steps -->
-                            <tr>
-                                <td style="padding: 0 30px 30px 30px;">
-                                    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 5px;">
-                                        <h3 style="color: #856404; margin: 0 0 10px 0; font-size: 16px;">📍 Next Steps</h3>
-                                        <ul style="margin: 0; padding-left: 20px; color: #856404;">
-                                            <li style="margin-bottom: 8px;">Our Admissions Office will contact you within 3-5 business days</li>
-                                            <li style="margin-bottom: 8px;">Check your email regularly for further instructions</li>
-                                            <li style="margin-bottom: 8px;">Prepare required enrollment documents</li>
-                                            <li>For urgent inquiries, contact us at <a href="mailto:pobletecharles11@gmail.com" style="color: #856404; font-weight: 600;">pobletecharles11@gmail.com</a></li>
-                                        </ul>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Footer -->
-                            <tr>
-                                <td style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #dee2e6;">
-                                    <p style="margin: 0; font-size: 12px; color: #6c757d;">
-                                        This is an automated message from the ETEEAP System.<br>
-                                        For questions, please contact <a href="mailto:pobletecharles11@gmail.com" style="color: #667eea;">pobletecharles11@gmail.com</a>
-                                    </p>
-                                </td>
-                            </tr>
-                            
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </body>
-        </html>';
+        if (totalUnits === requiredUnits) break;
+    }
+    
+    // If there's a small gap remaining, adjust the last subject or add a flexible one
+    const remaining = requiredUnits - totalUnits;
+    if (remaining > 0 && remaining <= 3 && selectedSubjects.length > 0) {
+        // Add the remaining units to the last subject
+        selectedSubjects[selectedSubjects.length - 1].units += remaining;
+        totalUnits = requiredUnits;
+    } else if (remaining > 0) {
+        // Add more subjects to fill the gap
+        let index = 0;
+        while (totalUnits < requiredUnits && index < subjectData.length) {
+            const subject = subjectData[index];
+            const isDuplicate = selectedSubjects.some(s => s.name === subject.name);
+            
+            if (!isDuplicate) {
+                const unitsNeeded = requiredUnits - totalUnits;
+                const subjectUnits = Math.min(parseInt(subject.units) || 3, unitsNeeded);
+                
+                selectedSubjects.push({
+                    name: subject.name,
+                    code: subject.code,
+                    units: subjectUnits,
+                    priority: 2
+                });
+                totalUnits += subjectUnits;
+            }
+            index++;
+        }
+    }
+    
+    return { 
+        subjects: selectedSubjects, 
+        totalUnits: totalUnits,
+        remaining: 0 // Should always be 0 now
+    };
+}
         
-        $alt = strip_tags($recommendation);
+  function calculateBridgingUnits(score) {
+    if (score >= 95) return 3;
+    if (score >= 91) return 6;
+    if (score >= 85) return 9;
+    if (score >= 80) return 12;
+    if (score >= 75) return 15;
+    if (score >= 70) return 18;
+    if (score >= 65) return 21;
+    if (score >= 60) return 24;
+    return 0;
+}
+
+   function calculateSmartScore() {
+    const scoreInputs = document.querySelectorAll('.smart-score-input');
+    let totalWeightedScore = 0;
+    let totalWeight = 0;
+    let hasScores = false;
+    
+    scoreInputs.forEach(input => {
+        const score = parseFloat(input.value) || 0;
+        const maxScore = parseFloat(input.getAttribute('data-max'));
+        const weight = parseFloat(input.getAttribute('data-weight'));
+        const criteriaId = input.getAttribute('data-criteria-id');
+        const hasDocs = input.getAttribute('data-has-docs') === 'true';
+
+        // lock to 0 if no docs
+        const finalScore = hasDocs ? score : 0;
+
+        // clamp
+        const bounded = Math.max(0, Math.min(finalScore, maxScore));
+        const percentage = maxScore > 0 ? (bounded / maxScore) * 100 : 0;
+
+        // ALWAYS accumulate denominator
+        totalWeightedScore += (percentage * weight);
+        totalWeight += weight;
+
+        // UI per-criteria %
+        const pctEl = document.getElementById(`percentage-${criteriaId}`);
+        if (pctEl) {
+            pctEl.textContent = Math.round(percentage) + '%';
+            pctEl.className = 'fw-bold ' + (hasDocs ? 'text-primary' : 'text-warning');
+        }
+
+        // keep a flag to show widgets
+        hasScores = hasScores || bounded > 0;
+    });
+
+    const finalScore = totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
+    
+    if (hasScores) {
+        updateScoreDisplay(finalScore);
+        updateBridgingPreview(finalScore);
+        updateSmartRecommendation(finalScore);
+        autoLoadBridgingRequirements(finalScore);
+        updateCurriculumStatus(); // ← Add this call
+    } else {
+        hideScoreDisplays();
+        updateCurriculumStatus(); // ← Add this call too
+    }
+}
+// New function to automatically load bridging requirements
+function autoLoadBridgingRequirements(score) {
+    const container = document.getElementById('bridgingSubjectsList');
+    const required = score >= 60 ? calculateBridgingUnits(score) : 0;
+    
+    // Only auto-load if:
+    // 1. Score is 60% or higher
+    // 2. No existing bridging subjects are already loaded
+    // 3. Container exists
+      if (required > 0 && container && container.children.length === 0) {
+         const rec = getSubjectRecommendations(programCode || '', required);
         
-        $ok = send_with_fallback(function($mail) use ($application, $html, $alt) {
-            $mail->addAddress($application['candidate_email'], $application['candidate_name']);
-            $mail->Subject = 'ETEEAP Evaluation Results - ' . ucfirst(str_replace('_', ' ', $application['application_status']));
-            $mail->Body    = $html;
-            $mail->AltBody = $alt;
+        // Clear counter and load suggestions
+        subjectCounter = 0;
+        
+        rec.subjects.forEach(s => {
+            addBridgingSubject(); // creates a new row
+            
+            // fill the new row with recommended data
+            const row = container.lastElementChild;
+            const selectElement = row.querySelector('select.subject-selector');
+            
+            // Try to find matching predefined subject
+            const matchingOption = Array.from(selectElement.options).find(option => 
+                option.value === s.name || option.textContent.trim() === s.name
+            );
+            
+            if (matchingOption) {
+                selectElement.value = matchingOption.value;
+                // Trigger the change event to populate other fields
+                updateSubjectDetails(selectElement, subjectCounter - 1);
+            } else {
+                // Use custom option if no exact match
+                selectElement.value = 'custom';
+                updateSubjectDetails(selectElement, subjectCounter - 1);
+                row.querySelector('input[name*="[custom_name]"]').value = s.name;
+            }
+            
+            // Set the other fields
+            row.querySelector('input[name*="[code]"]').value = s.code || '';
+            row.querySelector('input[name*="[units]"]').value = s.units || 3;
+            row.querySelector('select[name*="[priority]"]').value = s.priority || 2;
         });
         
-        error_log("✅ Email sent successfully!");
-        return $ok;
+        updateTotalUnits();
         
-    } catch (Exception $e) {
-        error_log("❌ Email Error: " . $e->getMessage());
-        return false;
+        // Show a subtle notification that bridging requirements were auto-loaded
+        showToast(`Auto-loaded ${rec.subjects.length} bridging subjects based on ${score}% score`, 'success');
     }
 }
 
-?>
+        function updateScoreDisplay(score) {
+            const calculator = document.getElementById('liveScoreCalculator');
+            const currentScore = document.getElementById('currentLiveScore');
+            const progressBar = document.getElementById('liveScoreProgress');
+            const statusSpan = document.getElementById('liveScoreStatus');
+            
+            calculator.style.display = 'block';
+            currentScore.textContent = score;
+            progressBar.style.width = Math.min(score, 100) + '%';
+            
+            let status, statusClass, progressClass, calculatorClass;
+            if (score >= 60) {
+                status = 'QUALIFIED';
+                statusClass = 'bg-success';
+                progressClass = 'progress-bar-pass';
+                calculatorClass = 'score-calculator-pass';
+            } else if (score >= 48) {
+                status = 'PARTIAL';
+                statusClass = 'bg-warning';
+                progressClass = 'progress-bar-partial';
+                calculatorClass = 'score-calculator-partial';
+            } else {
+                status = 'NOT QUALIFIED';
+                statusClass = 'bg-danger';
+                progressClass = 'progress-bar-fail';
+                calculatorClass = 'score-calculator-fail';
+            }
+            
+            statusSpan.textContent = status;
+            statusSpan.className = `badge ${statusClass}`;
+            progressBar.className = `progress-bar ${progressClass}`;
+            calculator.className = `alert alert-info mb-4 ${calculatorClass}`;
+        }
+
+function updateBridgingPreview(score) {
+    const bridgingPreview = document.getElementById('bridgingPreview');
+    const requiredUnitsSpan = document.getElementById('requiredUnits');
+    const subjectList = document.getElementById('subjectList');
+    const bridgingManagement = document.getElementById('bridgingManagement');
+
+    if (!bridgingPreview || !requiredUnitsSpan || !subjectList) return;
+
+    if (score >= 60) {
+        const requiredUnits = calculateBridgingUnits(score);
+        const recommendations = getSubjectRecommendations(programCode || '', requiredUnits);
+
+        // Show preview + management
+        bridgingPreview.style.display = 'block';
+        if (bridgingManagement) bridgingManagement.style.display = 'block';
+        requiredUnitsSpan.textContent = `${requiredUnits} units`;
+
+        // Auto-populate edit form kung empty pa
+        autoPopulateBridgingForm(recommendations, requiredUnits);
+
+        // Build preview list - REMOVE THE PLACEHOLDER TEXT
+        let subjectsHtml = '';
+        recommendations.subjects.forEach(subject => {
+            const priorityBadge = subject.priority === 1 ? '<span class="priority-badge">HIGH</span>' : '';
+            subjectsHtml += `
+                <div class="subject-item">
+                    <span>${subject.name} (${subject.code})${priorityBadge}</span>
+                    <span class="badge bg-light text-dark">${subject.units} units</span>
+                </div>
+            `;
+        });
+
+        // REMOVED: The "Additional X units to be determined" section
+        // If you need ALL required units filled, handle it in autoPopulateBridgingForm instead
+
+        subjectList.innerHTML = subjectsHtml;
+        syncRequiredUnits(requiredUnits);
+
+    } else if (score >= 48) {
+        bridgingPreview.style.display = 'block';
+        if (bridgingManagement) bridgingManagement.style.display = 'none';
+        requiredUnitsSpan.textContent = 'Regular Program';
+        subjectList.innerHTML = `<div class="text-center text-muted">
+            <i class="fas fa-info-circle me-2"></i>Student must enroll in regular degree program
+        </div>`;
+        syncRequiredUnits(0);
+    } else {
+        bridgingPreview.style.display = 'none';
+        if (bridgingManagement) bridgingManagement.style.display = 'none';
+        syncRequiredUnits(0);
+    }
+}
+
+
+
+function getFilteredBridgingSubjects(allSubjects, passedSubjects) {
+    return allSubjects.filter(subject => !passedSubjects.hasOwnProperty(subject.name));
+}
+
+// Modify the autoPopulateBridgingForm function to use filtered subjects
+function autoPopulateBridgingForm(recommendations, requiredUnits) {
+    const container = document.getElementById('bridgingSubjectsList');
+    if (!container) return;
+
+    // Get passed subjects from PHP
+    const passedSubjects = <?php echo json_encode($passedSubjects); ?>;
+    
+    // Filter out already-passed subjects
+    const filteredSubjects = recommendations.subjects.filter(s => !passedSubjects.hasOwnProperty(s.name));
+    
+
+    const existingRows = container.querySelectorAll('.bridging-subject-item');
+    if (existingRows.length > 0) {
+        updateTotalUnits();
+        syncCurrentUnits();
+        return;
+    }
+
+    // Reset
+    container.innerHTML = '';
+    subjectCounter = 0;
+
+    // Load recommended subjects
+    let loadedUnits = 0;
+    recommendations.subjects.forEach(subject => {
+        addBridgingSubject();
+        const row = container.lastElementChild;
+
+        const selectElement = row.querySelector('select.subject-selector');
+        const matchingOption = Array.from(selectElement.options).find(
+            option => option.value === subject.name || option.textContent.trim() === subject.name
+        );
+        if (matchingOption) {
+            selectElement.value = matchingOption.value;
+            updateSubjectDetails(selectElement, subjectCounter - 1);
+        } else {
+            selectElement.value = 'custom';
+            updateSubjectDetails(selectElement, subjectCounter - 1);
+            row.querySelector('input[name*="[custom_name]"]').value = subject.name;
+        }
+
+        row.querySelector('input[name*="[code]"]').value = subject.code || '';
+        row.querySelector('input[name*="[units]"]').value = subject.units || 3;
+        row.querySelector('select[name*="[priority]"]').value = subject.priority || 2;
+
+        loadedUnits += parseInt(subject.units || 0, 10);
+    });
+
+    // If there's still a gap, add actual subjects to fill it (not placeholders)
+    const remaining = Math.max(0, parseInt(requiredUnits, 10) - loadedUnits);
+    if (remaining > 0) {
+        // Get additional subjects to fill the gap
+        const PC = (programCode || '').toUpperCase();
+        let additionalSubjects = [];
+        
+        if (PC.includes('BSED')) {
+            additionalSubjects = [
+                {name: 'Teaching Strategies 3', code: 'TS3', units: 3, priority: 2},
+                {name: 'Introduction to Educational Research', code: 'IER', units: 3, priority: 2},
+                {name: 'Professional Ethics', code: 'PE', units: 3, priority: 2}
+            ];
+        } else if (PC.includes('BEED')) {
+            additionalSubjects = [
+                {name: 'Teaching Strategies 2', code: 'TS2', units: 3, priority: 2},
+                {name: 'Introduction to Educational Research (BEEd)', code: 'IER-BEED', units: 3, priority: 2},
+                {name: 'Professional Ethics (BEEd)', code: 'PE-BEED', units: 3, priority: 2}
+            ];
+        } else {
+            additionalSubjects = [
+                {name: 'Professional Development Course 2', code: 'PDC2', units: 3, priority: 2},
+                {name: 'Capstone Project', code: 'CAP', units: 3, priority: 2}
+            ];
+        }
+
+        let remainingToFill = remaining;
+        for (let subject of additionalSubjects) {
+            if (remainingToFill <= 0) break;
+            
+            addBridgingSubject();
+            const row = container.lastElementChild;
+            const selectElement = row.querySelector('select.subject-selector');
+
+            const match = Array.from(selectElement.options).find(opt =>
+                opt.value === subject.name || opt.textContent.trim() === subject.name
+            );
+            if (match) {
+                selectElement.value = match.value;
+                updateSubjectDetails(selectElement, subjectCounter - 1);
+            } else {
+                selectElement.value = 'custom';
+                updateSubjectDetails(selectElement, subjectCounter - 1);
+                row.querySelector('input[name*="[custom_name]"]').value = subject.name;
+            }
+
+            const unitsToAdd = Math.min(subject.units, remainingToFill);
+            row.querySelector('input[name*="[code]"]').value = subject.code || '';
+            row.querySelector('input[name*="[units]"]').value = unitsToAdd;
+            row.querySelector('select[name*="[priority]"]').value = subject.priority || 2;
+            
+            remainingToFill -= unitsToAdd;
+        }
+    }
+
+    updateTotalUnits();
+    syncCurrentUnits();
+
+    if (remaining > 0) {
+        showToast(`Loaded bridging requirements totaling ${requiredUnits} units`, 'success');
+    }
+}
+
+// helper to add a custom “Bridging Elective” row with N units
+function addFillerRow(container, units) {
+    if (!units || units <= 0) return;
+    addBridgingSubject();
+    const row = container.lastElementChild;
+
+    const selectElement = row.querySelector('select.subject-selector');
+    selectElement.value = 'custom';
+    updateSubjectDetails(selectElement, subjectCounter - 1);
+
+    // Label/code for fillers
+    row.querySelector('input[name*="[custom_name]"]').value =
+        `Bridging Elective (${units} ${units === 1 ? 'unit' : 'units'})`;
+    row.querySelector('input[name*="[code]"]').value  = 'ELEC';
+    row.querySelector('input[name*="[units]"]').value = units;
+    row.querySelector('select[name*="[priority]"]').value = 2; // Medium
+}
+
+        function updateSmartRecommendation(score) {
+            const smartRecommendation = document.getElementById('smartRecommendation');
+            const recommendedStatus = document.getElementById('recommendedStatus');
+            const recommendedBridging = document.getElementById('recommendedBridging');
+            
+            smartRecommendation.style.display = 'block';
+            
+            let statusHtml, bridgingHtml, alertClass;
+            
+            if (score >= 60) {
+                const requiredUnits = calculateBridgingUnits(score);
+                statusHtml = '<span class="badge bg-success">QUALIFIED</span>';
+                bridgingHtml = `<span class="badge bg-info">${requiredUnits} bridging units</span>`;
+                alertClass = 'alert-success';
+                
+                if (score >= 95) {
+                    statusHtml += '<div class="small text-success mt-1"><i class="fas fa-star"></i> Exceptional Performance</div>';
+                } else if (score >= 85) {
+                    statusHtml += '<div class="small text-success mt-1"><i class="fas fa-thumbs-up"></i> Strong Performance</div>';
+                }
+            } else if (score >= 48) {
+                statusHtml = '<span class="badge bg-warning">PARTIALLY QUALIFIED</span>';
+                bridgingHtml = '<span class="badge bg-secondary">Regular Program Required</span>';
+                alertClass = 'alert-warning';
+                statusHtml += '<div class="small text-warning mt-1"><i class="fas fa-exclamation-triangle"></i> Consider regular degree program</div>';
+            } else {
+                statusHtml = '<span class="badge bg-danger">NOT QUALIFIED</span>';
+                bridgingHtml = '<span class="badge bg-secondary">N/A</span>';
+                alertClass = 'alert-danger';
+                statusHtml += '<div class="small text-danger mt-1"><i class="fas fa-times-circle"></i> Does not meet minimum requirements</div>';
+            }
+            
+            recommendedStatus.innerHTML = statusHtml;
+            recommendedBridging.innerHTML = bridgingHtml;
+            smartRecommendation.className = `alert ${alertClass} border mb-3`;
+        }
+
+        function hideScoreDisplays() {
+            document.getElementById('liveScoreCalculator').style.display = 'none';
+            document.getElementById('bridgingPreview').style.display = 'none';
+            document.getElementById('smartRecommendation').style.display = 'none';
+        }
+
+        function validateScoreInput(input) {
+            const score = parseFloat(input.value);
+            const maxScore = parseFloat(input.getAttribute('data-max'));
+            const hasDocs = input.getAttribute('data-has-docs') === 'true';
+            
+            // Force score to 0 if no documents
+            if (!hasDocs && score > 0) {
+                input.value = '0';
+                showToast('Score cannot be greater than 0 - no documents uploaded for this criteria', 'warning');
+                return;
+            }
+            
+            if (score > maxScore) {
+                input.value = maxScore;
+                showToast(`Maximum score for this criteria is ${maxScore}`, 'warning');
+            } else if (score < 0) {
+                input.value = 0;
+                showToast('Score cannot be negative', 'warning');
+            }
+            
+            // Add visual feedback
+            if (score > 0 && hasDocs) {
+                input.classList.add('is-valid');
+                input.classList.remove('is-invalid');
+            } else {
+                input.classList.remove('is-valid', 'is-invalid');
+            }
+        }
+
+        // Document Modal Handler
+        function initializeDocumentModal() {
+            const docModal = document.getElementById('docModal');
+            if (!docModal) return;
+
+            docModal.addEventListener('show.bs.modal', function (event) {
+                const button = event.relatedTarget;
+                const docId = button.getAttribute('data-doc-id');
+                const docFilename = button.getAttribute('data-doc-filename');
+                const docPath = button.getAttribute('data-doc-path');
+                const docType = button.getAttribute('data-doc-type');
+                const docSize = button.getAttribute('data-doc-size');
+
+                // Update modal title and info
+                document.getElementById('modalDocName').textContent = docFilename;
+                document.getElementById('modalDocInfo').innerHTML = `
+                    <i class="fas fa-info-circle me-1"></i>
+                    Type: ${docType.toUpperCase()} | Size: ${(docSize / 1024).toFixed(1)} KB
+                `;
+                
+                // Set download link
+                document.getElementById('modalDownloadBtn').href = docPath;
+
+                // Load document preview
+                loadDocumentPreview(docPath, docType, docFilename);
+            });
+        }
+
+        function loadDocumentPreview(docPath, docType, filename) {
+            const modalBody = document.getElementById('docModalBody');
+            
+            // Show loading
+            modalBody.innerHTML = `
+                <div class="d-flex justify-content-center align-items-center" style="height: 400px;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+
+            if (docType === 'image') {
+                modalBody.innerHTML = `
+                    <div class="text-center">
+                        <img src="${docPath}" class="img-fluid" style="max-height: 70vh;" 
+                             alt="${filename}" onload="this.style.opacity=1" style="opacity:0;transition:opacity 0.3s">
+                    </div>
+                `;
+            } else if (docType === 'pdf') {
+                modalBody.innerHTML = `
+                    <div class="text-center">
+                        <iframe src="${docPath}" width="100%" height="600px" style="border: none; border-radius: 8px;">
+                            <p>Your browser does not support PDFs. 
+                               <a href="${docPath}" target="_blank">Download the PDF</a> instead.</p>
+                        </iframe>
+                    </div>
+                `;
+            } else {
+                modalBody.innerHTML = `
+                    <div class="text-center py-5">
+                        <i class="fas fa-file fa-4x text-muted mb-3"></i>
+                        <h5>Preview not available</h5>
+                        <p class="text-muted">This file type cannot be previewed in the browser.</p>
+                        <a href="${docPath}" class="btn btn-primary" target="_blank">
+                            <i class="fas fa-download me-1"></i>Download to view
+                        </a>
+                    </div>
+                `;
+            }
+        }
+
+
+
+let subjectCounter = <?php echo count($bridging_requirements); ?>;
+
+// Add this near the top of your JavaScript section
+const filteredSubjects = <?php echo json_encode(array_values(getFilteredSubjects($current_application['program_code'] ?? '', $predefined_subjects))); ?>;
+
+// Update addBridgingSubject function
+function addBridgingSubject() {
+    const container = document.getElementById('bridgingSubjectsList');
+    const newItem = document.createElement('div');
+    newItem.className = 'bridging-subject-item mb-2 p-3 border rounded';
+    
+    // Build simple dropdown from database
+    let subjectOptions = '<option value="">Select Subject...</option>';
+    subjectData.forEach(subject => {
+        subjectOptions += `<option value="${subject.name}" 
+            data-code="${subject.code}"
+            data-units="${subject.units}">
+            ${subject.name}
+        </option>`;
+    });
+    
+    newItem.innerHTML = `
+        <div class="row align-items-center">
+            <div class="col-md-5">
+                <label class="form-label small">Subject Name</label>
+                <select class="form-select form-select-sm subject-selector" 
+                        name="bridging_subjects[${subjectCounter}][name]" 
+                        onchange="updateSubjectDetails(this, ${subjectCounter})" required>
+                    ${subjectOptions}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Code</label>
+                <input type="text" class="form-control form-control-sm" 
+                       name="bridging_subjects[${subjectCounter}][code]" 
+                       placeholder="Auto" readonly>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Units</label>
+                <input type="number" class="form-control form-control-sm units-input" 
+                       name="bridging_subjects[${subjectCounter}][units]" 
+                       min="1" max="12" value="3" readonly required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small">Priority</label>
+                <select class="form-select form-select-sm" 
+                        name="bridging_subjects[${subjectCounter}][priority]">
+                    <option value="1" selected>High</option>
+                    <option value="2">Medium</option>
+                    <option value="3">Low</option>
+                </select>
+            </div>
+            <div class="col-md-1 text-end">
+                <button type="button" class="btn btn-sm btn-outline-danger" 
+                        onclick="removeBridgingSubject(this)" 
+                        title="Remove">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(newItem);
+    subjectCounter++;
+    updateTotalUnits();
+    updateCurriculumStatus();
+}
+
+function removeBridgingSubject(button) {
+    if (!confirm('Remove this subject from bridging requirements?')) return;
+    button.closest('.bridging-subject-item').remove();
+    updateTotalUnits();
+    updateCurriculumStatus(); // Add this line
+}
+
+function isDuplicateSubject(subjectName, excludeIndex = -1) {
+    const container = document.getElementById('bridgingSubjectsList');
+    const rows = container.querySelectorAll('.bridging-subject-item');
+    
+    for (let i = 0; i < rows.length; i++) {
+        if (i === excludeIndex) continue;
+        
+        const selectElement = rows[i].querySelector('select.subject-selector');
+        if (selectElement && selectElement.value.toLowerCase() === subjectName.toLowerCase()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Update the updateSubjectDetails function to check for duplicates
+function autoPopulateBridgingForm(recommendations, requiredUnits) {
+    const container = document.getElementById('bridgingSubjectsList');
+    if (!container) return;
+    
+    const existingRows = container.querySelectorAll('.bridging-subject-item');
+    if (existingRows.length > 0) {
+        updateTotalUnits();
+        syncCurrentUnits();
+        return; // Don't overwrite existing
+    }
+    
+    container.innerHTML = '';
+    subjectCounter = 0;
+    
+    recommendations.subjects.forEach(subject => {
+        addBridgingSubject();
+        const row = container.lastElementChild;
+        const selectElement = row.querySelector('select.subject-selector');
+        
+        // Set the value
+        selectElement.value = subject.name;
+        updateSubjectDetails(selectElement, subjectCounter - 1);
+        
+        // Set priority
+        const prioritySelect = row.querySelector('select[name*="[priority]"]');
+        if (prioritySelect) {
+            prioritySelect.value = subject.priority || 1;
+        }
+    });
+    
+    updateTotalUnits();
+    syncCurrentUnits();
+}
+
+
+function updateTotalUnits() {
+    const unitsInputs = document.querySelectorAll('.units-input, input[name*="[units]"]');
+    let total = 0;
+    
+    unitsInputs.forEach(input => {
+        const units = parseInt(input.value) || 0;
+        total += units;
+    });
+    
+    document.getElementById('totalUnitsCount').textContent = total;
+    syncCurrentUnits(); // **Add this line**
+     updateCurriculumStatus();
+}
+
+
+// --- EDIT TOGGLE between summary and form ---
+const toggleBtn = document.getElementById('toggleEditBridging');
+const cancelEditBtn = document.getElementById('toggleCancelEdit');
+const summaryBox = document.getElementById('bridgingSummary');
+const editBox = document.getElementById('bridgingManagement');
+
+function openEdit() {
+  editBox.style.display = 'block';
+  // kung walang rows sa edit form pero may smart required units, pwede nang i-load suggestion
+  const hasRows = editBox.querySelectorAll('.bridging-subject-item').length > 0;
+  if (!hasRows) loadSmartSuggestion();
+  updateTotalUnits();
+}
+function closeEdit() { editBox.style.display = 'none'; }
+
+if (toggleBtn) toggleBtn.addEventListener('click', openEdit);
+if (cancelEditBtn) cancelEditBtn.addEventListener('click', closeEdit);
+
+// --- SHOW REQUIRED in both summary and edit when score changes ---
+function syncRequiredUnits(required) {
+    const s1 = document.getElementById('summaryRequiredUnits');
+    const s2 = document.getElementById('editRequiredUnits');
+    const text = required ? (required + ' units') : '—';
+    if (s1) s1.textContent = text;
+    if (s2) s2.textContent = required || 0;
+}
+
+function syncCurrentUnits() {
+    const unitsInputs = document.querySelectorAll('.units-input, input[name*="[units]"]');
+    let total = 0;
+    unitsInputs.forEach(input => { total += parseInt(input.value, 10) || 0; });
+
+    // Update badges
+    const required = parseInt((document.getElementById('editRequiredUnits')?.textContent || '0'), 10);
+    const currentSlot = document.getElementById('summaryCurrentUnits');
+    if (currentSlot) {
+        const matched = required > 0 && total === required ? ' (auto-matched)' : '';
+        currentSlot.textContent = `${total} units${matched}`;
+    }
+
+    const totalUnitsCount = document.getElementById('totalUnitsCount');
+    if (totalUnitsCount) totalUnitsCount.textContent = total;
+}
+
+// hook into your existing calculator
+const _origUpdateBridgingPreview = updateBridgingPreview;
+updateBridgingPreview = function(score){
+  _origUpdateBridgingPreview(score);
+  const req = score >= 60 ? calculateBridgingUnits(score) : 0;
+  syncRequiredUnits(req);
+};
+
+// update Current units whenever list changes
+const _origUpdateTotalUnits = updateTotalUnits;
+updateTotalUnits = function(){
+  _origUpdateTotalUnits();
+  syncCurrentUnits();
+};
+
+// --- Confirm delete row ---
+function removeBridgingSubject(button){
+  if (!confirm('Remove this subject from bridging requirements?')) return;
+  button.closest('.bridging-subject-item').remove();
+  updateTotalUnits();
+     updateCurriculumStatus(); // Add this line
+}
+// keep name - this overrides your earlier definition
+
+// --- Load Smart Suggestion button ---
+document.getElementById('btnLoadSmart')?.addEventListener('click', loadSmartSuggestion);
+
+function loadSmartSuggestion() {
+    const scoreText = document.getElementById('currentLiveScore')?.textContent;
+    let score = parseFloat(scoreText || '0');
+    if (isNaN(score)) score = 0;
+
+    const required = score >= 60 ? calculateBridgingUnits(score) : 0;
+    if (required === 0) { 
+        showToast('Smart suggestion needs 60%+ score.', 'warning'); 
+        return; 
+    }
+
+    // Clear existing rows first
+    const container = document.getElementById('bridgingSubjectsList');
+    container.innerHTML = '';
+    subjectCounter = 0;
+
+    const rec = getSubjectRecommendations(programCode || '', required);
+    
+    rec.subjects.forEach(s => {
+        addBridgingSubject();
+        const row = container.lastElementChild;
+        
+        const selectElement = row.querySelector('select.subject-selector');
+        const matchingOption = Array.from(selectElement.options).find(option => 
+            option.value === s.name || option.textContent.trim() === s.name
+        );
+        
+        if (matchingOption) {
+            selectElement.value = matchingOption.value;
+            updateSubjectDetails(selectElement, subjectCounter - 1);
+        } else {
+            selectElement.value = 'custom';
+            updateSubjectDetails(selectElement, subjectCounter - 1);
+            row.querySelector('input[name*="[custom_name]"]').value = s.name;
+        }
+        
+        row.querySelector('input[name*="[code]"]').value = s.code || '';
+        row.querySelector('input[name*="[units]"]').value = s.units || 3;
+        row.querySelector('select[name*="[priority]"]').value = s.priority || 2;
+    });
+
+    updateTotalUnits();
+    showToast('Bridging requirements refreshed manually.', 'success');
+}
+
+document.getElementById('btnRefreshSmart')?.addEventListener('click', function() {
+    if (confirm('This will replace all current bridging subjects with fresh suggestions. Continue?')) {
+        loadSmartSuggestion(); // Use the existing function but now as a manual refresh
+    }
+});
+
+
+function updateSubjectDetails(selectElement, index) {
+    const selectedOption = selectElement.selectedOptions[0];
+    const row = selectElement.closest('.row');
+    const codeInput = row.querySelector('input[name*="[code]"]');
+    const unitsInput = row.querySelector('input[name*="[units]"]');
+    
+    if (selectElement.value && selectedOption) {
+        // Check for duplicates
+        if (isDuplicateSubject(selectElement.value, index)) {
+            showToast('This subject has already been added', 'warning');
+            selectElement.value = '';
+            codeInput.value = '';
+            unitsInput.value = 3;
+            return;
+        }
+        
+        // Auto-fill from database
+        codeInput.value = selectedOption.dataset.code || '';
+        unitsInput.value = selectedOption.dataset.units || 3;
+    } else {
+        codeInput.value = '';
+        unitsInput.value = 3;
+    }
+    
+    updateTotalUnits();
+    updateCurriculumStatus();
+}
+
+function updateCurriculumStatus() {
+    // Get current score
+    const scoreText = document.getElementById('currentLiveScore')?.textContent;
+    let score = parseFloat(scoreText || '0');
+    
+    // Get all current bridging subjects
+    const bridgingSubjects = [];
+    document.querySelectorAll('.bridging-subject-item').forEach(row => {
+        const selectElement = row.querySelector('select.subject-selector');
+        const customInput = row.querySelector('input[name*="[custom_name]"]');
+        
+        let subjectName = '';
+        if (selectElement.value === 'custom') {
+            subjectName = customInput.value.trim();
+        } else {
+            subjectName = selectElement.value;
+        }
+        
+        if (subjectName) {
+            bridgingSubjects.push(subjectName);
+        }
+    });
+    
+    // Update each row in curriculum table
+    document.querySelectorAll('#curriculumTableBody tr').forEach(row => {
+        const subjectName = row.getAttribute('data-subject');
+        const statusCell = row.querySelector('.status-cell');
+        const evidenceCell = row.querySelector('.evidence-cell');
+        
+        if (score < 60) {
+            // Below 60% = ALL subjects required (regular program)
+            statusCell.innerHTML = '<span class="badge bg-danger">Required</span>';
+            evidenceCell.textContent = 'Must enroll in regular program';
+        } else if (bridgingSubjects.includes(subjectName)) {
+            // Score ≥ 60% AND in bridging list = Required
+            statusCell.innerHTML = '<span class="badge bg-warning text-dark">Required</span>';
+            evidenceCell.textContent = 'To be completed';
+        } else {
+            // Score ≥ 60% AND NOT in bridging list = Passed
+            statusCell.innerHTML = '<span class="badge bg-success">Passed</span>';
+            if (evidenceCell.textContent === 'To be completed' || evidenceCell.textContent === 'Must enroll in regular program' || evidenceCell.textContent === '') {
+                evidenceCell.textContent = 'Credit via ETEEAP assessment';
+            }
+        }
+    });
+}
+
+        // Enhanced Document-aware scoring initialization
+        function initializeDocumentAwareScoring() {
+            // Initialize all score inputs based on document availability
+            document.querySelectorAll('.smart-score-input').forEach(input => {
+                const hasDocs = input.getAttribute('data-has-docs') === 'true';
+                
+                if (!hasDocs) {
+                    // Lock score at 0 and style accordingly
+                    input.value = '0';
+                    input.readOnly = true;
+                    input.style.backgroundColor = '#fff3cd';
+                    input.style.cursor = 'not-allowed';
+                    input.title = 'Score locked at 0 - no documents uploaded for this criteria';
+                } else {
+                    // Enable normal scoring
+                    input.readOnly = false;
+                    input.style.backgroundColor = '';
+                    input.style.cursor = '';
+                    input.title = 'Enter score based on document evidence';
+                }
+            });
+        }
+
+        function showToast(message, type = 'info') {
+            // Create toast notification
+            const toastContainer = document.getElementById('toast-container') || createToastContainer();
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-bg-${type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="fas fa-info-circle me-2"></i>${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            
+            toast.addEventListener('hidden.bs.toast', () => {
+                toast.remove();
+            });
+        }
+
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.style.zIndex = '1055';
+            document.body.appendChild(container);
+            return container;
+        }
+
+
+        // Update the subjectCounter initialization for existing subjects
+document.addEventListener('DOMContentLoaded', function() {
+    // Set the counter based on existing subjects in the form
+    const existingSubjects = document.querySelectorAll('.bridging-subject-item');
+    subjectCounter = existingSubjects.length;
+    
+
+    // Initialize document modal
+    initializeDocumentModal();
+    
+    // Initialize document-aware scoring
+    initializeDocumentAwareScoring();
+     updateCurriculumStatus();
+    
+    // Add event listeners to score inputs
+    document.querySelectorAll('.smart-score-input').forEach(input => {
+        input.addEventListener('input', function() {
+            validateScoreInput(this);
+            calculateSmartScore(); // This will now auto-load bridging requirements
+        });
+        
+        input.addEventListener('blur', function() {
+            validateScoreInput(this);
+        });
+        
+        // Prevent manual input on locked fields
+        input.addEventListener('keydown', function(e) {
+            const hasDocs = this.getAttribute('data-has-docs') === 'true';
+            if (!hasDocs && !['Tab', 'Shift', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+                e.preventDefault();
+                showToast('Cannot modify score - no documents uploaded for this criteria', 'warning');
+            }
+        });
+    });
+    
+    // Initialize score calculation and auto-load bridging if scores exist
+    calculateSmartScore();
+    
+    // Add keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            document.querySelector('button[name="submit_evaluation"]')?.click();
+        }
+    });
+    
+    console.log('Enhanced ETEEAP Evaluation System with Auto-Loading Bridging Requirements initialized!');
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  var modal = new bootstrap.Modal(document.getElementById('successModal'));
+  modal.show();
+
+  document.getElementById('successModal').addEventListener('hidden.bs.modal', function () {
+    window.location.href = "evaluate.php";
+  });
+});
+
+    </script>
+</body>
+</html>

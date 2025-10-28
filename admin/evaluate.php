@@ -511,10 +511,10 @@ foreach ($subjectPlan['subjects'] as $index => $subject) {
     
 
    $recommendations[] = "";
-$recommendations[] = "For questions or appointments:";
-$recommendations[] = "Please contact the administrator at pobletecharles11@gmail.com";
-$recommendations[] = "Office hours: Monday to Friday, 8:00 AM to 5:00 PM";
-
+    $recommendations[] = "CONTACT INFORMATION";
+    $recommendations[] = "For questions or appointments, please contact:";
+    $recommendations[] = "Email: pobletecharles11@gmail.com";
+    $recommendations[] = "Office Hours: Monday to Friday, 8:00 AM to 5:00 PM";
   
     
     return implode("\n", $recommendations);

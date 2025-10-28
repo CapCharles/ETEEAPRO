@@ -736,3 +736,37 @@ MODIFY COLUMN user_type ENUM('candidate','admin','evaluator') DEFAULT 'candidate
 
 -- 4. Verify
 SHOW COLUMNS FROM users LIKE 'user_type';
+
+
+
+-- Step 1: Drop the trigger if exists
+DROP TRIGGER IF EXISTS `trg_applications_after_evaluation`;
+
+-- Step 2: Drop the application_approvals table
+DROP TABLE IF EXISTS `application_approvals`;
+
+-- Step 3: Update any new statuses to map back to original statuses
+-- Map the approval workflow statuses back to original statuses
+UPDATE `applications` 
+SET `application_status` = 'under_review' 
+WHERE `application_status` IN ('awaiting_industry', 'awaiting_director', 'awaiting_ced', 'awaiting_vpaa', 'awaiting_president', 'awaiting_registrar');
+
+UPDATE `applications` 
+SET `application_status` = 'not_qualified' 
+WHERE `application_status` = 'rejected';
+
+-- Step 4: Modify the applications table to use original ENUM values
+ALTER TABLE `applications` 
+MODIFY COLUMN `application_status` ENUM(
+    'draft',
+    'submitted',
+    'under_review',
+    'qualified',
+    'partially_qualified',
+    'not_qualified'
+) DEFAULT 'draft';
+
+-- Step 5: Optional - Reset current_step for affected records
+UPDATE `applications` 
+SET `current_step` = 'submission' 
+WHERE `current_step` IN ('industry_partner', 'director_eteeap', 'ced', 'vpaa', 'president', 'registrar', 'completed');

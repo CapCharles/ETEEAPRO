@@ -358,6 +358,7 @@ function generateEnhancedRecommendation($score, $programCode, $status, $criteria
         $bridgingSubjectNames = array_column($subjectPlan['subjects'], 'name');
     }
     
+    $recommendations[] = "DISCLAIMER: This assessment summary is provisional and provided for guidance only.";
     // Header with assessment outcome
     $recommendations[] = "ETEEAP ASSESSMENT RESULTS";
     $recommendations[] = "Program: {$programCode}";

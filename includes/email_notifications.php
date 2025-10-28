@@ -826,28 +826,22 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
         </body>
         </html>';
         
-     $alt = strip_tags($recommendation);
-
-    $ok = send_with_fallback(function($mail) use ($application, $html, $alt) {
-        $mail->addAddress($application['candidate_email'], $application['candidate_name']);
-        $mail->Subject = 'ETEEAP Evaluation Results - ' . ucfirst(str_replace('_', ' ', $application['application_status']));
-        $mail->Body    = $html;
-        $mail->AltBody = $alt;
-        $mail->isHTML(true);
-    });
-
-    // Log and return result
-    error_log("sendEvaluationResultEmail to {$application['candidate_email']}: " . ($ok ? 'Success' : 'Failed'));
-    return $ok;
-
-} catch (Throwable $e) {
-    // Catch Throwable to include Errors and Exceptions (PHP 7+)
-    error_log("❌ Email Error: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
-    if (defined('MAIL_DEBUG') && MAIL_DEBUG) {
-        error_log("❌ Trace: " . $e->getTraceAsString());
+        $alt = strip_tags($recommendation);
+        
+        $ok = send_with_fallback(function($mail) use ($application, $html, $alt) {
+            $mail->addAddress($application['candidate_email'], $application['candidate_name']);
+            $mail->Subject = 'ETEEAP Evaluation Results - ' . ucfirst(str_replace('_', ' ', $application['application_status']));
+            $mail->Body    = $html;
+            $mail->AltBody = $alt;
+        });
+        
+        error_log("✅ Email sent successfully!");
+        return $ok;
+        
+    } catch (Exception $e) {
+        error_log("❌ Email Error: " . $e->getMessage());
+        return false;
     }
-    return false;
-}
 
 
 ?>

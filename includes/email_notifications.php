@@ -863,9 +863,7 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                             <div style="margin: 30px 0; padding: 0; border-top: 2px solid #e9ecef;"></div>
                             
                             <!-- Detailed Evaluation & Recommendations -->
-                            <h3 style="margin: 20px 0 15px 0; color: #1a1a1a; font-size: 18px; font-weight: 600;">
-                                📝 Detailed Evaluation & Recommendations
-                            </h3>';
+                           ';
         
         // Add Credited Subjects Table
         if (!empty($creditedSubjects)) {

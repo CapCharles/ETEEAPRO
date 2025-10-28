@@ -574,68 +574,160 @@ function sendApprovalWithProgram($user_email, $user_name, $program_code, $progra
 
 
 function sendEvaluationResultEmail($application, $final_score, $final_status, $recommendation, $bridging_units = 0) {
+    global $pdo;
+    
     $baseUrl = _base_url_safe();
     
-    // Determine email styling and content based on status
-    $statusConfig = [
-        'qualified' => [
-            'color' => '#28a745',
-            'gradient' => 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
-            'icon' => '🎉',
-            'title' => 'Congratulations! You are Qualified for ETEEAP',
-            'badge_bg' => '#d1e7dd',
-            'badge_text' => '#0f5132',
-            'subject' => 'ETEEAP Assessment Results - Qualified',
-            'message' => 'Your professional experience and competencies demonstrate substantial equivalency to formal academic study. You have successfully qualified for the ETEEAP program!'
-        ],
-        'partially_qualified' => [
-            'color' => '#ffc107',
-            'gradient' => 'linear-gradient(135deg, #ffc107 0%, #fd7e14 100%)',
-            'icon' => '📋',
-            'title' => 'Assessment Complete - Further Preparation Recommended',
-            'badge_bg' => '#fff3cd',
-            'badge_text' => '#664d03',
-            'subject' => 'ETEEAP Assessment Results - Further Preparation Recommended',
-            'message' => 'Based on your assessment score, we recommend additional preparation before pursuing ETEEAP credit recognition.'
-        ],
-        'not_qualified' => [
-            'color' => '#dc3545',
-            'gradient' => 'linear-gradient(135deg, #dc3545 0%, #bd2130 100%)',
-            'icon' => '📋',
-            'title' => 'Assessment Complete - Further Preparation Recommended',
-            'badge_bg' => '#f8d7da',
-            'badge_text' => '#721c24',
-            'subject' => 'ETEEAP Assessment Results - Further Preparation Recommended',
-            'message' => 'Based on your assessment score, we recommend additional preparation before pursuing ETEEAP credit recognition.'
-        ]
-    ];
-    
-    $config = $statusConfig[$final_status] ?? $statusConfig['not_qualified'];
-    
-    // Build score grade display
-    $scoreGrade = '';
-    $scoreColor = '';
-    if ($final_score >= 95) {
-        $scoreGrade = 'Exceptional';
-        $scoreColor = '#28a745';
-    } elseif ($final_score >= 85) {
-        $scoreGrade = 'Excellent';
-        $scoreColor = '#28a745';
-    } elseif ($final_score >= 75) {
-        $scoreGrade = 'Very Good';
-        $scoreColor = '#0066cc';
-    } elseif ($final_score >= 60) {
-        $scoreGrade = 'Good';
-        $scoreColor = '#0066cc';
-    } elseif ($final_score >= 48) {
-        $scoreGrade = 'Fair';
-        $scoreColor = '#ffc107';
-    } else {
-        $scoreGrade = 'Needs Improvement';
-        $scoreColor = '#dc3545';
-    }
-    
-    $html = '<!DOCTYPE html>
+    try {
+        error_log("=== EMAIL FUNCTION START ===");
+        error_log("Recipient: " . $application['candidate_email']);
+        error_log("Score: " . $final_score);
+        error_log("Status: " . $final_status);
+        
+        // Determine email styling and content based on status
+        $statusConfig = [
+            'qualified' => [
+                'color' => '#28a745',
+                'gradient' => 'linear-gradient(135deg, #28a745 0%, #20c997 100%)',
+                'icon' => '🎉',
+                'title' => 'Congratulations! You are Qualified for ETEEAP',
+                'badge_bg' => '#d1e7dd',
+                'badge_text' => '#0f5132',
+                'subject' => 'ETEEAP Assessment Results - Qualified',
+                'message' => 'Your professional experience and competencies demonstrate substantial equivalency to formal academic study. You have successfully qualified for the ETEEAP program!'
+            ],
+            'partially_qualified' => [
+                'color' => '#ffc107',
+                'gradient' => 'linear-gradient(135deg, #ffc107 0%, #fd7e14 100%)',
+                'icon' => '📋',
+                'title' => 'Assessment Complete - Further Preparation Recommended',
+                'badge_bg' => '#fff3cd',
+                'badge_text' => '#664d03',
+                'subject' => 'ETEEAP Assessment Results - Further Preparation Recommended',
+                'message' => 'Based on your assessment score, we recommend additional preparation before pursuing ETEEAP credit recognition.'
+            ],
+            'not_qualified' => [
+                'color' => '#dc3545',
+                'gradient' => 'linear-gradient(135deg, #dc3545 0%, #bd2130 100%)',
+                'icon' => '📋',
+                'title' => 'Assessment Complete - Further Preparation Recommended',
+                'badge_bg' => '#f8d7da',
+                'badge_text' => '#721c24',
+                'subject' => 'ETEEAP Assessment Results - Further Preparation Recommended',
+                'message' => 'Based on your assessment score, we recommend additional preparation before pursuing ETEEAP credit recognition.'
+            ]
+        ];
+        
+        $config = $statusConfig[$final_status] ?? $statusConfig['not_qualified'];
+        
+        // Build score grade display
+        $scoreGrade = '';
+        $scoreColor = '';
+        if ($final_score >= 95) {
+            $scoreGrade = 'Exceptional';
+            $scoreColor = '#28a745';
+        } elseif ($final_score >= 85) {
+            $scoreGrade = 'Excellent';
+            $scoreColor = '#28a745';
+        } elseif ($final_score >= 75) {
+            $scoreGrade = 'Very Good';
+            $scoreColor = '#0066cc';
+        } elseif ($final_score >= 60) {
+            $scoreGrade = 'Good';
+            $scoreColor = '#0066cc';
+        } elseif ($final_score >= 48) {
+            $scoreGrade = 'Fair';
+            $scoreColor = '#ffc107';
+        } else {
+            $scoreGrade = 'Needs Improvement';
+            $scoreColor = '#dc3545';
+        }
+        
+        // Parse recommendation to extract subjects
+        $recommendationLines = explode("\n", $recommendation);
+        $creditedSubjects = [];
+        $bridgingSubjects = [];
+        $inCreditedSection = false;
+        $inBridgingSection = false;
+        
+        foreach ($recommendationLines as $line) {
+            $line = trim($line);
+            
+            if (strpos($line, 'CREDITED SUBJECTS') !== false) {
+                $inCreditedSection = true;
+                $inBridgingSection = false;
+                continue;
+            }
+            if (strpos($line, 'REQUIRED BRIDGING COURSES') !== false) {
+                $inCreditedSection = false;
+                $inBridgingSection = true;
+                continue;
+            }
+            if (strpos($line, 'PROGRAM COMPLETION TIMELINE') !== false || 
+                strpos($line, 'NEXT STEPS') !== false ||
+                strpos($line, 'OUTSTANDING ACHIEVEMENT') !== false) {
+                $inCreditedSection = false;
+                $inBridgingSection = false;
+                continue;
+            }
+            
+            if ($inCreditedSection && preg_match('/^✓\s+(.+)$/', $line, $matches)) {
+                $creditedSubjects[] = [
+                    'name' => trim($matches[1]),
+                    'evidence' => ''
+                ];
+            } elseif ($inCreditedSection && preg_match('/Evidence:\s*(.+)$/i', $line, $matches)) {
+                if (!empty($creditedSubjects)) {
+                    $creditedSubjects[count($creditedSubjects) - 1]['evidence'] = trim($matches[1]);
+                }
+            }
+            
+            if ($inBridgingSection && preg_match('/^\d+\.\s+(.+?)\s*\(([^)]+)\)/', $line, $matches)) {
+                $bridgingSubjects[] = [
+                    'name' => trim($matches[1]),
+                    'code' => trim($matches[2]),
+                    'units' => 0,
+                    'priority' => ''
+                ];
+            } elseif ($inBridgingSection && preg_match('/Units:\s*(\d+)\s*\|\s*Priority:\s*\[([^\]]+)\]/i', $line, $matches)) {
+                if (!empty($bridgingSubjects)) {
+                    $bridgingSubjects[count($bridgingSubjects) - 1]['units'] = (int)$matches[1];
+                    $bridgingSubjects[count($bridgingSubjects) - 1]['priority'] = trim($matches[2]);
+                }
+            }
+        }
+        
+        // Build credited subjects table
+        $creditedTableRows = '';
+        if (!empty($creditedSubjects)) {
+            foreach ($creditedSubjects as $index => $subject) {
+                $creditedTableRows .= '
+                    <tr style="' . ($index % 2 === 0 ? 'background-color: #f8f9fa;' : '') . '">
+                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 500;">' . htmlspecialchars($subject['name']) . '</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; color: #6c757d; font-size: 13px;">' . htmlspecialchars($subject['evidence']) . '</td>
+                    </tr>';
+            }
+        }
+        
+        // Build bridging subjects table
+        $bridgingTableRows = '';
+        if (!empty($bridgingSubjects)) {
+            foreach ($bridgingSubjects as $index => $subject) {
+                $priorityBadge = strpos(strtoupper($subject['priority']), 'HIGH') !== false ? 
+                    '<span style="background-color: #dc3545; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">HIGH PRIORITY</span>' :
+                    '<span style="background-color: #6c757d; color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">STANDARD</span>';
+                
+                $bridgingTableRows .= '
+                    <tr style="' . ($index % 2 === 0 ? 'background-color: #f8f9fa;' : '') . '">
+                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 500;">' . htmlspecialchars($subject['name']) . '</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center; color: #6c757d; font-size: 13px;">' . htmlspecialchars($subject['code']) . '</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center; font-weight: 600;">' . $subject['units'] . '</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #dee2e6; text-align: center;">' . $priorityBadge . '</td>
+                    </tr>';
+            }
+        }
+        
+        $html = '<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -723,9 +815,9 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                                         </td>
                                     </tr>
                                 </table>';
-    
-    if ($final_score >= 60 && $bridging_units > 0) {
-        $html .= '
+        
+        if ($final_score >= 60 && $bridging_units > 0) {
+            $html .= '
                                 <div style="padding: 15px; background: #e3f2fd; border-radius: 8px; margin-top: 15px;">
                                     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%">
                                         <tr>
@@ -740,14 +832,14 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                                         </tr>
                                     </table>
                                 </div>';
-    }
-    
-    $html .= '
-                            </div>';
-    
-    // Status-specific message
-    if ($final_score >= 60) {
+        }
+        
         $html .= '
+                            </div>';
+        
+        // Status-specific message
+        if ($final_score >= 60) {
+            $html .= '
                             <div style="background: linear-gradient(135deg, #d1f4dd 0%, #e8f5e9 100%); border-left: 4px solid #28a745; border-radius: 8px; padding: 20px; margin: 25px 0;">
                                 <h4 style="margin: 0 0 10px 0; color: #155724; font-size: 16px; font-weight: 600;">
                                     🎉 Congratulations on Your Achievement!
@@ -756,8 +848,8 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                                     You have successfully met the ETEEAP qualification requirements. Our admissions office will contact you within 3-5 business days to discuss enrollment and bridging course requirements.
                                 </p>
                             </div>';
-    } else {
-        $html .= '
+        } else {
+            $html .= '
                             <div style="background: linear-gradient(135deg, #fff3cd 0%, #fff8e1 100%); border-left: 4px solid #ffc107; border-radius: 8px; padding: 20px; margin: 25px 0;">
                                 <h4 style="margin: 0 0 10px 0; color: #856404; font-size: 16px; font-weight: 600;">
                                     📋 Recommended Next Steps
@@ -766,19 +858,81 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                                     Based on your assessment results, we recommend additional preparation before pursuing ETEEAP credit recognition. Please review the detailed recommendations below and contact our academic advisors for personalized guidance.
                                 </p>
                             </div>';
-    }
-    
-    $html .= '
+        }
+        
+        $html .= '
                             <div style="margin: 30px 0; padding: 0; border-top: 2px solid #e9ecef;"></div>
                             
-                            <!-- Detailed Recommendation -->
+                            <!-- Detailed Evaluation & Recommendations -->
                             <h3 style="margin: 20px 0 15px 0; color: #1a1a1a; font-size: 18px; font-weight: 600;">
                                 📝 Detailed Evaluation & Recommendations
-                            </h3>
-                            
-                            <div class="recommendation-box" style="background: #ffffff; border: 2px solid #e9ecef; padding: 25px; border-radius: 8px; margin: 20px 0;">
-                                <div style="color: #444444; font-size: 14px; line-height: 1.8; white-space: pre-wrap;">
-                                    ' . nl2br(htmlspecialchars($recommendation)) . '
+                            </h3>';
+        
+        // Add Credited Subjects Table
+        if (!empty($creditedSubjects)) {
+            $html .= '
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="margin: 0 0 15px 0; color: #28a745; font-size: 16px; font-weight: 600;">
+                                    ✅ Credited Subjects - Prior Learning Recognition
+                                </h4>
+                                <p style="margin: 0 0 12px 0; color: #666; font-size: 13px; line-height: 1.6;">
+                                    The following subjects have been credited based on your demonstrated competencies:
+                                </p>
+                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+                                    <thead>
+                                        <tr style="background-color: #28a745; color: white;">
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px; width: 60%;">Subject Name</th>
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px; width: 40%;">Evidence</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ' . $creditedTableRows . '
+                                    </tbody>
+                                </table>
+                                <p style="margin: 12px 0 0 0; color: #666; font-size: 12px; font-style: italic;">
+                                    Summary: ' . count($creditedSubjects) . ' subjects credited through prior learning assessment
+                                </p>
+                            </div>';
+        }
+        
+        // Add Bridging Subjects Table
+        if (!empty($bridgingSubjects)) {
+            $html .= '
+                            <div style="margin-bottom: 30px;">
+                                <h4 style="margin: 0 0 15px 0; color: #dc3545; font-size: 16px; font-weight: 600;">
+                                    📚 Required Bridging Courses
+                                </h4>
+                                <p style="margin: 0 0 12px 0; color: #666; font-size: 13px; line-height: 1.6;">
+                                    To complete your degree, you must fulfill ' . $bridging_units . ' units of bridging courses:
+                                </p>
+                                <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden;">
+                                    <thead>
+                                        <tr style="background-color: #dc3545; color: white;">
+                                            <th style="padding: 12px; text-align: left; font-weight: 600; font-size: 14px; width: 40%;">Subject Name</th>
+                                            <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px; width: 15%;">Code</th>
+                                            <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px; width: 15%;">Units</th>
+                                            <th style="padding: 12px; text-align: center; font-weight: 600; font-size: 14px; width: 30%;">Priority</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ' . $bridgingTableRows . '
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style="background-color: #f8f9fa; font-weight: bold;">
+                                            <td colspan="2" style="padding: 12px; text-align: right; border-top: 2px solid #dee2e6; color: #333;">Total Bridging Units Required:</td>
+                                            <td style="padding: 12px; text-align: center; border-top: 2px solid #dee2e6; color: #dc3545; font-size: 16px;">' . $bridging_units . '</td>
+                                            <td style="padding: 12px; border-top: 2px solid #dee2e6;"></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>';
+        }
+        
+        // Add full recommendation text
+        $html .= '
+                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                                <div style="color: #444; font-size: 13px; line-height: 1.7; white-space: pre-wrap;">
+' . nl2br(htmlspecialchars($recommendation)) . '
                                 </div>
                             </div>
                             
@@ -790,24 +944,24 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                             </h3>
                             
                             <ul style="margin: 0 0 30px 0; padding-left: 25px; color: #444444; font-size: 15px; line-height: 2;">';
-    
-    if ($final_status === 'qualified') {
-        $html .= '
+        
+        if ($final_status === 'qualified') {
+            $html .= '
                                 <li>Review your complete assessment details in your candidate portal</li>
                                 <li>Check your bridging course requirements</li>
                                 <li>Prepare enrollment documents</li>
                                 <li>Wait for the admissions office to contact you (3-5 business days)</li>
                                 <li>Schedule an academic counseling session</li>';
-    } else {
-        $html .= '
+        } else {
+            $html .= '
                                 <li>Review the detailed assessment feedback carefully</li>
                                 <li>Consider enrolling in our regular degree program</li>
                                 <li>Explore professional development opportunities</li>
                                 <li>Schedule a consultation with our academic advisors</li>
                                 <li>You may reapply for ETEEAP after gaining additional experience</li>';
-    }
-    
-    $html .= '
+        }
+        
+        $html .= '
                             </ul>
                             
                             <!-- CTA Button -->
@@ -857,28 +1011,33 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
 </body>
 </html>';
 
-    // Plain text alternative
-    $alt = "ETEEAP Assessment Results\n\n"
-         . "Dear " . $application['candidate_name'] . ",\n\n"
-         . "Your ETEEAP application for " . $application['program_name'] . " (" . $application['program_code'] . ") has been evaluated.\n\n"
-         . "Final Score: " . $final_score . "%\n"
-         . "Status: " . ucfirst(str_replace('_', ' ', $final_status)) . "\n"
-         . ($final_score >= 60 && $bridging_units > 0 ? "Bridging Units Required: " . $bridging_units . " units\n\n" : "\n")
-         . "Please log in to your account to view the complete assessment details:\n"
-         . $baseUrl . "candidates/assessment.php\n\n"
-         . "Detailed Recommendation:\n"
-         . strip_tags($recommendation) . "\n\n"
-         . "Best regards,\nETEEAP Evaluation Team";
+        // Plain text alternative
+        $alt = "ETEEAP Assessment Results\n\n"
+             . "Dear " . $application['candidate_name'] . ",\n\n"
+             . "Your ETEEAP application for " . $application['program_name'] . " (" . $application['program_code'] . ") has been evaluated.\n\n"
+             . "Final Score: " . $final_score . "%\n"
+             . "Status: " . ucfirst(str_replace('_', ' ', $final_status)) . "\n"
+             . ($final_score >= 60 && $bridging_units > 0 ? "Bridging Units Required: " . $bridging_units . " units\n\n" : "\n")
+             . "Please log in to your account to view the complete assessment details:\n"
+             . $baseUrl . "candidates/assessment.php\n\n"
+             . "Detailed Recommendation:\n"
+             . strip_tags($recommendation) . "\n\n"
+             . "Best regards,\nETEEAP Evaluation Team";
 
-    $ok = send_with_fallback(function($mail) use ($application, $config, $html, $alt) {
-        $mail->addAddress($application['candidate_email'], $application['candidate_name']);
-        $mail->Subject = $config['subject'];
-        $mail->Body    = $html;
-        $mail->AltBody = $alt;
-    });
-    
-    error_log('[MAIL] sendEvaluationResultEmail to ' . $application['candidate_email'] . ' (Status: ' . $final_status . ', Score: ' . $final_score . '%): ' . ($ok ? 'Success' : 'Failed'));
-    return $ok;
+        $ok = send_with_fallback(function($mail) use ($application, $config, $html, $alt) {
+            $mail->addAddress($application['candidate_email'], $application['candidate_name']);
+            $mail->Subject = $config['subject'];
+            $mail->Body    = $html;
+            $mail->AltBody = $alt;
+        });
+        
+        error_log('[MAIL] sendEvaluationResultEmail to ' . $application['candidate_email'] . ' (Status: ' . $final_status . ', Score: ' . $final_score . '%): ' . ($ok ? 'Success' : 'Failed'));
+        return $ok;
+        
+    } catch (Exception $e) {
+        error_log("❌ Email Error: " . $e->getMessage());
+        return false;
+    }
 }
 
 ?>

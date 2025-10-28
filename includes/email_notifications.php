@@ -741,7 +741,6 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
         .score-box { background: #f8f9fa; border-left: 4px solid ' . $config['color'] . '; padding: 25px; margin: 25px 0; border-radius: 8px; }
         .status-badge { display: inline-block; padding: 12px 24px; background: ' . $config['badge_bg'] . '; color: ' . $config['badge_text'] . '; border-radius: 25px; font-weight: bold; margin: 20px 0; font-size: 16px; }
         .button { display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white !important; text-decoration: none; border-radius: 25px; font-weight: 600; font-size: 16px; }
-        .recommendation-box { background: #ffffff; border: 2px solid #e9ecef; padding: 25px; border-radius: 8px; margin: 25px 0; white-space: pre-wrap; line-height: 1.8; }
         .footer { background: #0f172a; color: #ffffff; padding: 30px; text-align: center; }
         @media only screen and (max-width: 600px) {
             .content { padding: 20px 15px !important; }
@@ -928,14 +927,7 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                             </div>';
         }
         
-        // Add full recommendation text
         $html .= '
-                            <div style="background: #f8f9fa; border: 1px solid #dee2e6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                                <div style="color: #444; font-size: 13px; line-height: 1.7; white-space: pre-wrap;">
-' . nl2br(htmlspecialchars($recommendation)) . '
-                                </div>
-                            </div>
-                            
                             <div style="margin: 30px 0; padding: 0; border-top: 2px solid #e9ecef;"></div>
                             
                             <!-- Next Steps -->
@@ -977,7 +969,7 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
                                     💡 Need Help?
                                 </h4>
                                 <p style="margin: 0; color: #6c757d; font-size: 14px; line-height: 1.6;">
-                                    If you have questions about your assessment results or next steps, our support team is here to help. Feel free to reply to this email or contact the admissions office directly.
+                                    If you have questions about your assessment results or next steps, our support team is here to help. Feel free to reply to this email or contact the admissions office directly at <a href="mailto:pobletecharles11@gmail.com" style="color: #667eea;">pobletecharles11@gmail.com</a>
                                 </p>
                             </div>
                             
@@ -1020,8 +1012,6 @@ function sendEvaluationResultEmail($application, $final_score, $final_status, $r
              . ($final_score >= 60 && $bridging_units > 0 ? "Bridging Units Required: " . $bridging_units . " units\n\n" : "\n")
              . "Please log in to your account to view the complete assessment details:\n"
              . $baseUrl . "candidates/assessment.php\n\n"
-             . "Detailed Recommendation:\n"
-             . strip_tags($recommendation) . "\n\n"
              . "Best regards,\nETEEAP Evaluation Team";
 
         $ok = send_with_fallback(function($mail) use ($application, $config, $html, $alt) {

@@ -2,7 +2,6 @@
 session_start();
 require_once '../config/database.php';
 require_once '../config/constants.php';
-// require_once 'includes/functions.php';
 
 // Check if user is logged in and is a candidate
 if (!isset($_SESSION['user_id']) || $_SESSION['user_type'] !== 'candidate') {
@@ -108,8 +107,9 @@ if ($application) {
     <style>
         body {
             background-color: #f8f9fa;
+            margin: 0; 
+            padding-top: 0 !important;
         }
-             body { margin: 0; padding-top: 0 !important; }
         .assessment-card {
             background: white;
             border-radius: 15px;
@@ -213,7 +213,7 @@ if ($application) {
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container">
             <a class="navbar-brand fw-bold" href="../index.php">
-                <i class="fas fa-graduation-cap me-2"></i>ETEEAP
+                <i class="fas fa-graduation-cap me-2"></i>ETEEAPRO
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -255,6 +255,33 @@ if ($application) {
             </div>
         </div>
     </nav>
+
+    <!-- Success/Error Messages -->
+    <?php if (isset($_SESSION['success'])): ?>
+    <div class="container mt-4">
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            <?php 
+            echo htmlspecialchars($_SESSION['success']); 
+            unset($_SESSION['success']);
+            ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (isset($_SESSION['error'])): ?>
+    <div class="container mt-4">
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <?php 
+            echo htmlspecialchars($_SESSION['error']); 
+            unset($_SESSION['error']);
+            ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <div class="container mt-4">
         <?php if (!$application): ?>
@@ -412,35 +439,73 @@ if ($application) {
                     <?php endif; ?>
                 </div>
                 <?php endif; ?>
-                    <?php if ($application['application_status'] === 'partially_qualified' || $application['application_status'] === 'not_qualified'): ?>
+
+                <!-- Reapply Section -->
+                <?php if ($application['application_status'] === 'partially_qualified' || $application['application_status'] === 'not_qualified'): ?>
                 <div class="assessment-card p-4 mb-4">
                     <div class="row align-items-center">
                         <div class="col-md-8">
                             <h5 class="mb-2">
-                                <i class="fas fa-redo me-2"></i>
+                                <i class="fas fa-redo me-2 text-primary"></i>
                                 Ready to Reapply?
                             </h5>
-                            <p class="text-muted mb-0">
-                                <?php if ($application['application_status'] === 'partially_qualified'): ?>
-                                    You can reapply for this program to improve your qualifications and scores.
-                                <?php else: ?>
-                                    Review the evaluator's feedback and consider reapplying when you're ready with improved documentation.
-                                <?php endif; ?>
-                            </p>
+                            <?php if ($application['application_status'] === 'partially_qualified'): ?>
+                                <p class="text-muted mb-2">
+                                    You have been partially qualified. Review the evaluator's feedback and consider reapplying to improve your scores.
+                                </p>
+                                <ul class="small text-muted mb-0">
+                                    <li>All your previous documents will be automatically copied</li>
+                                    <li>You can add new documents to strengthen your application</li>
+                                    <li>Focus on areas where you scored lower</li>
+                                </ul>
+                            <?php else: ?>
+                                <p class="text-muted mb-2">
+                                    Review the evaluator's feedback carefully and prepare additional documentation before reapplying.
+                                </p>
+                                <ul class="small text-muted mb-0">
+                                    <li>Your previous documents will be carried over</li>
+                                    <li>Add more supporting documents for better evaluation</li>
+                                    <li>Address the comments from the evaluator</li>
+                                </ul>
+                            <?php endif; ?>
                         </div>
                         <div class="col-md-4 text-md-end">
                             <a href="reapply.php?program_id=<?php echo $application['program_id']; ?>&previous_app=<?php echo $application['id']; ?>" 
-                               class="btn btn-primary">
+                               class="btn btn-primary btn-lg"
+                               onclick="return confirm('Create a new application for <?php echo htmlspecialchars($application['program_name']); ?>?\n\nYour previous documents will be automatically copied to the new application.');">
                                 <i class="fas fa-redo me-2"></i>Reapply Now
                             </a>
+                            <div class="mt-2">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    Previous documents will be copied
+                                </small>
+                            </div>
                         </div>
                     </div>
+                    
+                    <!-- Show what will be copied -->
+                    <?php 
+                    try {
+                        $stmt = $pdo->prepare("SELECT COUNT(*) as doc_count FROM documents WHERE application_id = ?");
+                        $stmt->execute([$application['id']]);
+                        $doc_count = $stmt->fetch()['doc_count'];
+                        
+                        if ($doc_count > 0): ?>
+                        <div class="alert alert-info mt-3 mb-0">
+                            <i class="fas fa-copy me-2"></i>
+                            <strong><?php echo $doc_count; ?> document<?php echo $doc_count > 1 ? 's' : ''; ?></strong> will be copied from your previous application
+                        </div>
+                        <?php endif;
+                    } catch (PDOException $e) {
+                        // Ignore error
+                    }
+                    ?>
                 </div>
                 <?php endif; ?>
-     </div>
-         
+            </div>
 
-              <!-- Sidebar (Right Side - 4 columns) -->
+            <!-- Sidebar (Right Side - 4 columns) -->
             <div class="col-lg-4">
                 <!-- Application Timeline -->
                 <div class="assessment-card p-4 mb-4">

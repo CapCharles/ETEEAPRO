@@ -99,6 +99,7 @@ if ($_POST && isset($_POST['create_application'])) {
     
     if (empty($errors)) {
         try {
+            // Create new application
             $stmt = $pdo->prepare("
                 INSERT INTO applications (user_id, program_id, application_status) 
                 VALUES (?, ?, 'draft')
@@ -106,7 +107,64 @@ if ($_POST && isset($_POST['create_application'])) {
             $stmt->execute([$user_id, $program_id]);
             
             $application_id = $pdo->lastInsertId();
-            $success_message = "Application created successfully! You can now upload documents for each assessment criteria.";
+            
+            // ====== COPY DOCUMENTS FROM PREVIOUS APPLICATION (IF EXISTS) ======
+            // Check if user has a previous application for this program
+            $stmt = $pdo->prepare("
+                SELECT id 
+                FROM applications 
+                WHERE user_id = ? 
+                AND program_id = ? 
+                AND id != ?
+                AND application_status IN ('submitted', 'under_review', 'partially_qualified', 'not_qualified')
+                ORDER BY created_at DESC
+                LIMIT 1
+            ");
+            $stmt->execute([$user_id, $program_id, $application_id]);
+            $previous_application = $stmt->fetch();
+            
+            if ($previous_application) {
+                // Copy documents from previous application
+                $stmt = $pdo->prepare("
+                    SELECT * FROM documents 
+                    WHERE application_id = ?
+                ");
+                $stmt->execute([$previous_application['id']]);
+                $previous_documents = $stmt->fetchAll();
+                
+                $copied_count = 0;
+                foreach ($previous_documents as $doc) {
+                    // Insert copied document record (keeping the same file path)
+                    $stmt = $pdo->prepare("
+                        INSERT INTO documents (
+                            application_id, document_type, original_filename, stored_filename,
+                            file_path, file_size, mime_type, description, criteria_id, 
+                            hierarchical_data, is_copied_from_previous
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    ");
+                    $stmt->execute([
+                        $application_id,
+                        $doc['document_type'],
+                        $doc['original_filename'],
+                        $doc['stored_filename'],
+                        $doc['file_path'],
+                        $doc['file_size'],
+                        $doc['mime_type'],
+                        $doc['description'],
+                        $doc['criteria_id'],
+                        $doc['hierarchical_data']
+                    ]);
+                    $copied_count++;
+                }
+                
+                if ($copied_count > 0) {
+                    $success_message = "Application created successfully! {$copied_count} documents from your previous application have been automatically copied. You can add more documents or submit your application.";
+                } else {
+                    $success_message = "Application created successfully! You can now upload documents for each assessment criteria.";
+                }
+            } else {
+                $success_message = "Application created successfully! You can now upload documents for each assessment criteria.";
+            }
             
             // Refresh current application and criteria
             $stmt = $pdo->prepare("
@@ -128,6 +186,7 @@ if ($_POST && isset($_POST['create_application'])) {
             
         } catch (PDOException $e) {
             $errors[] = "Failed to create application. Please try again.";
+            error_log("Application creation error: " . $e->getMessage());
         }
     }
 }
@@ -182,22 +241,22 @@ if ($_POST && isset($_POST['upload_hierarchical_document'])) {
         $hierarchical_data['extension_type'] = $_POST['extension_type'];
     }
     
-if (empty($hierarchical_data['circulation_level'])
-    && !empty($hierarchical_data['circulation_levels'])
-    && is_array($hierarchical_data['circulation_levels'])) {
+    if (empty($hierarchical_data['circulation_level'])
+        && !empty($hierarchical_data['circulation_levels'])
+        && is_array($hierarchical_data['circulation_levels'])) {
 
-    // pick highest among local < national < international
-    $rank = ['local'=>1,'national'=>2,'international'=>3];
-    usort($hierarchical_data['circulation_levels'], function($a,$b) use ($rank){
-        return ($rank[$b] ?? 0) <=> ($rank[$a] ?? 0);
-    });
-    $hierarchical_data['circulation_level'] = $hierarchical_data['circulation_levels'][0];
-}
+        // pick highest among local < national < international
+        $rank = ['local'=>1,'national'=>2,'international'=>3];
+        usort($hierarchical_data['circulation_levels'], function($a,$b) use ($rank){
+            return ($rank[$b] ?? 0) <=> ($rank[$a] ?? 0);
+        });
+        $hierarchical_data['circulation_level'] = $hierarchical_data['circulation_levels'][0];
+    }
 
-// type casting para siguradong tamang types sa evaluator
-if (isset($hierarchical_data['years_experience'])) $hierarchical_data['years_experience'] = (int)$hierarchical_data['years_experience'];
-if (isset($hierarchical_data['authors_count']))    $hierarchical_data['authors_count']    = (int)$hierarchical_data['authors_count'];
-if (isset($hierarchical_data['scholarship_level'])) $hierarchical_data['scholarship_level'] = (float)$hierarchical_data['scholarship_level'];
+    // type casting para siguradong tamang types sa evaluator
+    if (isset($hierarchical_data['years_experience'])) $hierarchical_data['years_experience'] = (int)$hierarchical_data['years_experience'];
+    if (isset($hierarchical_data['authors_count']))    $hierarchical_data['authors_count']    = (int)$hierarchical_data['authors_count'];
+    if (isset($hierarchical_data['scholarship_level'])) $hierarchical_data['scholarship_level'] = (float)$hierarchical_data['scholarship_level'];
     
 
     if (empty($criteria_id)) {
@@ -222,7 +281,7 @@ if (isset($hierarchical_data['scholarship_level'])) $hierarchical_data['scholars
         }
     }
     
- if (empty($errors)) {
+    if (empty($errors)) {
         try {
             $upload_dir = '../uploads/documents/';
             if (!file_exists($upload_dir)) mkdir($upload_dir, 0777, true);
@@ -259,6 +318,7 @@ if (isset($hierarchical_data['scholarship_level'])) $hierarchical_data['scholars
         }
     }
 }
+
 // Handle basic file upload (existing functionality)
 if ($_POST && isset($_POST['upload_document'])) {
     $criteria_id = $_POST['criteria_id'] ?? null;
@@ -316,16 +376,13 @@ if ($_POST && isset($_POST['upload_document'])) {
                     $criteria_id
                 ]);
                 
-               
-   $success_message = 'Document uploaded successfully with detailed specifications!';
-        } else {
-            $errors[] = 'Failed to upload file. Please try again.';
+                $success_message = 'Document uploaded successfully with detailed specifications!';
+            } else {
+                $errors[] = 'Failed to upload file. Please try again.';
+            }
+        } catch (PDOException $e) {
+            $errors[] = 'Database error occurred while saving document.';
         }
-    } catch (PDOException $e) {
-        $errors[] = 'Database error occurred while saving document.';
-    }
-      
-           
     }
 }
 
@@ -365,8 +422,11 @@ if ($_GET && isset($_GET['delete']) && $current_application) {
         $document = $stmt->fetch();
         
         if ($document) {
-            if (file_exists($document['file_path'])) {
-                unlink($document['file_path']);
+            // Only delete physical file if it's not copied from previous
+            if (!isset($document['is_copied_from_previous']) || $document['is_copied_from_previous'] == 0) {
+                if (file_exists($document['file_path'])) {
+                    unlink($document['file_path']);
+                }
             }
             
             $stmt = $pdo->prepare("DELETE FROM documents WHERE id = ?");
@@ -1330,14 +1390,6 @@ $is_hierarchical = (
                                         </div>
                                     </div>
                                     
-                                    <!-- Points Calculator
-                                    <div class="points-calculator">
-                                        <h6 class="mb-2"><i class="fas fa-calculator me-2"></i>Point Calculator</h6>
-                                        <div id="points-display-<?php echo $criteria['id']; ?>">
-                                            <p class="mb-0 text-muted">Select options above to see potential points</p>
-                                        </div>
-                                    </div> -->
-                                    
                                     <div class="mt-3">
                                         <button type="submit" name="upload_hierarchical_document" class="btn btn-success">
                                             <i class="fas fa-upload me-2"></i>Upload with Specifications
@@ -1361,6 +1413,13 @@ $is_hierarchical = (
                                     <div class="flex-grow-1">
                                         <i class="fas fa-file-pdf text-danger me-2"></i>
                                         <strong><?php echo htmlspecialchars($doc['original_filename']); ?></strong>
+                                        
+                                        <?php if (isset($doc['is_copied_from_previous']) && $doc['is_copied_from_previous'] == 1): ?>
+                                        <span class="badge bg-info ms-2">
+                                            <i class="fas fa-copy me-1"></i>From Previous Application
+                                        </span>
+                                        <?php endif; ?>
+                                        
                                         <?php if ($doc['description']): ?>
                                         <span class="text-muted"> - <?php echo htmlspecialchars(explode("\n\nHierarchical Data:", $doc['description'])[0]); ?></span>
                                        <?php
@@ -1563,6 +1622,24 @@ if ($hier && is_array($hier)) {
                         <i class="fas fa-chart-pie me-2"></i>
                         Upload Progress
                     </h6>
+                    
+                    <?php
+                    // Check for copied documents
+                    $stmt = $pdo->prepare("
+                        SELECT COUNT(*) as count 
+                        FROM documents 
+                        WHERE application_id = ? 
+                        AND is_copied_from_previous = 1
+                    ");
+                    $stmt->execute([$current_application['id']]);
+                    $copied_docs_count = $stmt->fetch()['count'];
+                    
+                    if ($copied_docs_count > 0): ?>
+                    <div class="alert alert-info small mb-3">
+                        <i class="fas fa-info-circle me-1"></i>
+                        <strong><?php echo $copied_docs_count; ?></strong> documents copied from your previous application
+                    </div>
+                    <?php endif; ?>
                     
                     <?php
                     $sections = [];
@@ -2409,6 +2486,6 @@ if (form.querySelector('input[name="circulation_level"]') && !circulationLevel) 
         }
     }
 });
-<script>
+</script>
 </body>
 </html>

@@ -478,97 +478,412 @@ if ($_POST && isset($_POST['submit_application']) && $current_application) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="../assets/css/style.css" rel="stylesheet">
     <style>
-        body {
-            background-color: #f8f9fa;
-            margin: 0; 
-            padding-top: 0 !important;
-        }
-        .upload-card {
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            border: none;
-        }
-        .criteria-section {
-            border-left: 4px solid #667eea;
-            background: #f8f9fa;
-            border-radius: 8px;
-            padding: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-        .criteria-card {
-            background: white;
-            border: 1px solid #e9ecef;
-            border-radius: 10px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-        .criteria-card:hover {
-            border-color: #667eea;
-            box-shadow: 0 4px 12px rgba(102,126,234,0.15);
-        }
-        .criteria-with-docs {
-            border-left: 4px solid #28a745;
-            background: rgba(40, 167, 69, 0.02);
-        }
-        .upload-zone {
-            border: 2px dashed #dee2e6;
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-            background: #f8f9fa;
-            margin-top: 1rem;
-            transition: all 0.3s ease;
-        }
-        .upload-zone:hover {
-            border-color: #667eea;
-            background: rgba(102, 126, 234, 0.05);
-        }
-        .upload-zone.collapsed {
-            display: none;
-        }
-        .document-item {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-            padding: 0.75rem;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-        }
-        .section-header {
-            font-weight: bold;
-            color: #667eea;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .upload-btn {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-        }
-        .hierarchical-upload-section {
-            background: #e3f2fd;
-            border-radius: 10px;
-            padding: 1rem;
-            margin-top: 1rem;
-            display: none;
-        }
-        .hierarchical-upload-section.show {
-            display: block;
-        }
-        .level-option {
-            margin-bottom: 0.5rem;
-        }
-        .points-calculator {
-            background: #fff3e0;
-            border: 1px solid #ff9800;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-top: 1rem;
-        }
+   body {
+    background-color: #f8f9fa;
+    margin: 0; 
+    padding-top: 0 !important;
+}
+
+.upload-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+    border: none;
+}
+
+.criteria-section {
+    border-left: 4px solid #667eea;
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.criteria-card {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.criteria-card:hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 12px rgba(102,126,234,0.15);
+}
+
+.criteria-with-docs {
+    border-left: 4px solid #28a745;
+    background: rgba(40, 167, 69, 0.02);
+}
+
+.upload-zone {
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+    background: #f8f9fa;
+    margin-top: 1rem;
+    transition: all 0.3s ease;
+}
+
+.upload-zone:hover {
+    border-color: #667eea;
+    background: rgba(102, 126, 234, 0.05);
+}
+
+.upload-zone.collapsed {
+    display: none;
+}
+
+.document-item {
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+    word-break: break-word;
+}
+
+.section-header {
+    font-weight: bold;
+    color: #667eea;
+    border-bottom: 2px solid #667eea;
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+    font-size: 1rem;
+}
+
+/* Fix upload button position for mobile */
+.upload-btn {
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    margin-top: 0.75rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.upload-btn .btn {
+    flex: 1;
+    min-width: 140px;
+    white-space: normal;
+    height: auto;
+    padding: 0.5rem 0.75rem;
+}
+
+.hierarchical-upload-section {
+    background: #e3f2fd;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: none;
+}
+
+.hierarchical-upload-section.show {
+    display: block;
+}
+
+.level-option {
+    margin-bottom: 0.5rem;
+}
+
+.points-calculator {
+    background: #fff3e0;
+    border: 1px solid #ff9800;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+}
+
+/* ==================== MOBILE RESPONSIVE IMPROVEMENTS ==================== */
+
+@media (max-width: 768px) {
+    /* Container adjustments */
+    .container {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+    }
+    
+    /* Upload cards - reduce padding */
+    .upload-card {
+        border-radius: 10px;
+        padding: 0.75rem !important;
+        margin-bottom: 1rem;
+    }
+    
+    /* Criteria sections - compact */
+    .criteria-section {
+        padding: 0.75rem;
+        border-left-width: 3px;
+        margin-bottom: 1rem;
+    }
+    
+    /* Criteria cards - compact */
+    .criteria-card {
+        padding: 0.75rem;
+    }
+    
+    /* Section headers - smaller */
+    .section-header {
+        font-size: 0.95rem;
+        padding-bottom: 0.4rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    /* Criteria titles */
+    .criteria-card h6 {
+        font-size: 0.9rem !important;
+        margin-bottom: 0.5rem;
+        padding-right: 0;
+        line-height: 1.4;
+    }
+    
+    /* Descriptions and text */
+    .criteria-card .text-muted,
+    .criteria-card p {
+        font-size: 0.8rem !important;
+        line-height: 1.4;
+    }
+    
+    /* Badges - smaller */
+    .badge {
+        font-size: 0.7rem !important;
+        padding: 0.25rem 0.5rem;
+        margin-bottom: 0.25rem;
+    }
+    
+    /* Make program badge stack */
+    .upload-card .badge.fs-6 {
+        font-size: 0.8rem !important;
+        display: block;
+        margin-top: 0.5rem;
+        text-align: center;
+    }
+    
+    /* Upload buttons - full width stack */
+    .upload-btn {
+        position: static !important;
+        margin-top: 0.75rem;
+        width: 100%;
+        flex-direction: column;
+    }
+    
+    .upload-btn .btn {
+        font-size: 0.85rem;
+        padding: 0.5rem 0.75rem;
+        width: 100%;
+        margin-bottom: 0.5rem;
+        min-width: auto;
+    }
+    
+    /* Hierarchical upload section */
+    .hierarchical-upload-section {
+        padding: 0.75rem;
+    }
+    
+    .hierarchical-upload-section h6 {
+        font-size: 0.9rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .hierarchical-upload-section .form-label {
+        font-size: 0.85rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .hierarchical-upload-section .form-check-label {
+        font-size: 0.85rem;
+    }
+    
+    .hierarchical-upload-section .form-check {
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Document items */
+    .document-item {
+        font-size: 0.8rem;
+        padding: 0.5rem;
+    }
+    
+    .document-item .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+    
+    .document-item strong {
+        font-size: 0.85rem;
+    }
+    
+    .document-item .small {
+        font-size: 0.75rem !important;
+    }
+    
+    /* Details/summary */
+    details summary {
+        font-size: 0.85rem;
+    }
+    
+    /* Row spacing */
+    .row.mb-3 {
+        margin-bottom: 0.75rem !important;
+    }
+    
+    /* Column padding */
+    .col-md-6, .col-md-4, .col-md-12 {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+    
+    /* Form controls */
+    .form-control, .form-select {
+        font-size: 0.9rem;
+        padding: 0.5rem;
+    }
+    
+    /* Better button spacing */
+    .btn-group, .d-flex.gap-2 {
+        flex-wrap: wrap;
+    }
+    
+    /* Sidebar adjustments */
+    .col-lg-3 .upload-card {
+        margin-bottom: 1rem;
+    }
+    
+    .col-lg-3 h6 {
+        font-size: 0.9rem;
+    }
+    
+    .col-lg-3 .small {
+        font-size: 0.75rem !important;
+    }
+    
+    /* Alert boxes */
+    .alert {
+        font-size: 0.85rem;
+        padding: 0.75rem;
+    }
+    
+    /* Modal adjustments */
+    .modal-body {
+        padding: 1rem;
+    }
+    
+    .modal-title {
+        font-size: 1rem;
+    }
+}
+
+/* ==================== VERY SMALL SCREENS (Phone Portrait) ==================== */
+
+@media (max-width: 576px) {
+    /* Navbar adjustments */
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+    
+    .nav-link {
+        font-size: 0.9rem;
+    }
+    
+    /* Remove extra padding from criteria card rows */
+    .criteria-card .row > div {
+        padding-left: 5px !important;
+        padding-right: 5px !important;
+    }
+    
+    /* Stack badges vertically */
+    .d-flex.gap-2.flex-wrap {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 0.25rem !important;
+    }
+    
+    .d-flex.gap-2.flex-wrap .badge {
+        display: inline-block;
+        margin-bottom: 0.25rem;
+        margin-right: 0.25rem;
+    }
+    
+    /* Compact headers */
+    .upload-card h4 {
+        font-size: 1.1rem;
+    }
+    
+    /* Button adjustments */
+    .btn {
+        font-size: 0.85rem !important;
+        padding: 0.5rem 0.75rem !important;
+    }
+    
+    .btn-sm {
+        font-size: 0.75rem !important;
+        padding: 0.35rem 0.5rem !important;
+    }
+    
+    /* Form adjustments */
+    .form-label {
+        font-size: 0.85rem;
+        margin-bottom: 0.4rem;
+    }
+    
+    .form-text {
+        font-size: 0.75rem;
+    }
+    
+    /* Hierarchical sections - extra compact */
+    .hierarchical-upload-section .row {
+        margin-left: -5px;
+        margin-right: -5px;
+    }
+    
+    .hierarchical-upload-section .row > * {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+    
+    /* Icon adjustments */
+    .fa, .fas {
+        font-size: 0.9em;
+    }
+}
+
+/* ==================== LANDSCAPE PHONES ==================== */
+
+@media (max-width: 768px) and (orientation: landscape) {
+    .container {
+        max-width: 100%;
+    }
+    
+    .upload-card {
+        margin-bottom: 0.75rem;
+    }
+    
+    .criteria-section {
+        margin-bottom: 0.75rem;
+    }
+}
+
+/* ==================== PRINT STYLES ==================== */
+
+@media print {
+    .upload-btn,
+    .btn,
+    .navbar {
+        display: none !important;
+    }
+    
+    .upload-card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}
     </style>
 </head>
 <body>
